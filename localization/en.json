@@ -24,6 +24,8 @@
   "loading_screenplay": "🎬 Loading screenplay: {film_name}...",
   "project_dir": "📁 Project directory: {path}",
   "presets_load_error": "⚠️ Warning: Could not load t2i_presets.json ({error}). Using default workflow.",
+  "variables_initialized": "📋 Initialized screenplay variables ({count}): {vars}",
+  "variables_updated": "   ✨ Variable update for Scene {id}: {updates}",
 
   "phase1_start": "\n✍️ PHASE 1: Screenplay & character prompts are being written (LM Studio)...",
   "phase1_developing_chars": "\n🎭 Developing character prompts based on screenplay & model...",

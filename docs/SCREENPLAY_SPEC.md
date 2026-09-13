@@ -10,6 +10,11 @@ A valid screenplay JSON consists of a single root object with two primary arrays
 
 ```json
 {
+  "titel": "Movie Title",
+  "variablen": {
+    "outfit_elara": "white silk slip dress",
+    "lighting": "warm sunset"
+  },
   "charaktere": [ ... ],
   "szenen": [ ... ]
 }
@@ -17,6 +22,8 @@ A valid screenplay JSON consists of a single root object with two primary arrays
 
 | Key | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
+| `titel` / `title` | `String` | No | Display title for the movie project and Civitai metadata tags. |
+| `variablen` / `variables` | `Object` | No | Key-value dictionary of initial story state (e.g. character wardrobe, weather, lighting). |
 | `charaktere` | `Array<CharacterObject>` | Yes | Defines the cast of actors/subjects to be cast and visually referenced across scenes. |
 | `szenen` | `Array<SceneObject>` | Yes | Defines the sequence of shots/scenes to be generated, directed, and spliced together. |
 
@@ -78,14 +85,47 @@ Each item in `szenen` represents an individual camera shot rendered by Minimax.
 | Field | Type | Required | Default | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | `Integer` | **Yes** | — | Numerical sequence identifier for the scene (`1, 2, 3...`). Scenes are rendered and ordered strictly by ID. |
-| `idee` / `prompt` | `String` | **Yes** | — | Scene narrative idea or director instruction. Can be written in English or German. Phase 1 (LM Studio) translates and expands this into cinematic camera, lighting, and soundscape instructions. |
+| `idee` / `prompt` | `String` | **Yes** | — | Scene narrative idea or director instruction. Supports `{variable_name}` placeholder substitution. |
 | `dauer_sekunden` | `Integer` | No | Estimated by LLM (3–10) | Target video length in seconds (typically between 4 and 8 seconds). |
 | `anschluss_an_vorherige_szene` | `Boolean` | No | `false` | **Environmental Continuity**. When `true`, passes the previous rendered scene video into Minimax as `ref_videos.ref_video_0` to preserve the room, lighting, and atmosphere. |
 | `direkter_anschluss` | `Boolean` | No | `false` | **Match Cut (Zero Jump Cut)**. When `true`, automatically extracts the exact last frame of the previous scene and uses it as the initial frame (`MiniMaxH3AddGuide`). The action continues without interruption. |
+| `variablen_update` / `set_variables` | `Object` | No | `{}` | Key-value updates to story/wardrobe variables (e.g. `{"outfit_chloe": "wearing only pink top, apron removed"}`). Updated values automatically persist for all subsequent scenes until modified again. |
 
 ---
 
-## 3. Continuity Modes Explained
+## 3. Dynamic Variables & Wardrobe Continuity
+
+In multi-scene AI movies, characters frequently change clothes, undress, get wet, or undergo visual changes. By default, Minimax references the static casting image (`<Picture X>`) for facial identity, which means Minimax will attempt to redraw the original clothing unless explicitly told otherwise.
+
+The **Variable System** solves this by maintaining a persistent state machine across scenes:
+
+### How it works:
+1. **Define Baseline Outfits** in the root `"variablen"` dictionary (or per character in `"charaktere"`):
+   ```json
+   "variablen": {
+     "outfit_chloe": "white chef apron over light pink top",
+     "outfit_liam": "simple grey t-shirt"
+   }
+   ```
+2. **Update Variables on Specific Scenes** via `"variablen_update"`:
+   ```json
+   {
+     "id": 5,
+     "idee": "Chloe stirs the eggs, then slowly unties her apron and sets it on the counter.",
+     "variablen_update": {
+       "outfit_chloe": "wearing only light pink top, chef apron untied and removed"
+     }
+   }
+   ```
+3. **Template Interpolation in Ideas**: You can use `{variable_name}` directly inside `idee`:
+   ```json
+   "idee": "Medium Shot: Chloe ({outfit_chloe}) and Liam ({outfit_liam}) work side-by-side."
+   ```
+4. **Automatic Minimax Prompt Injection**: The engine automatically compiles the current active states into a `CRITICAL CHARACTER WARDROBE & STATE CONTINUITY` block for LM Studio. This instructs Minimax to use `<Picture X>` solely for the actor's facial likeness while forcefully rendering their current scene clothing.
+
+---
+
+## 4. Continuity Modes Explained
 
 The pipeline provides two distinct levels of continuity between scenes:
 

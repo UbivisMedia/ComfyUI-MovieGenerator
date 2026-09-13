@@ -1,6 +1,10 @@
 {
   "titel": "The Artifact",
-  "beschreibung": "A concise 3-scene demonstration showcasing character casting, environmental continuity, and seamless match cut transitions.",
+  "beschreibung": "A concise 3-scene demonstration showcasing character casting, environmental continuity, and dynamic wardrobe variables.",
+  "variablen": {
+    "outfit_maya": "worn tactical jacket over techwear vest",
+    "goggles": "resting around her neck"
+  },
   "charaktere": [
     {
       "id": 1,
@@ -18,21 +22,24 @@
     {
       "id": 1,
       "dauer_sekunden": 5,
-      "idee": "Maya walks cautiously through a dimly lit ancient stone corridor, holding a holographic scanner that casts a soft cyan glow over dust particles in the air."
+      "idee": "Maya walks cautiously through a dimly lit ancient stone corridor in her {outfit_maya}, holding a holographic scanner casting a soft cyan glow."
     },
     {
       "id": 2,
       "anschluss_an_vorherige_szene": true,
       "direkter_anschluss": false,
       "dauer_sekunden": 5,
-      "idee": "Maya discovers an illuminated pedestal in the center of the chamber. She approaches slowly and reaches her hand out toward a hovering golden crystalline artifact."
+      "variablen_update": {
+        "goggles": "pulled up over her eyes, glowing with cyan digital HUD readouts"
+      },
+      "idee": "Maya discovers an illuminated pedestal. With her goggles {goggles}, she approaches slowly and reaches toward the hovering golden crystalline artifact."
     },
     {
       "id": 3,
       "anschluss_an_vorherige_szene": true,
       "direkter_anschluss": true,
       "dauer_sekunden": 4,
-      "idee": "Direct seamless continuation: Maya's fingers touch the artifact. Instantly, radiant energy ripples across its surface and illuminates her face in pure awe as light beams reflect in her eyes."
+      "idee": "Direct seamless continuation: Maya's fingers touch the artifact. Instantly, radiant energy ripples across its surface, illuminating her goggles and face in pure awe."
     }
   ]
 }

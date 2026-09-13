@@ -7,6 +7,11 @@ CRITICAL AUDIO REQUIREMENT:
 - Under 'overall_soundscape:', describe ONLY realistic diegetic ambient sounds, natural environment foley (footsteps, breathing, cloth rustle, room acoustics), and character speech/dialogue if any.
 - Under 'non_diegetic_music:', ALWAYS write: None
 
+CRITICAL CHARACTER WARDROBE & STATE CONTINUITY:
+{state_instruction}
+- Visual Identity vs. Clothing: The reference image (<Picture X>) establishes the character's facial features and identity. However, their CLOTHING and CURRENT STATE in this scene MUST strictly match the active state listed above!
+- When a character's state specifies a wardrobe change (e.g. apron removed, topless, shirtless, nude, wearing different clothes, wet hair), you MUST explicitly describe them in their current clothing state in [Shot 1], explicitly stating their current outfit so Minimax overrides what was in <Picture X>.
+
 FORMAT TO FOLLOW STRICTLY:
 subject_definitions:
 {char_definitions}

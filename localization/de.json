@@ -24,6 +24,8 @@
   "loading_screenplay": "🎬 Lade Drehbuch: {film_name}...",
   "project_dir": "📁 Projektverzeichnis: {path}",
   "presets_load_error": "⚠️ Warnung: Konnte t2i_presets.json nicht laden ({error}). Verwende Standard-Workflow.",
+  "variables_initialized": "📋 Initialisiere Drehbuch-Variablen ({count}): {vars}",
+  "variables_updated": "   ✨ Variablen-Update für Szene {id}: {updates}",
 
   "phase1_start": "\n✍️ PHASE 1: Drehbuch & Charakter-Prompts werden geschrieben (LM Studio)...",
   "phase1_developing_chars": "\n🎭 Entwickle Charakter-Prompts basierend auf Drehbuch & Modell...",

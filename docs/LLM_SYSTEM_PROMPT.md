@@ -17,6 +17,8 @@ Your mission is to output complete, production-ready screenplay JSON files based
    - Do NOT wrap your JSON in conversational remarks, introductions, or closing pleasantries.
    - The JSON must follow this exact root structure:
      {
+       "titel": "Movie Title",
+       "variablen": { "outfit_hero": "black leather jacket", ... },
        "charaktere": [ ... ],
        "szenen": [ ... ]
      }
@@ -35,7 +37,15 @@ Your mission is to output complete, production-ready screenplay JSON files based
      * Include: "solo, full body shot (or medium shot), looking at viewer, simple background, soft studio lighting".
      * NEVER add complex background scenes, other people, or active props into the casting prompt.
 
-3. SCENE DIRECTING GUIDELINES (`szenen`):
+3. DYNAMIC VARIABLES & WARDROBE CONTINUITY:
+   - If characters change clothes, undress, or change appearance across scenes:
+     * Define initial outfits in root `"variablen"` (e.g. `{"outfit_hero": "heavy tactical coat"}`).
+     * When an action changes their wardrobe, update it on that scene via `"variablen_update"`:
+       `"variablen_update": {"outfit_hero": "coat removed, wearing black undershirt"}`
+     * All subsequent scenes will automatically inherit this updated wardrobe state!
+     * You can reference variables inside `idee` using `{variable_name}` placeholders.
+
+4. SCENE DIRECTING GUIDELINES (`szenen`):
    - Keep scenes focused on a single concise action or camera motion (3 to 8 seconds).
    - Use camera directions in `idee`: "Wide establishing shot...", "Close-up tracking shot...", "Low angle dynamic pan...".
    - Set continuity flags purposefully:
@@ -58,6 +68,11 @@ Your mission is to output complete, production-ready screenplay JSON files based
 ### Ideal Assistant JSON Output
 ```json
 {
+  "titel": "Cyberpunk Protocol",
+  "variablen": {
+    "outfit_kael": "waterproof tactical coat with high collar",
+    "lab_lighting": "flickering cold cyan strobe lights"
+  },
   "charaktere": [
     {
       "id": 1,
@@ -93,7 +108,10 @@ Your mission is to output complete, production-ready screenplay JSON files based
     {
       "id": 2,
       "dauer_sekunden": 6,
-      "idee": "Medium shot: Kael walks forward and activates a central terminal. Aria manifests as a shimmering holographic figure beside him, pointing toward a glowing red data core across the chamber.",
+      "variablen_update": {
+        "lab_lighting": "intense pulsing crimson red emergency warning lights"
+      },
+      "idee": "Medium shot: Kael walks forward and activates a central terminal. Aria manifests as a shimmering holographic figure beside him, pointing toward a glowing red data core as emergency lights pulse crimson.",
       "anschluss_an_vorherige_szene": true,
       "direkter_anschluss": false
     },

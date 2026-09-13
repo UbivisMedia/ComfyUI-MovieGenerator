@@ -300,7 +300,62 @@ GUIDELINES:
         print(t("char_prompt_error", error=e))
         return existing_prompt
 
-def ask_lm_studio(idea, characters, use_previous_scene=False, direct_continuation=False):
+def interpolate_variables(text, variables):
+    """Replaces {variable_name} in text with its current value from variables dictionary."""
+    if not text or not variables:
+        return text
+    result = text
+    for key, val in variables.items():
+        result = result.replace(f"{{{key}}}", str(val))
+    return result
+
+def format_state_instruction(characters, active_variables=None, character_states=None):
+    """Formats active character wardrobe and environment variables into instructions for the LLM."""
+    lines = []
+    
+    # 1. Check per-character outfits and states
+    for i, char in enumerate(characters):
+        c_name = char.get("name", f"actor_{i+1}")
+        state_parts = []
+        
+        # Check character_states dictionary passed for this scene
+        if character_states and c_name in character_states:
+            c_val = character_states[c_name]
+            if isinstance(c_val, dict):
+                for k, v in c_val.items():
+                    state_parts.append(f"{k}: {v}")
+            else:
+                state_parts.append(str(c_val))
+                
+        # Also check active_variables for keys associated with this character (e.g. outfit_chloe, chloe_outfit)
+        if active_variables:
+            clean_name = re.sub(r'[^a-zA-Z0-9]', '', c_name.lower())
+            for vk, vv in active_variables.items():
+                clean_vk = re.sub(r'[^a-zA-Z0-9]', '', vk.lower())
+                if clean_name and clean_name in clean_vk:
+                    entry = f"{vk}: {vv}"
+                    if entry not in state_parts and str(vv) not in state_parts:
+                        state_parts.append(entry)
+                        
+        if state_parts:
+            lines.append(f"- {c_name} (<Subject {i+1}>): {', '.join(state_parts)}")
+            
+    # 2. Add remaining general scene/environment variables
+    if active_variables:
+        char_names_clean = [re.sub(r'[^a-zA-Z0-9]', '', c.get("name", "").lower()) for c in characters]
+        general_vars = []
+        for vk, vv in active_variables.items():
+            clean_vk = re.sub(r'[^a-zA-Z0-9]', '', vk.lower())
+            if not any(cn in clean_vk for cn in char_names_clean if cn):
+                general_vars.append(f"{vk} = '{vv}'")
+        if general_vars:
+            lines.append(f"- Active Story Variables: {', '.join(general_vars)}")
+            
+    if lines:
+        return "\n".join(lines)
+    return "None (All characters appear in their standard reference wardrobe/appearance)."
+
+def ask_lm_studio(idea, characters, use_previous_scene=False, direct_continuation=False, active_variables=None, character_states=None):
     print(t("scene_elaborating", idea=idea))
     
     char_definitions = ""
@@ -322,6 +377,7 @@ def ask_lm_studio(idea, characters, use_previous_scene=False, direct_continuatio
         video_instructions.append(matchcut_snippet.strip())
 
     video_instruction = ("\nIMPORTANT CONTINUITY INSTRUCTIONS:\n" + "\n".join(video_instructions)) if video_instructions else ""
+    state_instruction = format_state_instruction(characters, active_variables, character_states)
 
     default_minimax_instruction = """You are an expert prompt engineer for the Minimax video generation model.
 You will receive a short scene idea in German. Translate it to English and expand it into this EXACT format.
@@ -331,6 +387,11 @@ CRITICAL AUDIO REQUIREMENT:
 - Absolutely NO non-diegetic background music, soundtrack, or score! The individual scenes will be spliced together, so inconsistent music ruins the final movie.
 - Under 'overall_soundscape:', describe ONLY realistic diegetic ambient sounds, natural environment foley (footsteps, breathing, cloth rustle, room acoustics), and character speech/dialogue if any.
 - Under 'non_diegetic_music:', ALWAYS write: None
+
+CRITICAL CHARACTER WARDROBE & STATE CONTINUITY:
+{state_instruction}
+- Visual Identity vs. Clothing: The reference image (<Picture X>) establishes the character's facial features and identity. However, their CLOTHING and CURRENT STATE in this scene MUST strictly match the active state listed above!
+- When a character's state specifies a wardrobe change (e.g. apron removed, topless, shirtless, nude, wearing different clothes, wet hair), you MUST explicitly describe them in their current clothing state in [Shot 1], explicitly stating their current outfit so Minimax overrides what was in <Picture X>.
 
 FORMAT TO FOLLOW STRICTLY:
 subject_definitions:
@@ -358,6 +419,7 @@ Here is the scene idea:
         minimax_template,
         char_definitions=char_definitions.strip(),
         video_instruction=video_instruction,
+        state_instruction=state_instruction,
         idee=idea
     )
 
@@ -394,10 +456,11 @@ Here is the scene idea:
         return content, duration
     except Exception as e:
         print(t("lms_scene_error", error=e))
+        state_fallback = f"\n[Active Wardrobe & State: {state_instruction}]" if active_variables or character_states else ""
         return (
             f"subject_definitions:\n{char_definitions.strip()}\n\n"
             f"summary:\n[reference generation] {idea}\n\n"
-            f"detailed_description:\n[Shot 1]: {idea}\n\n"
+            f"detailed_description:\n[Shot 1]: {idea}{state_fallback}\n\n"
             f"overall_soundscape:\nNatural ambient room sounds, diegetic foley effects, and speech. Strictly no background music.\n\n"
             f"non_diegetic_music:\nNone",
             5
@@ -452,6 +515,9 @@ def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_
             p_text = s.get("prompt", "").strip()
             if p_text:
                 civitai_summary.append(f"  Prompt: {p_text}")
+            if s.get("variables"):
+                var_str = ", ".join([f"{k}='{v}'" for k, v in s["variables"].items()])
+                civitai_summary.append(f"  State: {var_str}")
 
     full_description = "\n".join(civitai_summary)
 
@@ -578,11 +644,29 @@ def main():
     print(t("phase1_start"))
     lms_load()
     
+    # Initialize screenplay variables
+    active_variables = {}
+    root_vars = screenplay.get("variablen") or screenplay.get("variables") or {}
+    if isinstance(root_vars, dict):
+        active_variables.update(root_vars)
+
+    characters_list = screenplay.get("charaktere") or screenplay.get("characters") or []
+    for c in characters_list:
+        c_name = c.get("name", "").strip()
+        c_outfit = c.get("outfit") or c.get("kleidung") or c.get("status")
+        if c_outfit and c_name:
+            var_key = f"outfit_{re.sub(r'[^a-zA-Z0-9]', '_', c_name.lower())}"
+            if var_key not in active_variables:
+                active_variables[var_key] = str(c_outfit)
+
+    if active_variables:
+        var_summary = ", ".join(f"{k}='{v}'" for k, v in active_variables.items())
+        print(t("variables_initialized", count=len(active_variables), vars=var_summary))
+
     prepared_scenes = []
     try:
         # 1. Generate/optimize character prompts via AI (if not already cached)
         print(t("phase1_developing_chars"))
-        characters_list = screenplay.get("charaktere") or screenplay.get("characters") or []
         for i, char in enumerate(characters_list):
             char_name = char.get("name", f"actor_{i+1}").strip()
             safe_name = re.sub(r'[\\/*?:"<>| ]', '_', char_name)
@@ -612,15 +696,44 @@ def main():
         for scene in scenes_list:
             use_previous_scene = scene.get("anschluss_an_vorherige_szene", False) or scene.get("continuity_environment", False)
             direct_continuation = scene.get("direkter_anschluss", False) or scene.get("direct_continuation", False)
-            scene_idea = scene.get("idee") or scene.get("idea", "")
-            minimax_prompt, calculated_duration = ask_lm_studio(scene_idea, characters_list, use_previous_scene, direct_continuation)
+
+            # Check for scene-level variable updates
+            scene_var_updates = (
+                scene.get("variablen_update") or 
+                scene.get("variablen") or 
+                scene.get("set_variables") or 
+                scene.get("variables_update") or 
+                scene.get("variables") or 
+                {}
+            )
+            if isinstance(scene_var_updates, dict) and scene_var_updates:
+                active_variables.update(scene_var_updates)
+                update_summary = ", ".join(f"{k}='{v}'" for k, v in scene_var_updates.items())
+                print(t("variables_updated", id=scene['id'], updates=update_summary))
+
+            # Check for per-scene character status updates (e.g. {"Chloe": "apron removed", ...})
+            char_status_updates = scene.get("charakter_status") or scene.get("character_status") or {}
+
+            # Interpolate variables in scene idea: {variable_name}
+            raw_scene_idea = scene.get("idee") or scene.get("idea", "")
+            scene_idea = interpolate_variables(raw_scene_idea, active_variables)
+
+            minimax_prompt, calculated_duration = ask_lm_studio(
+                scene_idea,
+                characters_list,
+                use_previous_scene,
+                direct_continuation,
+                active_variables=active_variables,
+                character_states=char_status_updates
+            )
             
             prepared_scenes.append({
                 "id": scene["id"],
                 "prompt": minimax_prompt,
                 "dauer": calculated_duration,
                 "nutze_vorherige_szene": use_previous_scene,
-                "direkter_anschluss": direct_continuation
+                "direkter_anschluss": direct_continuation,
+                "variables": dict(active_variables)
             })
             continuity_txt = t("scene_continuity_seamless") if direct_continuation else (t("scene_continuity_ref") if use_previous_scene else "")
             print(t("scene_written", id=scene['id'], dauer=calculated_duration, anschluss=continuity_txt))
