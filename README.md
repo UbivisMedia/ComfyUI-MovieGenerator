@@ -180,9 +180,9 @@ Adjust your local network addresses and preferences in `settings.json`:
 ## 📚 Documentation Index
 
 For in-depth references, check the `docs/` folder:
-- **[Screenplay JSON Specification](/docs/SCREENPLAY_SPEC.md)**: Field-by-field reference, data types, and continuity flags.
-- **[Presets & LoRA Reference](f/docs/PRESETS_AND_LORAS.md)**: Catalog of 100+ supported LoRAs and model presets.
-- **[LLM System Prompt](/docs/LLM_SYSTEM_PROMPT.md)**: Copy-paste system prompt for ChatGPT/Claude/Gemma to write valid screenplays.
+- **[Screenplay JSON Specification](docs/SCREENPLAY_SPEC.md)**: Field-by-field reference, data types, and continuity flags.
+- **[Presets & LoRA Reference](docs/PRESETS_AND_LORAS.md)**: Catalog of 100+ supported LoRAs and model presets.
+- **[LLM System Prompt](docs/LLM_SYSTEM_PROMPT.md)**: Copy-paste system prompt for ChatGPT/Claude/Gemma to write valid screenplays.
 
 ---
 
