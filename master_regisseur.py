@@ -110,10 +110,24 @@ def lms_load():
 def lms_unload():
     print(t("lms_unloading"))
     try:
-        subprocess.run(["lms", "unload", "--all"], check=True, capture_output=True)
+        subprocess.run(["lms", "unload", "--all"], check=False, capture_output=True)
         print(t("lms_unloaded"))
     except Exception as e:
         print(t("lms_unload_error", error=e))
+
+def free_comfyui_memory(unload_models=False, free_memory=True):
+    """Frees ComfyUI memory/VRAM cache via its /free endpoint."""
+    try:
+        data = json.dumps({"unload_models": unload_models, "free_memory": free_memory}).encode("utf-8")
+        req = urllib.request.Request(
+            f"http://{SERVER_ADDRESS}/free",
+            data=data,
+            headers={"Content-Type": "application/json"}
+        )
+        urllib.request.urlopen(req, timeout=5)
+        print(t("vram_cleanup"))
+    except Exception:
+        pass
 
 def queue_prompt(prompt_workflow):
     p = {"prompt": prompt_workflow, "client_id": "master_regisseur"}
@@ -794,6 +808,9 @@ def main():
                 break
             time.sleep(2)
 
+    # Free T2I casting models (Anima, WanVAE, BiRefNet) from VRAM before starting video generation
+    free_comfyui_memory(unload_models=True, free_memory=True)
+
     # =========================================================================
     # PHASE 3: Video Production (Minimax Studio)
     # =========================================================================
@@ -909,6 +926,7 @@ def main():
                                 
                                 last_video_data = vid_data
                                 last_video_path = target_path
+                                free_comfyui_memory(unload_models=False, free_memory=True)
                                 break
                 break
             time.sleep(10)

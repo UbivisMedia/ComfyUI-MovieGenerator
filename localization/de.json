@@ -52,5 +52,6 @@
   "scene_extract_last_frame_failed": "   ⚠️ Konnte letzten Frame nicht extrahieren, fahre mit Standard-Workflow fort.",
   "scene_rendering_started": "   🚀 Rendern gestartet...",
   "scene_finished": "   ✅ Szene {id} ist im Kasten! ({path})",
+  "vram_cleanup": "   🧹 Gebe ungenutzten VRAM in ComfyUI frei...",
   "all_scenes_finished": "\n🎉 ALLE SZENEN FERTIG!"
 }
