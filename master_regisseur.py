@@ -529,24 +529,51 @@ def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_
     }
     metadata_json_str = json.dumps(metadata_json, ensure_ascii=False)
 
+    def escape_ffmetadata(val):
+        val = str(val).replace('\\', '\\\\')
+        val = val.replace('=', '\\=')
+        val = val.replace(';', '\\;')
+        val = val.replace('#', '\\#')
+        val = val.replace('\n', '\\\n')
+        return val
+
+    # Write metadata to a dedicated ffmetadata file to bypass Windows command line length limits (WinError 206)
+    ffmeta_path = os.path.join(scenes_dir, "ffmetadata.txt")
+    with open(ffmeta_path, "w", encoding="utf-8") as f:
+        f.write(";FFMETADATA1\n")
+        f.write(f"title={escape_ffmetadata(movie_title)}\n")
+        f.write("artist=MovieGenerator AI Studio\n")
+        f.write(f"description={escape_ffmetadata(full_description)}\n")
+        f.write(f"comment={escape_ffmetadata(metadata_json_str)}\n")
+
     cmd = [
-        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", "ffmpeg_list.txt",
+        "ffmpeg", "-y",
+        "-f", "concat", "-safe", "0", "-i", "ffmpeg_list.txt",
+        "-i", "ffmetadata.txt",
+        "-map_metadata", "1",
         "-c", "copy",
-        "-metadata", f"title={movie_title}",
-        "-metadata", "artist=MovieGenerator AI Studio",
-        "-metadata", f"description={full_description}",
-        "-metadata", f"comment={metadata_json_str}",
         final_video_path
     ]
     
     try:
-        subprocess.run(cmd, cwd=scenes_dir, check=True, capture_output=True)
+        res = subprocess.run(cmd, cwd=scenes_dir, check=True, capture_output=True, text=True)
         print(t("cutting_success", path=final_video_path))
+    except subprocess.CalledProcessError as cpe:
+        err_msg = cpe.stderr.strip() if cpe.stderr else str(cpe)
+        print(t("cutting_error", error=err_msg))
     except Exception as e:
         print(t("cutting_error", error=e))
         
     if os.path.exists(list_path):
-        os.remove(list_path)
+        try:
+            os.remove(list_path)
+        except Exception:
+            pass
+    if os.path.exists(ffmeta_path):
+        try:
+            os.remove(ffmeta_path)
+        except Exception:
+            pass
 
 def main():
     # 1. Determine screenplay input
