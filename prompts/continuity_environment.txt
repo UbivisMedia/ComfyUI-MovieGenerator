@@ -1,0 +1,1 @@
+The user wants to keep the continuity from the previous scene. You MUST include '<Video 1> establishes the environment' in your detailed description so the model knows to use the previous video as a reference for the location/setting.

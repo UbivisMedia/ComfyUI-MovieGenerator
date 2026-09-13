@@ -1,0 +1,38 @@
+{
+  "titel": "The Artifact",
+  "beschreibung": "A concise 3-scene demonstration showcasing character casting, environmental continuity, and seamless match cut transitions.",
+  "charaktere": [
+    {
+      "id": 1,
+      "name": "Maya",
+      "modell": "anima_cyberrealistic",
+      "loras": [
+        "realskin",
+        "anima_detailer"
+      ],
+      "beschreibung": "A skilled cyber-archeologist exploring an ancient subterranean vault.",
+      "prompt": "masterpiece, best quality, highres, 1girl, young adult woman, 26 years old, solo, messy dark hair tied in ponytail, focused hazel eyes, futuristic dust goggles around neck, worn tactical jacket with shoulder patches, high-collar techwear vest, utility belt with glowing tools, subtle facial scar, standing, soft dramatic rim lighting, simple dark background"
+    }
+  ],
+  "szenen": [
+    {
+      "id": 1,
+      "dauer_sekunden": 5,
+      "idee": "Maya walks cautiously through a dimly lit ancient stone corridor, holding a holographic scanner that casts a soft cyan glow over dust particles in the air."
+    },
+    {
+      "id": 2,
+      "anschluss_an_vorherige_szene": true,
+      "direkter_anschluss": false,
+      "dauer_sekunden": 5,
+      "idee": "Maya discovers an illuminated pedestal in the center of the chamber. She approaches slowly and reaches her hand out toward a hovering golden crystalline artifact."
+    },
+    {
+      "id": 3,
+      "anschluss_an_vorherige_szene": true,
+      "direkter_anschluss": true,
+      "dauer_sekunden": 4,
+      "idee": "Direct seamless continuation: Maya's fingers touch the artifact. Instantly, radiant energy ripples across its surface and illuminates her face in pure awe as light beams reflect in her eyes."
+    }
+  ]
+}

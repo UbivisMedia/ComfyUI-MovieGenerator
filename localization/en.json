@@ -1,0 +1,56 @@
+{
+  "lms_loading": "🔄 Assigning '{model}' as screenwriter...",
+  "lms_loaded": "✅ Screenwriter hired!",
+  "lms_load_error": "⚠️ Warning: Could not run 'lms load'. Is the LM Studio Local Server running? ({error})",
+  "lms_unloading": "\n🧹 Screenplay is finished, the writer is no longer needed...",
+  "lms_unloaded": "✅ Memory successfully released!",
+  "lms_unload_error": "⚠️ Warning: Could not unload LLM. ({error})",
+
+  "char_prompt_error": "   ⚠️ Warning: LM Studio character generation failed ({error}). Using existing description.",
+  "scene_elaborating": "🧠 Elaborating scene: '{idea}'...",
+  "lms_scene_error": "ERROR in LM Studio: {error}",
+
+  "cutting_start": "\n🎞️ Splicing all scenes into a final movie...",
+  "cutting_no_scenes": "⚠️ No scenes found to edit.",
+  "cutting_success": "🍿 PREMIERE! Your complete movie is ready here:\n👉 {path}",
+  "cutting_error": "⚠️ Error while cutting with FFmpeg: {error}",
+
+  "menu_available_screenplays": "🎬 Available screenplays in 'Projects' folder:",
+  "menu_instruction": "\nPlease enter a number or drag & drop a file onto Film_starten.bat:",
+  "menu_prompt": "Choice: ",
+  "menu_invalid_choice": "❌ Invalid choice.",
+  "menu_no_screenplays": "❌ ERROR: No screenplays found. Please drag & drop a screenplay JSON onto the .bat file!",
+
+  "loading_screenplay": "🎬 Loading screenplay: {film_name}...",
+  "project_dir": "📁 Project directory: {path}",
+  "presets_load_error": "⚠️ Warning: Could not load t2i_presets.json ({error}). Using default workflow.",
+
+  "phase1_start": "\n✍️ PHASE 1: Screenplay & character prompts are being written (LM Studio)...",
+  "phase1_developing_chars": "\n🎭 Developing character prompts based on screenplay & model...",
+  "char_already_exists_skip_prompt": "   ♻️ Character '{name}' already exists ({file}) -> skipping prompt generation.",
+  "char_keep_manual_prompt": "   ℹ️ Keeping manual prompt for '{name}'.",
+  "char_optimizing_prompt": "   🧠 Optimizing casting prompt for '{name}' (Model: {preset})...",
+  "char_new_prompt": "   ✨ New prompt for {name}: {prompt}...",
+  "phase1_writing_scenes": "\n🎬 Writing Minimax scene prompts...",
+  "scene_continuity_seamless": " | 🔗 Seamless match cut",
+  "scene_continuity_ref": " | 🔗 Previous scene as reference",
+  "scene_written": "   ✅ Scene {id} written ({dauer} sec{anschluss}).",
+
+  "phase2_start": "\n🖌️ PHASE 2: Casting actors (T2I in ComfyUI)...",
+  "comfyui_unreachable": "\n❌ ERROR: ComfyUI is not reachable at http://{server}!\n   Please ensure ComfyUI is running and restart the script.",
+  "char_already_exists_skip_t2i": "   ♻️ Character '{name}' already exists ({file}) -> T2I skipped!",
+  "model_unknown_fallback": "   ⚠️ Unknown model '{model}', falling back to '{default}'.",
+  "lora_compat_notice": "   ⚠️ Notice: LoRA '{lora}' is optimized for: {models} (chosen model: {chosen})",
+  "char_casting_running": "-> Casting running for character {num}: {name} (Model: {model}{loras} | {steps} Steps | CFG {cfg})",
+  "char_generated_saved": "   ✅ {name} newly generated and saved to '{file}'!",
+
+  "phase3_start": "\n🎥 PHASE 3: Filming begins in Minimax Studio...",
+  "scene_shooting": "\n🎬 Shooting scene {id}...",
+  "scene_linking_prev": "   🔗 Linking previous scene as environment reference (optimized to 672x384)...",
+  "scene_extracting_last_frame": "   📸 Extracting last frame of previous scene as start frame...",
+  "scene_direct_connection_active": "   🎬 Match cut active: Last frame anchored as first_frame ({frame})!",
+  "scene_extract_last_frame_failed": "   ⚠️ Could not extract last frame, continuing with standard workflow.",
+  "scene_rendering_started": "   🚀 Rendering started...",
+  "scene_finished": "   ✅ Scene {id} wrapped! ({path})",
+  "all_scenes_finished": "\n🎉 ALL SCENES FINISHED!"
+}

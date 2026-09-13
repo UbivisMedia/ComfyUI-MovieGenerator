@@ -1,0 +1,56 @@
+{
+  "lms_loading": "🔄 Beauftrage '{model}' als Drehbuchautor...",
+  "lms_loaded": "✅ Drehbuchautor engagiert!",
+  "lms_load_error": "⚠️ Warnung: Konnte 'lms load' nicht ausführen. Läuft der LM Studio Local Server? ({error})",
+  "lms_unloading": "\n🧹 Drehbuch ist abgeschlossen, der Autor wird nicht mehr benötigt...",
+  "lms_unloaded": "✅ Arbeitsspeicher erfolgreich freigegeben!",
+  "lms_unload_error": "⚠️ Warnung: Konnte LLM nicht entladen. ({error})",
+
+  "char_prompt_error": "   ⚠️ Warnung: LM Studio Charakter-Generierung ({error}). Verwende bestehende Beschreibung.",
+  "scene_elaborating": "🧠 Szene wird ausgearbeitet: '{idea}'...",
+  "lms_scene_error": "FEHLER bei LM Studio: {error}",
+
+  "cutting_start": "\n🎞️ Schneide alle Szenen zu einem finalen Film zusammen...",
+  "cutting_no_scenes": "⚠️ Keine Szenen zum Schneiden gefunden.",
+  "cutting_success": "🍿 PREMIERE! Dein kompletter Film liegt hier:\n👉 {path}",
+  "cutting_error": "⚠️ Fehler beim Schneiden mit FFmpeg: {error}",
+
+  "menu_available_screenplays": "🎬 Verfügbare Drehbücher im 'Projects'-Ordner:",
+  "menu_instruction": "\nBitte Nummer eingeben oder eine Datei per Drag & Drop auf Film_starten.bat ziehen:",
+  "menu_prompt": "Auswahl: ",
+  "menu_invalid_choice": "❌ Ungültige Auswahl.",
+  "menu_no_screenplays": "❌ FEHLER: Keine Drehbücher gefunden. Bitte ziehe eine Drehbuch-JSON per Drag & Drop auf die .bat Datei!",
+
+  "loading_screenplay": "🎬 Lade Drehbuch: {film_name}...",
+  "project_dir": "📁 Projektverzeichnis: {path}",
+  "presets_load_error": "⚠️ Warnung: Konnte t2i_presets.json nicht laden ({error}). Verwende Standard-Workflow.",
+
+  "phase1_start": "\n✍️ PHASE 1: Drehbuch & Charakter-Prompts werden geschrieben (LM Studio)...",
+  "phase1_developing_chars": "\n🎭 Entwickle Charakter-Prompts basierend auf Drehbuch & Modell...",
+  "char_already_exists_skip_prompt": "   ♻️ Charakter '{name}' bereits vorhanden ({file}) -> Prompt-Generierung übersprungen.",
+  "char_keep_manual_prompt": "   ℹ️ Behalte manuellen Prompt für '{name}'.",
+  "char_optimizing_prompt": "   🧠 Optimiere Casting-Prompt für '{name}' (Modell: {preset})...",
+  "char_new_prompt": "   ✨ Neuer Prompt für {name}: {prompt}...",
+  "phase1_writing_scenes": "\n🎬 Schreibe Minimax-Szenenprompts...",
+  "scene_continuity_seamless": " | 🔗 Nahtloser Anschluss",
+  "scene_continuity_ref": " | 🔗 Vorherige Szene als Referenz",
+  "scene_written": "   ✅ Szene {id} getippt ({dauer} Sek{anschluss}).",
+
+  "phase2_start": "\n🖌️ PHASE 2: Caste die Schauspieler (T2I in ComfyUI)...",
+  "comfyui_unreachable": "\n❌ FEHLER: ComfyUI ist nicht erreichbar unter http://{server}!\n   Bitte stelle sicher, dass ComfyUI gestartet ist, und führe das Skript erneut aus.",
+  "char_already_exists_skip_t2i": "   ♻️ Charakter '{name}' bereits vorhanden ({file}) -> T2I übersprungen!",
+  "model_unknown_fallback": "   ⚠️ Unbekanntes Modell '{model}', weiche auf '{default}' aus.",
+  "lora_compat_notice": "   ⚠️ Hinweis: LoRA '{lora}' ist optimiert für: {models} (gewähltes Modell: {chosen})",
+  "char_casting_running": "-> Casting läuft für Charakter {num}: {name} (Modell: {model}{loras} | {steps} Steps | CFG {cfg})",
+  "char_generated_saved": "   ✅ {name} neu generiert und gespeichert in '{file}'!",
+
+  "phase3_start": "\n🎥 PHASE 3: Drehbeginn im Minimax-Studio...",
+  "scene_shooting": "\n🎬 Drehe Szene {id}...",
+  "scene_linking_prev": "   🔗 Verknüpfe vorherige Szene als Umgebungsvorlage (optimiert auf 672x384)...",
+  "scene_extracting_last_frame": "   📸 Extrahiere letzten Frame der vorherigen Szene als Startframe...",
+  "scene_direct_connection_active": "   🎬 Direkter Anschluss aktiv: Letzter Frame als first_frame verankert ({frame})!",
+  "scene_extract_last_frame_failed": "   ⚠️ Konnte letzten Frame nicht extrahieren, fahre mit Standard-Workflow fort.",
+  "scene_rendering_started": "   🚀 Rendern gestartet...",
+  "scene_finished": "   ✅ Szene {id} ist im Kasten! ({path})",
+  "all_scenes_finished": "\n🎉 ALLE SZENEN FERTIG!"
+}
