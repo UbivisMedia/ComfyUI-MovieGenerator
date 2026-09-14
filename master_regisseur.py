@@ -523,6 +523,29 @@ def ask_lm_studio_character(char, screenplay, preset_name, preset):
     """Invokes LM Studio to generate the optimal T2I character casting prompt."""
     char_name = char.get("name", "Character")
     existing_prompt = char.get("prompt") or char.get("beschreibung") or char.get("rolle") or char.get("idee") or char.get("description") or ""
+
+    # Check for optional reference character link (bilingual support)
+    ref_char_val = (
+        char.get("reference_id") or 
+        char.get("referenz_id") or 
+        char.get("reference_character") or 
+        char.get("referenz_charakter") or
+        char.get("parent_character")
+    )
+    if ref_char_val is not None:
+        chars_list = screenplay.get("charaktere") or screenplay.get("characters") or []
+        ref_name = None
+        for c in chars_list:
+            if str(c.get("id")) == str(ref_char_val) or str(c.get("name", "")).strip().lower() == str(ref_char_val).strip().lower():
+                ref_name = c.get("name")
+                break
+        ref_display = f"#{ref_char_val} ('{ref_name}')" if ref_name else f"#{ref_char_val}"
+        ref_notes = (
+            f"\n\n[CHARACTER IDENTITY CONTINUITY]:\n"
+            f"This character is an alternate style version, age progression, or costume variation of reference character {ref_display}. "
+            f"CRITICAL: Maintain the recognizable identity (facial bone structure, hair style/color, eye color) while translating into the requested target style/age."
+        )
+        existing_prompt = (existing_prompt + ref_notes).strip()
     
     # Short scenes overview for narrative context (bilingual support)
     sc_list = screenplay.get("szenen") or screenplay.get("scenes") or []
@@ -1369,6 +1392,14 @@ def main():
         time.sleep(5)
         return
 
+    # Build lookup map for resolving reference characters by ID or name
+    char_lookup = {}
+    for idx_c, c_item in enumerate(characters_list):
+        c_id = c_item.get("id", idx_c + 1)
+        char_lookup[str(c_id)] = c_item
+        if c_item.get("name"):
+            char_lookup[c_item.get("name").strip().lower()] = c_item
+
     for i, char in enumerate(characters_list):
         char_name = char.get("name", f"actor_{i+1}").strip()
         safe_name = re.sub(r'[\\/*?:"<>| ]', '_', char_name)
@@ -1382,6 +1413,70 @@ def main():
             char["echter_dateiname"] = uploaded_name
             print(t("char_already_exists_skip_t2i", name=char_name, file=char_file))
             continue
+
+        # Clean up any leftover I2I nodes from previous characters
+        for k in ["950", "951"]:
+            if k in wf_t2i:
+                del wf_t2i[k]
+
+        # Check for optional character reference link (I2I style transfer / aging)
+        ref_char_val = (
+            char.get("reference_id") or 
+            char.get("referenz_id") or 
+            char.get("reference_character") or 
+            char.get("referenz_charakter") or
+            char.get("parent_character")
+        )
+        has_ref = False
+        ref_char_name = ""
+        denoise_val = 1.0
+
+        if ref_char_val is not None:
+            ref_key = str(ref_char_val).strip()
+            target_ref_char = char_lookup.get(ref_key) or char_lookup.get(ref_key.lower())
+            if target_ref_char:
+                ref_char_name = target_ref_char.get("name", f"actor_{ref_key}").strip()
+                ref_safe = re.sub(r'[\\/*?:"<>| ]', '_', ref_char_name)
+                ref_file = os.path.join(characters_dir, f"{ref_safe}.png")
+                if os.path.exists(ref_file):
+                    try:
+                        with open(ref_file, "rb") as rf:
+                            ref_img_data = rf.read()
+                        uploaded_ref_name = upload_file(ref_img_data, f"ref_{ref_safe}.png", "image/png")
+                        
+                        raw_denoise = char.get("denoise") or char.get("denoising") or char.get("denoising_strength") or 0.65
+                        try:
+                            denoise_val = max(0.05, min(1.0, float(raw_denoise)))
+                        except (ValueError, TypeError):
+                            denoise_val = 0.65
+
+                        # Node 950: Load reference image
+                        wf_t2i["950"] = {
+                            "inputs": {"image": uploaded_ref_name},
+                            "class_type": "LoadImage"
+                        }
+                        # Node 951: Encode reference into latent space using VAE (Node 15)
+                        wf_t2i["951"] = {
+                            "inputs": {
+                                "pixels": ["950", 0],
+                                "vae": ["15", 0]
+                            },
+                            "class_type": "VAEEncode"
+                        }
+                        wf_t2i["19"]["inputs"]["latent_image"] = ["951", 0]
+                        wf_t2i["19"]["inputs"]["denoise"] = denoise_val
+                        has_ref = True
+                    except Exception as re_err:
+                        print(f"   ⚠️ Could not setup reference image for '{ref_char_name}': {re_err}")
+                else:
+                    print(t("char_ref_not_found", ref_id=ref_char_val, ref_name=ref_char_name))
+            else:
+                print(t("char_ref_not_found", ref_id=ref_char_val, ref_name=ref_char_val))
+
+        if not has_ref:
+            # Standard Text-to-Image (T2I)
+            wf_t2i["19"]["inputs"]["latent_image"] = ["28", 0]
+            wf_t2i["19"]["inputs"]["denoise"] = 1.0
 
         # Character does not exist yet -> generate anew
         preset_name = char.get("modell") or char.get("preset") or char.get("model") or t2i_presets.get("default", "anima_catpony")
@@ -1495,7 +1590,10 @@ def main():
         steps_info = wf_t2i["19"]["inputs"].get("steps", "?")
         cfg_info = wf_t2i["19"]["inputs"].get("cfg", "?")
         lora_status_str = f" | LoRAs: {', '.join(applied_loras_info)}" if applied_loras_info else ""
-        print(t("char_casting_running", num=i+1, name=char_name, model=preset_name, loras=lora_status_str, steps=steps_info, cfg=cfg_info))
+        if has_ref:
+            print(t("char_casting_running_ref", num=i+1, name=char_name, ref_id=ref_char_val, ref_name=ref_char_name, denoise=denoise_val, model=preset_name, loras=lora_status_str, steps=steps_info, cfg=cfg_info))
+        else:
+            print(t("char_casting_running", num=i+1, name=char_name, model=preset_name, loras=lora_status_str, steps=steps_info, cfg=cfg_info))
 
         wf_t2i["11"]["inputs"]["text"] = full_prompt
         wf_t2i["19"]["inputs"]["seed"] = random.randint(1, 999999999999999)
@@ -1524,6 +1622,8 @@ def main():
                         )
                         if applied_loras_info:
                             civitai_actor_params += f", LoRAs: {', '.join(applied_loras_info)}"
+                        if has_ref:
+                            civitai_actor_params += f", I2I Reference: #{ref_char_val} ({ref_char_name}), Denoise: {denoise_val}"
 
                         # Save image with embedded Civitai parameters and ComfyUI workflow JSON
                         save_image_with_metadata(img_data, char_file, prompt_workflow=wf_t2i, a1111_params_text=civitai_actor_params)

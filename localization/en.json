@@ -52,6 +52,8 @@
   "model_unknown_fallback": "   ⚠️ Unknown model '{model}', falling back to '{default}'.",
   "lora_compat_notice": "   ⚠️ Notice: LoRA '{lora}' is optimized for: {models} (chosen model: {chosen})",
   "char_casting_running": "-> Casting running for character {num}: {name} (Model: {model}{loras} | {steps} Steps | CFG {cfg})",
+  "char_casting_running_ref": "-> Casting running for character {num}: {name} [I2I Reference: #{ref_id} '{ref_name}', Denoise {denoise}] (Model: {model}{loras} | {steps} Steps | CFG {cfg})",
+  "char_ref_not_found": "   ⚠️ Reference character #{ref_id} ('{ref_name}') not found or not yet rendered! Falling back to standard T2I.",
   "char_generated_saved": "   ✅ {name} newly generated and saved to '{file}'!",
 
   "phase3_start": "\n🎥 PHASE 3: Filming begins in Minimax Studio...",

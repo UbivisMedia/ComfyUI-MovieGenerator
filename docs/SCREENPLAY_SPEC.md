@@ -58,11 +58,14 @@ Each item in `charaktere` defines an actor reference image that will be rendered
 | `loras` / `lora` | `Array<String \| Object>` | No | `[]` | List of LoRAs to apply during casting. Can be a string key (e.g. `"realskin"`) or an object with custom strength: `{"name": "realskin", "strength": 0.8}`. |
 | `prompt` | `String` | Recommended | `""` | Visual description of the character. If `ki_prompt_generieren` is enabled, LM Studio uses this as a starting point to engineer an optimal English prompt. |
 | `negative_prompt` | `String` | No | Preset default | Custom negative prompt overriding the model preset negative prompt. |
+| `reference_id` / `referenz_id` / `reference_character` | `Integer \| String` | No | `null` | **Character Reference Link (I2I Continuity)**. Links this character to a previously cast character by ID (e.g. `1`) or name (e.g. `"Leo_Real_Boy"`). Instead of generating from scratch, ComfyUI uses the reference image as an Image-to-Image latent base, preserving facial structure, posture, and clothing across different styles (e.g. photorealistic $\rightarrow$ anime) or age progressions. |
+| `denoise` | `Float` | No | `0.65` (when referenced), `1.0` (standard T2I) | **Denoising Strength for Reference Casting** (`0.05` to `1.0`). Lower values retain more of the original reference image; higher values grant the new model and prompt more stylistic freedom. |
 | `ki_prompt_generieren` / `auto_prompt` | `Boolean` | No | `true` | When `true`, Phase 1 prompts LM Studio to refine the character prompt. If set to `false`, the exact text in `prompt` is used verbatim. |
 
-### Casting Rules for LLMs
+### Casting Rules & Character Continuity
 1. **Reference Framing**: Characters should always be prompted in a **neutral standing pose** (`full body shot` or `medium shot`, `standing`, `looking at viewer`, `simple background`, `soft studio lighting`). Never put complex background clutter into character casting prompts, as Minimax will mistakenly interpret background clutter as part of the actor's identity!
-2. **Actor Persistence**: If `<name>.png` already exists in `Projects/<film_name>/Characters/`, the pipeline will automatically reuse it. If you want to force re-casting, change the `name` or delete the existing PNG.
+2. **Stylistic Transformation & Aging (`reference_id`)**: When a story calls for the same character across different art styles (e.g. photorealistic boy $\rightarrow$ anime boy) or across age milestones (8-year-old child $\rightarrow$ 90-year-old elder), set `"reference_id": <id>` on the secondary character. ComfyUI will run Image-to-Image over the primary character's portrait, keeping facial proportions and bone structure intact while transforming texture and style.
+3. **Actor Persistence**: If `<name>.png` already exists in `Projects/<film_name>/Characters/`, the pipeline will automatically reuse it. If you want to force re-casting, change the `name` or delete the existing PNG.
 
 ---
 
