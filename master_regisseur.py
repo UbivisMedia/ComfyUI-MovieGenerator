@@ -1097,16 +1097,28 @@ def main():
     # Save a copy of the screenplay in the project directory if not already there
     local_screenplay_copy = os.path.join(project_dir, f"{film_name}.json")
     original_screenplay_backup = os.path.join(project_dir, f"{film_name}_original.json")
-    if os.path.abspath(screenplay_path) != os.path.abspath(local_screenplay_copy):
-        try:
-            shutil.copy2(screenplay_path, local_screenplay_copy)
-        except Exception:
-            pass
 
     # Ensure a pristine copy of the original input screenplay is preserved for diffs/reference
     if not os.path.exists(original_screenplay_backup):
         try:
             shutil.copy2(screenplay_path, original_screenplay_backup)
+        except Exception:
+            pass
+
+    # Check if an extended screenplay already exists in project_dir with pre-generated prompts
+    target_load_path = screenplay_path
+    if os.path.exists(local_screenplay_copy) and os.path.abspath(screenplay_path) != os.path.abspath(local_screenplay_copy):
+        try:
+            with open(local_screenplay_copy, "r", encoding="utf-8") as lf:
+                local_data = json.load(lf)
+            local_scenes = local_data.get("szenen") or local_data.get("scenes") or []
+            if any(s.get("prompt") for s in local_scenes):
+                target_load_path = local_screenplay_copy
+        except Exception:
+            pass
+    elif not os.path.exists(local_screenplay_copy) and os.path.abspath(screenplay_path) != os.path.abspath(local_screenplay_copy):
+        try:
+            shutil.copy2(screenplay_path, local_screenplay_copy)
         except Exception:
             pass
 
@@ -1116,7 +1128,7 @@ def main():
     print(f"   ├── Scenes:     {scenes_dir}")
     print(f"   └── Movie:      {movie_dir}")
 
-    with open(screenplay_path, "r", encoding="utf-8") as f:
+    with open(target_load_path, "r", encoding="utf-8") as f:
         screenplay = json.load(f)
 
     # Load workflows and presets
@@ -1141,9 +1153,6 @@ def main():
     # =========================================================================
     # PHASE 1: Screenwriting & Character Prompting (LM Studio)
     # =========================================================================
-    print(t("phase1_start"))
-    lms_load()
-    
     # Initialize screenplay variables
     active_variables = {}
     root_vars = screenplay.get("variablen") or screenplay.get("variables") or {}
@@ -1163,40 +1172,81 @@ def main():
         var_summary = ", ".join(f"{k}='{v}'" for k, v in active_variables.items())
         print(t("variables_initialized", count=len(active_variables), vars=var_summary))
 
+    scenes_list = screenplay.get("szenen") or screenplay.get("scenes") or []
+
+    # Check if LM Studio is actually needed for any character or scene
+    chars_needing_llm = []
+    for i, char in enumerate(characters_list):
+        char_name = char.get("name", f"actor_{i+1}").strip()
+        safe_name = re.sub(r'[\\/*?:"<>| ]', '_', char_name)
+        char_file = os.path.join(characters_dir, f"{safe_name}.png")
+        if os.path.exists(char_file):
+            continue
+        auto_prompt = not (
+            char.get("ki_prompt_generieren") is False or 
+            char.get("auto_prompt") is False or 
+            char.get("generate_prompt") is False
+        )
+        if auto_prompt and not char.get("prompt"):
+            chars_needing_llm.append(char)
+
+    scenes_needing_llm = []
+    for idx, scene in enumerate(scenes_list):
+        auto_prompt = not (
+            scene.get("ki_prompt_generieren") is False or 
+            scene.get("auto_prompt") is False or 
+            scene.get("generate_prompt") is False
+        )
+        existing_p = (scene.get("prompt") or "").strip()
+        has_minimax_prompt = bool("summary:" in existing_p.lower() or "[shot 1]:" in existing_p.lower())
+        if auto_prompt and not has_minimax_prompt:
+            scenes_needing_llm.append(scene)
+
+    needs_llm = bool(chars_needing_llm or scenes_needing_llm)
+    if needs_llm:
+        print(t("phase1_start"))
+        lms_load()
+    else:
+        print(t("phase1_header_skip", file=os.path.basename(target_load_path)))
+
     prepared_scenes = []
     try:
         # 1. Generate/optimize character prompts via AI (if not already cached)
-        print(t("phase1_developing_chars"))
-        for i, char in enumerate(characters_list):
-            char_name = char.get("name", f"actor_{i+1}").strip()
-            safe_name = re.sub(r'[\\/*?:"<>| ]', '_', char_name)
-            char_file = os.path.join(characters_dir, f"{safe_name}.png")
+        if chars_needing_llm:
+            print(t("phase1_developing_chars"))
+            for i, char in enumerate(characters_list):
+                char_name = char.get("name", f"actor_{i+1}").strip()
+                safe_name = re.sub(r'[\\/*?:"<>| ]', '_', char_name)
+                char_file = os.path.join(characters_dir, f"{safe_name}.png")
 
-            # If character image already exists in folder, skip prompt generation
-            if os.path.exists(char_file):
-                print(t("char_already_exists_skip_prompt", name=char_name, file=char_file))
-                continue
+                # If character image already exists in folder, skip prompt generation
+                if os.path.exists(char_file):
+                    print(t("char_already_exists_skip_prompt", name=char_name, file=char_file))
+                    continue
 
-            preset_name = char.get("modell") or char.get("preset") or char.get("model") or t2i_presets.get("default", "anima_catpony")
-            presets_dict = t2i_presets.get("presets", {})
-            preset = presets_dict.get(preset_name, {})
+                preset_name = char.get("modell") or char.get("preset") or char.get("model") or t2i_presets.get("default", "anima_catpony")
+                presets_dict = t2i_presets.get("presets", {})
+                preset = presets_dict.get(preset_name, {})
 
-            auto_prompt = not (
-                char.get("ki_prompt_generieren") is False or 
-                char.get("auto_prompt") is False or 
-                char.get("generate_prompt") is False
-            )
-            if not auto_prompt:
-                print(t("char_keep_manual_prompt", name=char_name))
-                continue
+                auto_prompt = not (
+                    char.get("ki_prompt_generieren") is False or 
+                    char.get("auto_prompt") is False or 
+                    char.get("generate_prompt") is False
+                )
+                if not auto_prompt:
+                    print(t("char_keep_manual_prompt", name=char_name))
+                    continue
+                if char.get("prompt"):
+                    continue
 
-            print(t("char_optimizing_prompt", name=char_name, preset=preset_name))
-            ki_char_prompt = ask_lm_studio_character(char, screenplay, preset_name, preset)
-            char["prompt"] = ki_char_prompt
-            print(t("char_new_prompt", name=char_name, prompt=ki_char_prompt[:90]))
+                print(t("char_optimizing_prompt", name=char_name, preset=preset_name))
+                ki_char_prompt = ask_lm_studio_character(char, screenplay, preset_name, preset)
+                char["prompt"] = ki_char_prompt
+                print(t("char_new_prompt", name=char_name, prompt=ki_char_prompt[:90]))
 
         # 2. Generate Minimax scene prompts with sequence grouping & previous shot context
-        print(t("phase1_writing_scenes"))
+        if scenes_needing_llm:
+            print(t("phase1_writing_scenes"))
         previous_shot_info = None
         scenes_list = screenplay.get("szenen") or screenplay.get("scenes") or []
         for idx, scene in enumerate(scenes_list):
@@ -1303,9 +1353,24 @@ def main():
                 scene.get("generate_prompt") is False
             )
 
-            if not auto_prompt and scene.get("prompt"):
-                print(t("scene_keep_manual_prompt", id=scene_id))
-                minimax_prompt = scene["prompt"]
+            existing_p = (scene.get("prompt") or "").strip()
+            has_minimax_prompt = bool("summary:" in existing_p.lower() or "[shot 1]:" in existing_p.lower())
+
+            if not auto_prompt and existing_p:
+                if needs_llm:
+                    print(t("scene_keep_manual_prompt", id=scene_id))
+                minimax_prompt = existing_p
+                calculated_duration = (
+                    scene.get("dauer_sekunden") or 
+                    scene.get("duration_seconds") or 
+                    scene.get("duration") or 
+                    scene.get("dauer") or 
+                    5
+                )
+            elif has_minimax_prompt:
+                if needs_llm:
+                    print(t("scene_already_prompted_skip", id=scene_id))
+                minimax_prompt = existing_p
                 calculated_duration = (
                     scene.get("dauer_sekunden") or 
                     scene.get("duration_seconds") or 
@@ -1369,18 +1434,23 @@ def main():
                 continuity_badges.append(t("scene_sequence_badge", seq=seq_name))
 
             anschluss_txt = "".join(continuity_badges)
-            print(t("scene_written", id=scene_id, dauer=calculated_duration, anschluss=anschluss_txt))
+            if needs_llm:
+                print(t("scene_written", id=scene_id, dauer=calculated_duration, anschluss=anschluss_txt))
+            else:
+                print(t("scene_ready", id=scene_id, dauer=calculated_duration, anschluss=anschluss_txt))
 
         # Save extended screenplay with AI-generated character & scene prompts to the project directory
-        try:
-            with open(local_screenplay_copy, "w", encoding="utf-8") as sf:
-                json.dump(screenplay, sf, indent=2, ensure_ascii=False)
-            print(t("screenplay_extended_saved", path=local_screenplay_copy))
-        except Exception as se:
-            print(f"⚠️ Could not save extended screenplay: {se}")
+        if needs_llm:
+            try:
+                with open(local_screenplay_copy, "w", encoding="utf-8") as sf:
+                    json.dump(screenplay, sf, indent=2, ensure_ascii=False)
+                print(t("screenplay_extended_saved", path=local_screenplay_copy))
+            except Exception as se:
+                print(f"⚠️ Could not save extended screenplay: {se}")
     finally:
         # Immediately unload LLM as soon as all screenplay prompts are written!
-        lms_unload()
+        if needs_llm:
+            lms_unload()
 
     # =========================================================================
     # PHASE 2: Actor Casting (T2I in ComfyUI)

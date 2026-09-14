@@ -43,7 +43,11 @@
   "scene_continuity_same_scene": " | 🎬 Gleiche Szene (Winkelwechsel)",
   "scene_sequence_badge": " | 📍 Sequenz: {seq}",
   "scene_written": "   ✅ Szene {id} getippt ({dauer} Sek{anschluss}).",
+  "scene_ready": "   ✅ Szene {id} bereit ({dauer} Sek{anschluss}).",
   "scene_keep_manual_prompt": "   ℹ️ Behalte manuellen Prompt für Szene {id}.",
+  "scene_already_prompted_skip": "   ♻️ Szene {id} hat bereits einen optimierten Prompt -> LM Studio übersprungen.",
+  "phase1_header_skip": "\n✍️ PHASE 1: Drehbuch & Prompts liegen bereits vollständig vor ({file}) -> LM Studio komplett übersprungen!",
+  "phase1_already_developed_skip": "   ♻️ Erweitertes Drehbuch mit allen Prompts liegt bereits vor ({file}) -> LM Studio komplett übersprungen!",
   "screenplay_extended_saved": "   💾 Erweiterte Drehbuchfassung mit LM Studio Prompts gespeichert:\n   👉 {path}",
 
   "phase2_start": "\n🖌️ PHASE 2: Caste die Schauspieler (T2I in ComfyUI)...",

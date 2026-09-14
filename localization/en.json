@@ -43,7 +43,11 @@
   "scene_continuity_same_scene": " | 🎬 Same scene (angle change)",
   "scene_sequence_badge": " | 📍 Sequence: {seq}",
   "scene_written": "   ✅ Scene {id} written ({dauer} sec{anschluss}).",
+  "scene_ready": "   ✅ Scene {id} ready ({dauer} sec{anschluss}).",
   "scene_keep_manual_prompt": "   ℹ️ Keeping manual prompt for Scene {id}.",
+  "scene_already_prompted_skip": "   ♻️ Scene {id} already has an optimized prompt -> LM Studio skipped.",
+  "phase1_header_skip": "\n✍️ PHASE 1: Screenplay & prompts already complete ({file}) -> LM Studio completely skipped!",
+  "phase1_already_developed_skip": "   ♻️ Extended screenplay with all prompts already exists ({file}) -> LM Studio completely skipped!",
   "screenplay_extended_saved": "   💾 Saved extended screenplay with LM Studio prompts:\n   👉 {path}",
 
   "phase2_start": "\n🖌️ PHASE 2: Casting actors (T2I in ComfyUI)...",
