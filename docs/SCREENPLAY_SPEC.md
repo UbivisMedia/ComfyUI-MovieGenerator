@@ -148,9 +148,11 @@ The pipeline provides four distinct levels of continuity between scenes:
 - **Use case**: New angle or subsequent beat in the same setting.
 - **Behavior**: The previous video is fed into Minimax as a visual style and environmental guide (`ref_videos`), ensuring colors, furniture, and lighting match.
 
-### Mode C: Direct Seamless Continuation / Match Cut (`direkter_anschluss: true` / `direct_continuation: true`)
+### Mode C: Direct Seamless Continuation / Match Cut (`direkter_anschluss: true` / `direct_continuation: true` / `match_cut: true`)
 - **Use case**: Continuous real-time action split across multiple render batches (e.g. uninterrupted motion, continuous dialog delivery).
-- **Behavior**: Extracts the last frame of the previous clip via FFmpeg and anchors it as `first_frame` (frame 0) of the new clip (`MiniMaxH3AddGuide`). Eliminates pose snapping and visual jumps entirely.
+- **Forward Match Cut**: Extracts the last frame of the previous clip via FFmpeg and anchors it as `first_frame` (frame index `0`) via `MiniMaxH3AddGuide`. Eliminates pose snapping and visual jumps entirely.
+- **Bidirectional Bookending (Reshooting / Nachdreh)**: If a specific scene is re-rendered (e.g. scene 2) while the following scene (scene 3) already exists on disk and has `match_cut: true`, the engine automatically extracts the **first frame** of scene 3 and anchors it as the **last frame** (`frame_idx: -1`) of scene 2! Minimax will generate scene 2 anchored smoothly at both ends, connecting seamlessly with both scene 1 and scene 3!
+- **Smart Scene Caching**: Scenes already rendered (`Scenes/Szene_XX.mp4`) are automatically skipped on subsequent runs. To reshoot an individual take, simply delete its specific `Szene_XX.mp4` file.
 
 ### Mode D: Same Scene Angle Cut (`same_scene: true` / `gleiche_szene: true`)
 - **Use case**: Changing camera perspectives (e.g. wide shot to close-up, over-the-shoulder, reaction shot) while characters remain in the same physical position.

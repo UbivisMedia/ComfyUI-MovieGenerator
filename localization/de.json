@@ -58,10 +58,13 @@
 
   "phase3_start": "\n🎥 PHASE 3: Drehbeginn im Minimax-Studio...",
   "scene_shooting": "\n🎬 Drehe Szene {id}...",
+  "scene_already_exists_skip": "   ♻️ Szene {id} bereits vorhanden ({file}) -> Rendern übersprungen!",
   "scene_linking_prev": "   🔗 Verknüpfe vorherige Szene als Umgebungsvorlage (optimiert auf 672x384)...",
   "scene_extracting_last_frame": "   📸 Extrahiere letzten Frame der vorherigen Szene als Startframe...",
   "scene_direct_connection_active": "   🎬 Direkter Anschluss aktiv: Letzter Frame als first_frame verankert ({frame})!",
   "scene_extract_last_frame_failed": "   ⚠️ Konnte letzten Frame nicht extrahieren, fahre mit Standard-Workflow fort.",
+  "scene_extracting_next_first_frame": "   📸 Extrahiere ersten Frame der folgenden Szene {next_id} als Endframe...",
+  "scene_backward_connection_active": "   🎬 Rückwärts-Anschluss aktiv: Erster Frame von Szene {next_id} als last_frame verankert ({frame})!",
   "scene_rendering_started": "   🚀 Rendern gestartet...",
   "scene_finished": "   ✅ Szene {id} ist im Kasten! ({path})",
   "vram_cleanup": "   🧹 Gebe ungenutzten VRAM in ComfyUI frei...",

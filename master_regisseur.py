@@ -1649,8 +1649,21 @@ def main():
     last_video_data = None
     last_video_path = None
 
-    for scene_data in prepared_scenes:
+    for idx, scene_data in enumerate(prepared_scenes):
         szene_id = scene_data["id"]
+        target_path = os.path.join(scenes_dir, f"Szene_{szene_id:02d}.mp4")
+
+        # Smart Scene Caching / Reshooting: Skip scene if it is already rendered on disk
+        if os.path.exists(target_path):
+            print(t("scene_already_exists_skip", id=szene_id, file=target_path))
+            try:
+                with open(target_path, "rb") as vf:
+                    last_video_data = vf.read()
+                last_video_path = target_path
+            except Exception as read_err:
+                print(f"   ⚠️ Could not load existing video data for Scene {szene_id}: {read_err}")
+            continue
+
         print(t("scene_shooting", id=szene_id))
         
         wf_i2v["138"]["inputs"]["value"] = scene_data["prompt"]
@@ -1658,12 +1671,11 @@ def main():
         keys_to_remove = [k for k in wf_i2v["136"]["inputs"].keys() if k.startswith("ref_images.ref_image_") or k.startswith("ref_videos.")]
         for k in keys_to_remove:
             del wf_i2v["136"]["inputs"][k]
-        if "9100" in wf_i2v:
-            del wf_i2v["9100"]
-        if "9200" in wf_i2v:
-            del wf_i2v["9200"]
-        if "9201" in wf_i2v:
-            del wf_i2v["9201"]
+        for k in ["9100", "9200", "9201", "9202", "9203"]:
+            if k in wf_i2v:
+                del wf_i2v[k]
+        
+        current_cond_node = "648"
         wf_i2v["126"]["inputs"]["conditioning"] = ["648", 0]
             
         for i, char in enumerate(characters_list):
@@ -1692,7 +1704,7 @@ def main():
             wf_i2v["136"]["inputs"]["ref_videos.ref_video_0"] = ["9100", 0]
             print(t("scene_linking_prev"))
 
-        # Direct seamless match cut via MiniMaxH3AddGuide (first_frame)
+        # 1. Forward direct match cut via MiniMaxH3AddGuide (first_frame, frame_idx: 0)
         if scene_data.get("direkter_anschluss") and last_video_path is not None:
             print(t("scene_extracting_last_frame"))
             last_frame_bytes = extract_last_frame(last_video_path)
@@ -1704,7 +1716,7 @@ def main():
                 }
                 wf_i2v["9201"] = {
                     "inputs": {
-                        "positive": ["648", 0],
+                        "positive": [current_cond_node, 0],
                         "latent": ["682", 0],
                         "vae": ["119", 0],
                         "image": ["9200", 0],
@@ -1712,10 +1724,44 @@ def main():
                     },
                     "class_type": "MiniMaxH3AddGuide"
                 }
-                wf_i2v["126"]["inputs"]["conditioning"] = ["9201", 0]
+                current_cond_node = "9201"
                 print(t("scene_direct_connection_active", frame=uploaded_frame_name))
             else:
                 print(t("scene_extract_last_frame_failed"))
+
+        # 2. Backward direct match cut: If next scene already exists and requested match cut, anchor its start frame as our last frame (frame_idx: -1)
+        if idx + 1 < len(prepared_scenes):
+            next_scene_data = prepared_scenes[idx + 1]
+            next_id = next_scene_data.get("id", idx + 2)
+            next_match_cut = bool(
+                next_scene_data.get("direkter_anschluss") or 
+                next_scene_data.get("direct_continuation") or 
+                next_scene_data.get("match_cut")
+            )
+            next_target_file = os.path.join(scenes_dir, f"Szene_{next_id:02d}.mp4")
+            if next_match_cut and os.path.exists(next_target_file):
+                print(t("scene_extracting_next_first_frame", next_id=next_id))
+                next_first_frame_bytes = extract_video_frame(next_target_file, time_offset="00:00:00.000")
+                if next_first_frame_bytes:
+                    uploaded_next_frame = upload_file(next_first_frame_bytes, f"first_frame_scene_{next_id}.png", "image/png")
+                    wf_i2v["9202"] = {
+                        "inputs": {"image": uploaded_next_frame},
+                        "class_type": "LoadImage"
+                    }
+                    wf_i2v["9203"] = {
+                        "inputs": {
+                            "positive": [current_cond_node, 0],
+                            "latent": ["682", 0],
+                            "vae": ["119", 0],
+                            "image": ["9202", 0],
+                            "frame_idx": -1
+                        },
+                        "class_type": "MiniMaxH3AddGuide"
+                    }
+                    current_cond_node = "9203"
+                    print(t("scene_backward_connection_active", next_id=next_id, frame=uploaded_next_frame))
+
+        wf_i2v["126"]["inputs"]["conditioning"] = [current_cond_node, 0]
         
         wf_i2v["142"]["inputs"]["seed"] = random.randint(1, 999999999999999)
         wf_i2v["132"]["inputs"]["value"] = scene_data["dauer"]
@@ -1740,6 +1786,8 @@ def main():
                                 target_path = os.path.join(scenes_dir, f"Szene_{szene_id:02d}.mp4")
                                 with open(target_path, "wb") as vf:
                                     vf.write(vid_data)
+                                last_video_data = vid_data
+                                last_video_path = target_path
                                 
                                 # Inject Civitai-compatible metadata tags into the scene MP4
                                 scene_meta_desc = (

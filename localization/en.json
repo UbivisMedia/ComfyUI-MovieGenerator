@@ -58,10 +58,13 @@
 
   "phase3_start": "\n🎥 PHASE 3: Filming begins in Minimax Studio...",
   "scene_shooting": "\n🎬 Shooting scene {id}...",
+  "scene_already_exists_skip": "   ♻️ Scene {id} already exists ({file}) -> Rendering skipped!",
   "scene_linking_prev": "   🔗 Linking previous scene as environment reference (optimized to 672x384)...",
   "scene_extracting_last_frame": "   📸 Extracting last frame of previous scene as start frame...",
   "scene_direct_connection_active": "   🎬 Match cut active: Last frame anchored as first_frame ({frame})!",
   "scene_extract_last_frame_failed": "   ⚠️ Could not extract last frame, continuing with standard workflow.",
+  "scene_extracting_next_first_frame": "   📸 Extracting first frame of next scene {next_id} as end frame...",
+  "scene_backward_connection_active": "   🎬 Backward match cut active: First frame of scene {next_id} anchored as last_frame ({frame})!",
   "scene_rendering_started": "   🚀 Rendering started...",
   "scene_finished": "   ✅ Scene {id} wrapped! ({path})",
   "vram_cleanup": "   🧹 Freeing unused VRAM in ComfyUI...",
