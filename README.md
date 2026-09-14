@@ -115,7 +115,7 @@ MovieGenerator/
 
 ## 📝 Example Screenplay Format
 
-Here is an example screenplay structure ([`Projects/three_scenes_example.json`](/Projects/three_scenes_example.json)):
+Here is an example screenplay structure ([`Projects/three_scenes_example.json`](Projects/three_scenes_example.json)):
 
 ```json
 {
@@ -152,6 +152,31 @@ Here is an example screenplay structure ([`Projects/three_scenes_example.json`](
   ]
 }
 ```
+
+---
+
+## 🎬 Demonstration & Example Output ("The Artifact")
+
+MovieGenerator includes a full production demonstration in [`Projects/three_scenes_example/`](Projects/three_scenes_example/):
+
+### 📜 Screenplay: Raw vs. AI-Optimized
+- 📄 **Original Input Screenplay**: [`Projects/three_scenes_example.json`](Projects/three_scenes_example.json) (Concise human director outline with wardrobe variables and continuity tags)
+- 🧠 **AI-Optimized Full Screenplay**: [`Projects/three_scenes_example/three_scenes_example.json`](Projects/three_scenes_example/three_scenes_example.json) (Enriched by LM Studio with multi-shot camera choreography, lighting, diegetic audio instructions, and precise shot timing)
+
+### 🎭 Actor Casting & Final Cut Movie
+
+| Cast Portrait (`Maya`) | Final Cut Movie (`The Artifact`) |
+| :---: | :---: |
+| <img src="Projects/three_scenes_example/Characters/Maya.png" alt="Maya Casting Portrait" width="380" /> | [![The Artifact Final Movie](Projects/three_scenes_example/Movie/three_scenes_example_FINAL_preview.png)](Projects/three_scenes_example/Movie/three_scenes_example_FINAL.mp4) |
+| **Actor:** Maya (Cyber-Archeologist)<br>**Model:** `anima_cyberrealistic`<br>**LoRAs:** `realskin`, `anima_detailer` | 🎬 **[▶ Watch Final Movie (MP4)](Projects/three_scenes_example/Movie/three_scenes_example_FINAL.mp4)**<br>🌐 **[Watch WebM Version](Projects/three_scenes_example/Movie/three_scenes_example_FINAL.webm)**<br>⏱️ Duration: 22s • 1344x768 • Audio & Metadata embedded |
+
+### 🎞️ Rendered Scene Storyboard
+
+| Shot 01: Stone Corridor | Shot 02: Hovering Pedestal | Shot 03: Match Cut Activation |
+| :---: | :---: | :---: |
+| [![Scene 01](Projects/three_scenes_example/Scenes/Szene_01_preview.png)](Projects/three_scenes_example/Scenes/Szene_01.mp4) | [![Scene 02](Projects/three_scenes_example/Scenes/Szene_02_preview.png)](Projects/three_scenes_example/Scenes/Szene_02.mp4) | [![Scene 03](Projects/three_scenes_example/Scenes/Szene_03_preview.png)](Projects/three_scenes_example/Scenes/Szene_03.mp4) |
+| [▶ Watch Scene 01 (MP4)](Projects/three_scenes_example/Scenes/Szene_01.mp4) | [▶ Watch Scene 02 (MP4)](Projects/three_scenes_example/Scenes/Szene_02.mp4) | [▶ Watch Scene 03 (MP4)](Projects/three_scenes_example/Scenes/Szene_03.mp4) |
+| *Environment Setup* | *Continuity Reference (`ref_videos`)* | *Seamless Match Cut (`first_frame` guide)* |
 
 ---
 
