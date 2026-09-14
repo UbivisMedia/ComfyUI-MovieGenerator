@@ -1,8 +1,10 @@
 {
   "language": "auto",
   "comfyui": {
-    "server_address": "127.0.0.1:8188"
+    "server_address": "127.0.0.1:8188",
+    "models_dir": "D:\\ComfyUI_windows_portable\\ComfyUI\\models"
   },
+  "export_webm": true,
   "lm_studio": {
     "url": "http://127.0.0.1:1234/v1/chat/completions",
     "model_name": "gemma-4-e4b-uncensored-hauhaucs-aggressive",

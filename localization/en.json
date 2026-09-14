@@ -14,6 +14,10 @@
   "cutting_no_scenes": "⚠️ No scenes found to edit.",
   "cutting_success": "🍿 PREMIERE! Your complete movie is ready here:\n👉 {path}",
   "cutting_error": "⚠️ Error while cutting with FFmpeg: {error}",
+  "webm_export_start": "   🌐 Converting final movie to WebM (VP9/Opus)...",
+  "webm_export_success": "   ✅ WebM version ready:\n   👉 {path}",
+  "civitai_resources_resolved": "   🔍 Automatically resolved Civitai metadata for {count} resource(s)!",
+  "preview_image_created": "   🖼️ Created Civitai preview image with metadata:\n   👉 {path}",
 
   "menu_available_screenplays": "🎬 Available screenplays in 'Projects' folder:",
   "menu_instruction": "\nPlease enter a number or drag & drop a file onto Film_starten.bat:",
@@ -37,6 +41,8 @@
   "scene_continuity_seamless": " | 🔗 Seamless match cut",
   "scene_continuity_ref": " | 🔗 Previous scene as reference",
   "scene_written": "   ✅ Scene {id} written ({dauer} sec{anschluss}).",
+  "scene_keep_manual_prompt": "   ℹ️ Keeping manual prompt for Scene {id}.",
+  "screenplay_extended_saved": "   💾 Saved extended screenplay with LM Studio prompts:\n   👉 {path}",
 
   "phase2_start": "\n🖌️ PHASE 2: Casting actors (T2I in ComfyUI)...",
   "comfyui_unreachable": "\n❌ ERROR: ComfyUI is not reachable at http://{server}!\n   Please ensure ComfyUI is running and restart the script.",

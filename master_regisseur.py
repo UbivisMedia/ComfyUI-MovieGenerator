@@ -238,6 +238,251 @@ def extract_last_frame(video_path):
 
     return None
 
+def extract_video_frame(video_path, time_offset="00:00:01.000"):
+    """Extracts a frame at a specific timestamp from a video as PNG bytes."""
+    if not video_path or not os.path.exists(video_path):
+        return None
+    try:
+        temp_png = video_path + "_frame_temp.png"
+        cmd = ["ffmpeg", "-y", "-ss", str(time_offset), "-i", video_path, "-frames:v", "1", "-q:v", "2", temp_png]
+        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+        if os.path.exists(temp_png):
+            with open(temp_png, "rb") as f:
+                data = f.read()
+            os.remove(temp_png)
+            return data
+    except Exception:
+        pass
+    # Fallback to beginning of video (0s)
+    try:
+        temp_png = video_path + "_frame_start_temp.png"
+        cmd = ["ffmpeg", "-y", "-ss", "00:00:00.000", "-i", video_path, "-frames:v", "1", "-q:v", "2", temp_png]
+        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+        if os.path.exists(temp_png):
+            with open(temp_png, "rb") as f:
+                data = f.read()
+            os.remove(temp_png)
+            return data
+    except Exception:
+        pass
+    return None
+
+def create_preview_image_with_metadata(video_path, preview_png_path, a1111_params_text="", prompt_workflow=None, time_offset="00:00:01.000"):
+    """Extracts a frame from a video and saves it as a PNG with Civitai-compatible metadata (parameters & prompt)."""
+    frame_bytes = extract_video_frame(video_path, time_offset=time_offset)
+    if not frame_bytes:
+        frame_bytes = extract_last_frame(video_path)
+    if not frame_bytes:
+        return False
+    try:
+        save_image_with_metadata(frame_bytes, preview_png_path, prompt_workflow=prompt_workflow, a1111_params_text=a1111_params_text)
+        return os.path.exists(preview_png_path)
+    except Exception:
+        return False
+
+_CIVITAI_META_CACHE = {}
+
+def get_comfy_models_dir():
+    """Resolves the ComfyUI models directory from settings or common installation paths."""
+    models_dir = SETTINGS.get("comfyui", {}).get("models_dir")
+    if models_dir and os.path.exists(models_dir):
+        return models_dir
+    candidates = [
+        r"D:\ComfyUI_windows_portable\ComfyUI\models",
+        r"C:\ComfyUI_windows_portable\ComfyUI\models",
+        r"E:\ComfyUI_windows_portable\ComfyUI\models",
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return None
+
+def find_civitai_metadata(model_filename_or_path, subfolder=None):
+    """
+    Finds and loads the .metadata.json file corresponding to a model/lora.
+    Caches the results to avoid repeated disk walks.
+    """
+    if not model_filename_or_path:
+        return None
+        
+    cache_key = (model_filename_or_path, subfolder)
+    if cache_key in _CIVITAI_META_CACHE:
+        return _CIVITAI_META_CACHE[cache_key]
+
+    models_dir = get_comfy_models_dir()
+    if not models_dir:
+        return None
+
+    target_base = os.path.splitext(os.path.basename(model_filename_or_path))[0].lower()
+    
+    search_dirs = []
+    if subfolder:
+        sf_path = os.path.join(models_dir, subfolder)
+        if os.path.exists(sf_path):
+            search_dirs.append(sf_path)
+    search_dirs.extend([
+        os.path.join(models_dir, "diffusion_models"),
+        os.path.join(models_dir, "loras"),
+        os.path.join(models_dir, "checkpoints")
+    ])
+
+    seen_dirs = set()
+    best_partial = None
+    for s_dir in search_dirs:
+        if s_dir in seen_dirs or not os.path.exists(s_dir):
+            continue
+        seen_dirs.add(s_dir)
+        for root, _, files in os.walk(s_dir):
+            for f in files:
+                if f.endswith(".metadata.json"):
+                    f_base = f[:-14].lower()  # strip .metadata.json
+                    if f_base == target_base:
+                        meta_file = os.path.join(root, f)
+                        try:
+                            with open(meta_file, "r", encoding="utf-8") as jf:
+                                data = json.load(jf)
+                                _CIVITAI_META_CACHE[cache_key] = data
+                                return data
+                        except Exception:
+                            pass
+                    elif (target_base in f_base or f_base in target_base) and not best_partial:
+                        best_partial = os.path.join(root, f)
+
+    if best_partial:
+        try:
+            with open(best_partial, "r", encoding="utf-8") as jf:
+                data = json.load(jf)
+                _CIVITAI_META_CACHE[cache_key] = data
+                return data
+        except Exception:
+            pass
+
+    _CIVITAI_META_CACHE[cache_key] = None
+    return None
+
+def build_civitai_resource_metadata(model_path=None, loras_list=None):
+    """
+    Builds Civitai resources JSON and hash mappings from local .metadata.json files.
+    """
+    civitai_resources = []
+    lora_hashes = []
+    model_hash = None
+
+    if model_path:
+        meta = find_civitai_metadata(model_path, "diffusion_models") or find_civitai_metadata(model_path, "checkpoints")
+        if meta:
+            civ = meta.get("civitai", {})
+            v_id = civ.get("id") or civ.get("modelVersionId")
+            if v_id:
+                civitai_resources.append({
+                    "type": "checkpoint" if "lora" not in str(meta.get("sub_type", "")).lower() else "lora",
+                    "modelVersionId": v_id,
+                    "modelName": meta.get("model_name") or civ.get("name", "Checkpoint")
+                })
+            sha = meta.get("sha256")
+            if sha:
+                model_hash = sha[:10]
+
+    if loras_list:
+        for lora in loras_list:
+            meta = find_civitai_metadata(lora, "loras")
+            name_clean = os.path.splitext(os.path.basename(lora))[0]
+            if meta:
+                civ = meta.get("civitai", {})
+                v_id = civ.get("id") or civ.get("modelVersionId")
+                if v_id:
+                    civitai_resources.append({
+                        "type": "lora",
+                        "modelVersionId": v_id,
+                        "modelName": meta.get("model_name") or civ.get("name", name_clean),
+                        "weight": 1.0
+                    })
+    # Deduplicate resources by modelVersionId
+    seen_res = set()
+    dedup_resources = []
+    for r in civitai_resources:
+        rid = r.get("modelVersionId")
+        if rid and rid not in seen_res:
+            seen_res.add(rid)
+            dedup_resources.append(r)
+        elif not rid:
+            dedup_resources.append(r)
+
+    # Deduplicate lora hashes
+    seen_hashes = set()
+    dedup_lora_hashes = []
+    for lh in lora_hashes:
+        if lh not in seen_hashes:
+            seen_hashes.add(lh)
+            dedup_lora_hashes.append(lh)
+
+    return {
+        "civitai_resources": dedup_resources,
+        "model_hash": model_hash,
+        "lora_hashes": dedup_lora_hashes
+    }
+
+def get_workflow_sampling_params(wf):
+    """
+    Extracts steps, sampler, scheduler, cfg, and seed from ComfyUI workflow.
+    Defaults to Minimax H3 standard settings (8 steps, er_sde, beta, CFG 1.0).
+    """
+    steps = 8
+    sampler = "er_sde"
+    scheduler = "beta"
+    cfg = 1.0
+    seed = 42
+
+    if not wf or not isinstance(wf, dict):
+        return steps, sampler, scheduler, cfg, seed
+
+    for nid, node in wf.items():
+        if not isinstance(node, dict):
+            continue
+        ctype = node.get("class_type", "")
+        inputs = node.get("inputs", {})
+        meta_title = str(node.get("_meta", {}).get("title", "")).lower()
+
+        if ctype == "KSamplerSelect":
+            sampler = inputs.get("sampler_name", sampler)
+        elif ctype == "BasicScheduler":
+            scheduler = inputs.get("scheduler", scheduler)
+            st = inputs.get("steps")
+            if isinstance(st, (int, float)):
+                steps = int(st)
+            elif isinstance(st, list) and len(st) > 0:
+                ref_id = str(st[0])
+                if ref_id in wf and "value" in wf[ref_id].get("inputs", {}):
+                    steps = int(wf[ref_id]["inputs"]["value"])
+        elif ctype == "INTConstant" and ("step" in meta_title or "schritt" in meta_title):
+            if "value" in inputs:
+                steps = int(inputs["value"])
+        elif ctype in ("KSampler", "KSamplerAdvanced"):
+            if "steps" in inputs:
+                steps = int(inputs["steps"])
+            if "sampler_name" in inputs:
+                sampler = inputs["sampler_name"]
+            if "scheduler" in inputs:
+                scheduler = inputs["scheduler"]
+            if "cfg" in inputs:
+                cfg = float(inputs["cfg"])
+            if "seed" in inputs:
+                seed = inputs["seed"]
+        elif ctype == "RandomNoise":
+            ns = inputs.get("noise_seed")
+            if isinstance(ns, (int, float)):
+                seed = int(ns)
+            elif isinstance(ns, list) and len(ns) > 0:
+                ref_id = str(ns[0])
+                if ref_id in wf and "seed" in wf[ref_id].get("inputs", {}):
+                    seed = wf[ref_id]["inputs"]["seed"]
+                elif ref_id in wf and "value" in wf[ref_id].get("inputs", {}):
+                    seed = wf[ref_id]["inputs"]["value"]
+        elif "seed" in inputs and isinstance(inputs["seed"], (int, float)):
+            seed = inputs["seed"]
+
+    return steps, sampler, scheduler, cfg, seed
+
 def ask_lm_studio_character(char, screenplay, preset_name, preset):
     """Invokes LM Studio to generate the optimal T2I character casting prompt."""
     char_name = char.get("name", "Character")
@@ -466,22 +711,27 @@ Here is the scene idea:
             5
         )
 
-def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_scenes=None):
+def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_scenes=None, wf_i2v=None, t2i_presets=None):
     """Concatenates all generated scene clips into the final movie using FFmpeg with embedded Civitai metadata."""
-    print(t("cutting_start"))
+    list_path = os.path.join(scenes_dir, "ffmpeg_list.txt")
     
-    scene_files = sorted([f for f in os.listdir(scenes_dir) if f.startswith("Szene_") and f.endswith(".mp4")])
+    # Sort scenes correctly by numerical index: Szene_01.mp4, Szene_02.mp4, ...
+    def scene_sort_key(filename):
+        m = re.search(r'(\d+)', filename)
+        return int(m.group(1)) if m else 999999
+
+    scene_files = sorted([f for f in os.listdir(scenes_dir) if f.startswith("Szene_") and f.endswith(".mp4")], key=scene_sort_key)
     
     if not scene_files:
         print(t("cutting_no_scenes"))
         return
-        
-    list_path = os.path.join(scenes_dir, "ffmpeg_list.txt")
+
+    print(t("cutting_start"))
     with open(list_path, "w", encoding="utf-8") as lf:
         for scene in scene_files:
             lf.write(f"file '{scene}'\n")
             
-    final_video_path = os.path.join(movie_dir, f"{movie_name}_FINAL.mp4")
+    final_video_path = os.path.abspath(os.path.join(movie_dir, f"{movie_name}_FINAL.mp4"))
 
     # Build Civitai-compatible metadata summary
     movie_title = (screenplay.get("titel") or screenplay.get("title") or movie_name) if screenplay else movie_name
@@ -492,6 +742,8 @@ def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_
         civitai_summary.append(f"Description: {movie_desc}")
     civitai_summary.append("Generator: MovieGenerator AI Studio (ComfyUI Minimax I2V + T2I Casting)")
 
+    lora_tags = []
+    lora_presets_dict = t2i_presets.get("lora_presets", {}) if t2i_presets else {}
     if screenplay and (screenplay.get("charaktere") or screenplay.get("characters")):
         chars_list = screenplay.get("charaktere") or screenplay.get("characters")
         civitai_summary.append("\nCast & Models:")
@@ -501,20 +753,46 @@ def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_
             c_loras = c.get("loras") or c.get("lora") or []
             if isinstance(c_loras, list):
                 lora_str = ", ".join([str(x.get("name") if isinstance(x, dict) else x) for x in c_loras])
+                for x in c_loras:
+                    lname = x.get("name") if isinstance(x, dict) else x
+                    if lname in lora_presets_dict:
+                        real_f = os.path.basename(lora_presets_dict[lname]["lora_name"]).replace(".safetensors", "")
+                        tag = f"<lora:{real_f}:1.0>"
+                    else:
+                        tag = f"<lora:{lname}:1.0>"
+                    if tag not in lora_tags:
+                        lora_tags.append(tag)
             else:
                 lora_str = str(c_loras)
+                if lora_str in lora_presets_dict:
+                    real_f = os.path.basename(lora_presets_dict[lora_str]["lora_name"]).replace(".safetensors", "")
+                    tag = f"<lora:{real_f}:1.0>"
+                else:
+                    tag = f"<lora:{lora_str}:1.0>"
+                if tag not in lora_tags:
+                    lora_tags.append(tag)
             civitai_summary.append(f"- {c_name} (Model: {c_model}" + (f", LoRAs: {lora_str}" if lora_str else "") + ")")
 
+    root_vars = screenplay.get("variablen") or screenplay.get("variables") or {} if screenplay else {}
     if prepared_scenes:
-        civitai_summary.append("\nScenes & Prompts:")
-        for s in prepared_scenes:
-            s_id = s.get("id", "?")
-            s_dur = s.get("dauer", "?")
-            s_cont = " [Match Cut]" if s.get("direkter_anschluss") else (" [Environment Ref]" if s.get("nutze_vorherige_szene") else "")
-            civitai_summary.append(f"- Scene {s_id} ({s_dur}s){s_cont}:")
-            p_text = s.get("prompt", "").strip()
-            if p_text:
-                civitai_summary.append(f"  Prompt: {p_text}")
+        civitai_summary.append("\nScenes & Storyboard:")
+        for idx, s in enumerate(prepared_scenes):
+            s_id = s.get("id", idx + 1)
+            s_id_str = f"{int(s_id):02d}" if str(s_id).isdigit() else str(s_id)
+            s_dur = s.get("dauer") or s.get("dauer_sekunden") or s.get("duration") or "?"
+            s_cont = " [Match Cut]" if (s.get("direkter_anschluss") or s.get("direct_continuation")) else (" [Environment Ref]" if (s.get("nutze_vorherige_szene") or s.get("anschluss_an_vorherige_szene") or s.get("continuity_environment")) else "")
+            
+            raw_p = (s.get("idee") or s.get("idea") or s.get("prompt") or "").strip()
+            # If the prompt is the multi-line Minimax prompt, extract its summary if available
+            if "summary:" in raw_p.lower():
+                m_sum = re.search(r'summary:\s*([^\n]+(?:\n[^\n]+)?)', raw_p, re.IGNORECASE)
+                if m_sum:
+                    raw_p = m_sum.group(1).strip()
+            
+            active_vars = s.get("variables") or root_vars
+            p_text = interpolate_variables(raw_p, active_vars)
+            
+            civitai_summary.append(f"- Scene {s_id_str} ({s_dur}s){s_cont}: {p_text}")
             if s.get("variables"):
                 var_str = ", ".join([f"{k}='{v}'" for k, v in s["variables"].items()])
                 civitai_summary.append(f"  State: {var_str}")
@@ -558,6 +836,77 @@ def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_
     try:
         res = subprocess.run(cmd, cwd=scenes_dir, check=True, capture_output=True, text=True)
         print(t("cutting_success", path=final_video_path))
+        
+        # Optional WebM export with embedded metadata
+        if SETTINGS.get("export_webm", True):
+            final_webm_path = os.path.abspath(os.path.join(movie_dir, f"{movie_name}_FINAL.webm"))
+            print(t("webm_export_start"))
+            webm_cmd = [
+                "ffmpeg", "-y",
+                "-i", final_video_path,
+                "-i", "ffmetadata.txt",
+                "-map", "0:v", "-map", "0:a?",
+                "-map_metadata", "1",
+                "-c:v", "libvpx-vp9", "-crf", "30", "-b:v", "0",
+                "-deadline", "realtime", "-cpu-used", "4",
+                "-c:a", "libopus",
+                final_webm_path
+            ]
+            try:
+                subprocess.run(webm_cmd, cwd=scenes_dir, check=True, capture_output=True, text=True)
+                print(t("webm_export_success", path=final_webm_path))
+            except Exception as we:
+                print(f"   ⚠️ WebM export warning: {we}")
+
+        # Create Civitai-compatible preview image for the final movie
+        final_preview_path = os.path.abspath(os.path.join(movie_dir, f"{movie_name}_FINAL_preview.png"))
+        unet_name = wf_i2v.get("620", {}).get("inputs", {}).get("unet_name", "") if wf_i2v else ""
+        model_name = os.path.basename(unet_name).replace(".safetensors", "") if unet_name else "minimax_h3"
+
+        # Resolve sampling parameters from workflow (e.g. 8 steps, er_sde, beta, CFG 1.0)
+        steps, sampler, scheduler, cfg, seed = get_workflow_sampling_params(wf_i2v)
+
+        # Resolve local .metadata.json files for exact Civitai resource IDs & hashes
+        all_lora_files = []
+        for lora_tag in lora_tags:
+            m_tag = re.search(r'<lora:([^:>]+)', lora_tag)
+            if m_tag:
+                all_lora_files.append(m_tag.group(1) + ".safetensors")
+
+        # Also scan workflow for embedded LoRAs (e.g. Minimax turbo LoRA in node 674)
+        if wf_i2v:
+            for nid, node in wf_i2v.items():
+                if not isinstance(node, dict):
+                    continue
+                inputs = node.get("inputs", {})
+                for k, v in inputs.items():
+                    if isinstance(v, dict) and "lora" in v and v.get("on", True):
+                        all_lora_files.append(v["lora"])
+                if "lora_name" in inputs:
+                    all_lora_files.append(inputs["lora_name"])
+
+        civ_res_info = build_civitai_resource_metadata(model_path=unet_name, loras_list=all_lora_files)
+        if civ_res_info["civitai_resources"]:
+            print(t("civitai_resources_resolved", count=len(civ_res_info["civitai_resources"])))
+
+        hash_parts = []
+        if civ_res_info["model_hash"]:
+            hash_parts.append(f"Model hash: {civ_res_info['model_hash']}")
+        if civ_res_info["lora_hashes"]:
+            hash_parts.append(f"Lora hashes: \"{', '.join(civ_res_info['lora_hashes'])}\"")
+        if civ_res_info["civitai_resources"]:
+            hash_parts.append(f"Civitai resources: {json.dumps(civ_res_info['civitai_resources'], ensure_ascii=False)}")
+        
+        extra_meta_str = (", " + ", ".join(hash_parts)) if hash_parts else ""
+        
+        a1111_movie_params = (
+            f"{full_description}\n"
+            + (f"LoRAs: {' '.join(lora_tags)}\n" if lora_tags else "")
+            + "Negative prompt: worst quality, low quality, blurry, distorted, deformed\n"
+            + f"Steps: {steps}, Sampler: {sampler}, Schedule type: {scheduler}, CFG scale: {cfg:.1f}, Seed: {seed}, Size: 1344x768, Model: {model_name}{extra_meta_str}"
+        )
+        if create_preview_image_with_metadata(final_video_path, final_preview_path, a1111_params_text=a1111_movie_params, prompt_workflow=wf_i2v):
+            print(t("preview_image_created", path=final_preview_path))
     except subprocess.CalledProcessError as cpe:
         err_msg = cpe.stderr.strip() if cpe.stderr else str(cpe)
         print(t("cutting_error", error=err_msg))
@@ -631,9 +980,17 @@ def main():
 
     # Save a copy of the screenplay in the project directory if not already there
     local_screenplay_copy = os.path.join(project_dir, f"{film_name}.json")
+    original_screenplay_backup = os.path.join(project_dir, f"{film_name}_original.json")
     if os.path.abspath(screenplay_path) != os.path.abspath(local_screenplay_copy):
         try:
             shutil.copy2(screenplay_path, local_screenplay_copy)
+        except Exception:
+            pass
+
+    # Ensure a pristine copy of the original input screenplay is preserved for diffs/reference
+    if not os.path.exists(original_screenplay_backup):
+        try:
+            shutil.copy2(screenplay_path, original_screenplay_backup)
         except Exception:
             pass
 
@@ -745,14 +1102,23 @@ def main():
             raw_scene_idea = scene.get("idee") or scene.get("idea", "")
             scene_idea = interpolate_variables(raw_scene_idea, active_variables)
 
-            minimax_prompt, calculated_duration = ask_lm_studio(
-                scene_idea,
-                characters_list,
-                use_previous_scene,
-                direct_continuation,
-                active_variables=active_variables,
-                character_states=char_status_updates
-            )
+            if (scene.get("ki_prompt_generieren") is False or scene.get("auto_prompt") is False) and scene.get("prompt"):
+                print(t("scene_keep_manual_prompt", id=scene['id']))
+                minimax_prompt = scene["prompt"]
+                calculated_duration = scene.get("dauer_sekunden") or scene.get("dauer", 5)
+            else:
+                minimax_prompt, calculated_duration = ask_lm_studio(
+                    scene_idea,
+                    characters_list,
+                    use_previous_scene,
+                    direct_continuation,
+                    active_variables=active_variables,
+                    character_states=char_status_updates
+                )
+
+            # Update scene dictionary in screenplay with generated prompt & duration
+            scene["prompt"] = minimax_prompt
+            scene["dauer_sekunden"] = calculated_duration
             
             prepared_scenes.append({
                 "id": scene["id"],
@@ -760,10 +1126,19 @@ def main():
                 "dauer": calculated_duration,
                 "nutze_vorherige_szene": use_previous_scene,
                 "direkter_anschluss": direct_continuation,
-                "variables": dict(active_variables)
+                "variables": dict(active_variables),
+                "idee": scene_idea
             })
             continuity_txt = t("scene_continuity_seamless") if direct_continuation else (t("scene_continuity_ref") if use_previous_scene else "")
             print(t("scene_written", id=scene['id'], dauer=calculated_duration, anschluss=continuity_txt))
+
+        # Save extended screenplay with AI-generated character & scene prompts to the project directory
+        try:
+            with open(local_screenplay_copy, "w", encoding="utf-8") as sf:
+                json.dump(screenplay, sf, indent=2, ensure_ascii=False)
+            print(t("screenplay_extended_saved", path=local_screenplay_copy))
+        except Exception as se:
+            print(f"⚠️ Could not save extended screenplay: {se}")
     finally:
         # Immediately unload LLM as soon as all screenplay prompts are written!
         lms_unload()
@@ -1062,6 +1437,51 @@ def main():
                                     prompt_workflow_dict=wf_i2v
                                 )
 
+                                # Generate companion preview PNG for the scene with embedded Civitai metadata
+                                scene_preview_path = os.path.join(scenes_dir, f"Szene_{szene_id:02d}_preview.png")
+                                scene_unet = wf_i2v.get("620", {}).get("inputs", {}).get("unet_name", "") if wf_i2v else ""
+                                scene_model = os.path.basename(scene_unet).replace(".safetensors", "") if scene_unet else "minimax_h3"
+                                
+                                # Resolve sampling parameters dynamically from workflow
+                                sc_steps, sc_sampler, sc_scheduler, sc_cfg, sc_seed = get_workflow_sampling_params(wf_i2v)
+                                if "142" in wf_i2v and "seed" in wf_i2v["142"].get("inputs", {}):
+                                    sc_seed = wf_i2v["142"]["inputs"]["seed"]
+
+                                # Collect scene LoRAs from workflow
+                                sc_lora_files = []
+                                for nid, node in wf_i2v.items():
+                                    if not isinstance(node, dict):
+                                        continue
+                                    inputs = node.get("inputs", {})
+                                    for k, v in inputs.items():
+                                        if isinstance(v, dict) and "lora" in v and v.get("on", True):
+                                            sc_lora_files.append(v["lora"])
+                                    if "lora_name" in inputs:
+                                        sc_lora_files.append(inputs["lora_name"])
+
+                                sc_meta = build_civitai_resource_metadata(model_path=scene_unet, loras_list=sc_lora_files)
+                                sc_parts = []
+                                if sc_meta["model_hash"]:
+                                    sc_parts.append(f"Model hash: {sc_meta['model_hash']}")
+                                if sc_meta["lora_hashes"]:
+                                    sc_parts.append(f"Lora hashes: \"{', '.join(sc_meta['lora_hashes'])}\"")
+                                if sc_meta["civitai_resources"]:
+                                    sc_parts.append(f"Civitai resources: {json.dumps(sc_meta['civitai_resources'], ensure_ascii=False)}")
+                                sc_extra = (", " + ", ".join(sc_parts)) if sc_parts else ""
+
+                                scene_a1111_params = (
+                                    f"{scene_data['prompt']}\n"
+                                    "Negative prompt: worst quality, low quality, blurry, distorted, deformed\n"
+                                    f"Steps: {sc_steps}, Sampler: {sc_sampler}, Schedule type: {sc_scheduler}, CFG scale: {sc_cfg:.1f}, Seed: {sc_seed}, Size: 1344x768, Model: {scene_model}{sc_extra}"
+                                )
+                                create_preview_image_with_metadata(
+                                    target_path,
+                                    scene_preview_path,
+                                    a1111_params_text=scene_a1111_params,
+                                    prompt_workflow=wf_i2v,
+                                    time_offset="00:00:01.000"
+                                )
+
                                 print(t("scene_finished", id=szene_id, path=target_path))
                                 
                                 last_video_data = vid_data
@@ -1072,7 +1492,7 @@ def main():
             time.sleep(10)
 
     print(t("all_scenes_finished"))
-    assemble_movie(scenes_dir, movie_dir, film_name, screenplay=screenplay, prepared_scenes=prepared_scenes)
+    assemble_movie(scenes_dir, movie_dir, film_name, screenplay=screenplay, prepared_scenes=prepared_scenes, wf_i2v=wf_i2v, t2i_presets=t2i_presets)
 
 if __name__ == "__main__":
     try:

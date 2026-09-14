@@ -14,6 +14,10 @@
   "cutting_no_scenes": "⚠️ Keine Szenen zum Schneiden gefunden.",
   "cutting_success": "🍿 PREMIERE! Dein kompletter Film liegt hier:\n👉 {path}",
   "cutting_error": "⚠️ Fehler beim Schneiden mit FFmpeg: {error}",
+  "webm_export_start": "   🌐 Konvertiere finales Video zusätzlich nach WebM (VP9/Opus)...",
+  "webm_export_success": "   ✅ WebM-Version fertig:\n   👉 {path}",
+  "civitai_resources_resolved": "   🔍 Civitai-Metadaten für {count} Ressource(n) automatisch aufgelöst!",
+  "preview_image_created": "   🖼️ Civitai-Vorschaubild mit Metadaten erstellt:\n   👉 {path}",
 
   "menu_available_screenplays": "🎬 Verfügbare Drehbücher im 'Projects'-Ordner:",
   "menu_instruction": "\nBitte Nummer eingeben oder eine Datei per Drag & Drop auf Film_starten.bat ziehen:",
@@ -37,6 +41,8 @@
   "scene_continuity_seamless": " | 🔗 Nahtloser Anschluss",
   "scene_continuity_ref": " | 🔗 Vorherige Szene als Referenz",
   "scene_written": "   ✅ Szene {id} getippt ({dauer} Sek{anschluss}).",
+  "scene_keep_manual_prompt": "   ℹ️ Behalte manuellen Prompt für Szene {id}.",
+  "screenplay_extended_saved": "   💾 Erweiterte Drehbuchfassung mit LM Studio Prompts gespeichert:\n   👉 {path}",
 
   "phase2_start": "\n🖌️ PHASE 2: Caste die Schauspieler (T2I in ComfyUI)...",
   "comfyui_unreachable": "\n❌ FEHLER: ComfyUI ist nicht erreichbar unter http://{server}!\n   Bitte stelle sicher, dass ComfyUI gestartet ist, und führe das Skript erneut aus.",

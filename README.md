@@ -96,6 +96,8 @@ MovieGenerator/
 ├── Projects/                    # Screenplay JSONs & generated outputs
 │   ├── three_scenes_example.json# Ready-to-render 3-scene demo script
 │   └── <film_name>/             # Created automatically during production
+│       ├── <film_name>.json     # Extended screenplay (enriched with LM Studio AI prompts)
+│       ├── <film_name>_original.json # Pristine backup of original input screenplay
 │       ├── Characters/          # Cast reference portraits (<name>.png)
 │       ├── Scenes/              # Rendered scene clips (Szene_01.mp4, ...)
 │       └── Movie/               # Final movie (<film_name>_FINAL.mp4)
