@@ -31,10 +31,13 @@ ffmpeg_list.txt
 # Projects directory rules:
 # 1. Ignore all generated project asset subdirectories (Characters, Scenes, Movie)
 Projects/*/
+!Projects/three_scenes_example/
+!Projects/three_scenes_example/*/
 
 # 2. Ignore all user screenplay JSONs except the official example
 Projects/*.json
 !Projects/three_scenes_example.json
+
 
 # IDE & editor configurations
 .idea/
