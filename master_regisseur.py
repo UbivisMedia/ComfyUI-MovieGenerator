@@ -824,6 +824,34 @@ def format_state_instruction(characters, active_variables=None, character_states
         return "\n".join(lines)
     return "None (All characters appear in their standard reference wardrobe/appearance)."
 
+def get_available_scene_loras(t2i_presets):
+    """Returns a dictionary of MiniMax H3 compatible scene LoRAs."""
+    if not t2i_presets:
+        return {}
+    lora_presets = t2i_presets.get("lora_presets", {})
+    available = {}
+    excluded = {"mmh3_fl2v_lightx2v_turbo", "mmh3_turbo_ckpt850", "mmh3_turbo_4step"}
+    for k, v in lora_presets.items():
+        if k in excluded:
+            continue
+        compat = v.get("kompatible_modelle", [])
+        lname = v.get("lora_name", "").lower()
+        if any(m in compat for m in ["minimax_h3", "minimax_h3_video"]) or "minimax" in lname or "mmh3" in k:
+            available[k] = v
+    return available
+
+def format_available_scene_loras(available_loras):
+    """Formats available scene LoRAs into bullet points for the LLM prompt."""
+    if not available_loras:
+        return "None available."
+    lines = []
+    for k, v in sorted(available_loras.items()):
+        desc = v.get("beschreibung", "")
+        trig = v.get("trigger_words", "")
+        trig_str = f" [triggers: {trig}]" if trig else ""
+        lines.append(f"- {k}: {desc}{trig_str}")
+    return "\n".join(lines)
+
 def ask_lm_studio(
     idea,
     characters,
@@ -833,7 +861,8 @@ def ask_lm_studio(
     character_states=None,
     previous_shot_context=None,
     same_scene=False,
-    sequence_info=None
+    sequence_info=None,
+    t2i_presets=None
 ):
     print(t("scene_elaborating", idea=idea))
     
@@ -888,6 +917,9 @@ def ask_lm_studio(
     continuity_instruction = "\n".join(continuity_rules) if continuity_rules else "Independent shot. Standard scene staging."
     video_instruction = f"\n\nIMPORTANT CONTINUITY INSTRUCTIONS:\n{continuity_instruction}" if continuity_rules else ""
     state_instruction = format_state_instruction(characters, active_variables, character_states)
+    
+    avail_loras_dict = get_available_scene_loras(t2i_presets)
+    avail_loras_text = format_available_scene_loras(avail_loras_dict)
 
     default_minimax_instruction = """You are an expert prompt engineer for the Minimax video generation model.
 You will receive a short scene idea in German or English. Translate/expand it into this EXACT format.
@@ -906,6 +938,10 @@ CRITICAL CHARACTER WARDROBE & STATE CONTINUITY:
 CRITICAL SCENE & SHOT CONTINUITY:
 {continuity_instruction}
 
+AVAILABLE SCENE LORAS (MiniMax H3):
+{available_loras}
+If this specific shot features motion, visual styles, combat, or intimate actions that match any of the LoRAs above, select 0 to 2 matching LoRA keys (e.g. 'mmh3_combat_v2' for martial arts, 'mmh3_nafasp_natural' for talking/facial motion, 'mmh3_poly_perfect' for close-up detail, or 'None').
+
 FORMAT TO FOLLOW STRICTLY:
 subject_definitions:
 {char_definitions}
@@ -923,6 +959,7 @@ non_diegetic_music:
 None
 
 DURATION: <number>
+LORAS: <comma-separated list of selected lora keys, or None>
 
 Here is the scene idea:
 {idee}"""
@@ -934,6 +971,7 @@ Here is the scene idea:
         continuity_instruction=continuity_instruction,
         video_instruction=video_instruction,
         state_instruction=state_instruction,
+        available_loras=avail_loras_text,
         idee=idea
     )
 
@@ -958,6 +996,31 @@ Here is the scene idea:
             duration = max(3, min(10, duration)) 
             content = re.sub(r'DURATION:\s*\d+', '', content, flags=re.IGNORECASE).strip()
 
+        # Parse selected LoRAs
+        selected_loras = []
+        lora_match = re.search(r'LORAS:\s*([^\n]+)', content, re.IGNORECASE)
+        if lora_match:
+            raw_loras = lora_match.group(1).strip()
+            content = re.sub(r'LORAS:\s*[^\n]+', '', content, flags=re.IGNORECASE).strip()
+            if raw_loras.lower() not in ["none", "n/a", "no", "null", ""]:
+                for item in re.split(r'[,;\s]+', raw_loras):
+                    clean_item = item.strip().strip("'\"`")
+                    if not clean_item or clean_item.lower() in ["none", "and", "or"]:
+                        continue
+                    matched_key = None
+                    if clean_item in avail_loras_dict:
+                        matched_key = clean_item
+                    else:
+                        for ak in avail_loras_dict:
+                            if clean_item.lower() == ak.lower():
+                                matched_key = ak
+                                break
+                    if matched_key and matched_key not in selected_loras:
+                        selected_loras.append(matched_key)
+
+        if selected_loras:
+            print(t("scene_loras_chosen", loras=", ".join(selected_loras)))
+
         # Strictly ensure non_diegetic_music is set to None and no background music is generated
         if "non_diegetic_music:" in content.lower():
             content = re.sub(r'non_diegetic_music:\s*.*', 'non_diegetic_music:\nNone', content, flags=re.IGNORECASE)
@@ -967,7 +1030,7 @@ Here is the scene idea:
         if "overall_soundscape:" not in content.lower():
             content += "\n\noverall_soundscape:\nRealistic ambient environment sounds, subtle foley, and natural breathing. Strictly no music."
             
-        return content, duration
+        return content, duration, selected_loras
     except Exception as e:
         print(t("lms_scene_error", error=e))
         state_fallback = f"\n[Active Wardrobe & State: {state_instruction}]" if active_variables or character_states else ""
@@ -977,7 +1040,8 @@ Here is the scene idea:
             f"detailed_description:\n[Shot 1]: {idea}{state_fallback}\n\n"
             f"overall_soundscape:\nNatural ambient room sounds, diegetic foley effects, and speech. Strictly no background music.\n\n"
             f"non_diegetic_music:\nNone",
-            5
+            5,
+            []
         )
 
 def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_scenes=None, wf_i2v=None, t2i_presets=None):
@@ -1076,6 +1140,21 @@ def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_
             if s.get("variables"):
                 var_str = ", ".join([f"{k}='{v}'" for k, v in s["variables"].items()])
                 civitai_summary.append(f"  State: {var_str}")
+            if s.get("loras"):
+                s_loras_list = s["loras"] if isinstance(s["loras"], list) else [s["loras"]]
+                sl_display = []
+                for sl in s_loras_list:
+                    sl_k = sl.get("key") or sl.get("name") or sl.get("lora") if isinstance(sl, dict) else str(sl)
+                    sl_display.append(sl_k)
+                    if sl_k in lora_presets_dict:
+                        real_f = os.path.basename(lora_presets_dict[sl_k]["lora_name"]).replace(".safetensors", "")
+                        tag = f"<lora:{real_f}:1.0>"
+                    else:
+                        tag = f"<lora:{sl_k}:1.0>"
+                    if tag not in lora_tags:
+                        lora_tags.append(tag)
+                if sl_display:
+                    civitai_summary.append(f"  Scene LoRAs: {', '.join(sl_display)}")
 
     full_description = "\n".join(civitai_summary)
 
@@ -1519,6 +1598,14 @@ def main():
 
             existing_p = (scene.get("prompt") or "").strip()
             has_minimax_prompt = bool("summary:" in existing_p.lower() or "[shot 1]:" in existing_p.lower())
+            
+            raw_scene_loras = scene.get("loras") or scene.get("lora") or []
+            if isinstance(raw_scene_loras, str):
+                existing_scene_loras = [l.strip() for l in raw_scene_loras.split(",") if l.strip()]
+            elif isinstance(raw_scene_loras, list):
+                existing_scene_loras = list(raw_scene_loras)
+            else:
+                existing_scene_loras = []
 
             if not auto_prompt and existing_p:
                 if needs_llm:
@@ -1531,6 +1618,7 @@ def main():
                     scene.get("dauer") or 
                     5
                 )
+                final_scene_loras = existing_scene_loras
             elif has_minimax_prompt:
                 if needs_llm:
                     print(t("scene_already_prompted_skip", id=scene_id))
@@ -1542,8 +1630,9 @@ def main():
                     scene.get("dauer") or 
                     5
                 )
+                final_scene_loras = existing_scene_loras
             else:
-                minimax_prompt, calculated_duration = ask_lm_studio(
+                minimax_prompt, calculated_duration, selected_loras = ask_lm_studio(
                     scene_idea,
                     characters_list,
                     use_previous_scene=use_previous_scene,
@@ -1552,8 +1641,10 @@ def main():
                     character_states=char_status_updates,
                     previous_shot_context=prev_shot_ctx,
                     same_scene=same_scene,
-                    sequence_info=seq_info
+                    sequence_info=seq_info,
+                    t2i_presets=t2i_presets
                 )
+                final_scene_loras = existing_scene_loras if existing_scene_loras else selected_loras
 
             # Extract shot summary for the next shot's continuity context
             m_sum = re.search(r'summary:\s*([^\n]+(?:\n[^\n]+)?)', minimax_prompt, re.IGNORECASE)
@@ -1566,9 +1657,11 @@ def main():
                 "location": loc_name
             }
 
-            # Update scene dictionary in screenplay with generated prompt & duration
+            # Update scene dictionary in screenplay with generated prompt & duration & loras
             scene["prompt"] = minimax_prompt
             scene["dauer_sekunden"] = calculated_duration
+            if final_scene_loras:
+                scene["loras"] = final_scene_loras
             if seq_name and "sequenz" not in scene and "sequence" not in scene:
                 scene["sequence"] = seq_name
             if loc_name and "ort" not in scene and "location" not in scene:
@@ -1578,6 +1671,7 @@ def main():
                 "id": scene_id,
                 "prompt": minimax_prompt,
                 "dauer": calculated_duration,
+                "loras": final_scene_loras,
                 "nutze_vorherige_szene": use_previous_scene,
                 "direkter_anschluss": direct_continuation,
                 "gleiche_szene": same_scene,
@@ -1900,7 +1994,70 @@ def main():
 
         print(t("scene_shooting", id=szene_id))
         
-        wf_i2v["138"]["inputs"]["value"] = scene_data["prompt"]
+        # Reset dynamic scene LoRAs from node 674 (keep base lora_1 intact)
+        if "674" in wf_i2v and "inputs" in wf_i2v["674"]:
+            keys_to_remove_674 = [k for k in wf_i2v["674"]["inputs"].keys() if re.match(r"^lora_[2-9]\d*$", k)]
+            for k in keys_to_remove_674:
+                del wf_i2v["674"]["inputs"][k]
+
+        scene_loras = scene_data.get("loras") or scene_data.get("lora") or []
+        if isinstance(scene_loras, str):
+            scene_loras = [l.strip() for l in scene_loras.split(",") if l.strip()]
+
+        applied_scene_loras = []
+        extra_scene_triggers = []
+        lora_presets_dict = t2i_presets.get("lora_presets", {}) if t2i_presets else {}
+
+        if "674" in wf_i2v and "inputs" in wf_i2v["674"]:
+            for sl_idx, sl_item in enumerate(scene_loras):
+                if isinstance(sl_item, str):
+                    sl_key = sl_item.strip()
+                    sl_strength = None
+                elif isinstance(sl_item, dict):
+                    sl_key = sl_item.get("key") or sl_item.get("name") or sl_item.get("lora")
+                    sl_strength = sl_item.get("strength")
+                else:
+                    continue
+
+                if not sl_key:
+                    continue
+
+                if sl_key in lora_presets_dict:
+                    l_cfg = lora_presets_dict[sl_key]
+                    real_file = l_cfg.get("lora_name", "")
+                    s_model = sl_strength if sl_strength is not None else l_cfg.get("strength_model", 1.0)
+                    triggers = l_cfg.get("trigger_words", "")
+                else:
+                    real_file = sl_key
+                    s_model = sl_strength if sl_strength is not None else 1.0
+                    triggers = ""
+                    for pk, pv in lora_presets_dict.items():
+                        if pk.lower() == sl_key.lower():
+                            l_cfg = pv
+                            real_file = l_cfg.get("lora_name", "")
+                            s_model = sl_strength if sl_strength is not None else l_cfg.get("strength_model", 1.0)
+                            triggers = l_cfg.get("trigger_words", "")
+                            sl_key = pk
+                            break
+
+                if real_file:
+                    next_slot = f"lora_{sl_idx + 2}"
+                    wf_i2v["674"]["inputs"][next_slot] = {
+                        "on": True,
+                        "lora": real_file,
+                        "strength": s_model
+                    }
+                    applied_scene_loras.append(f"{sl_key} ({s_model})")
+                    if triggers and triggers.lower() not in scene_data["prompt"].lower():
+                        extra_scene_triggers.append(triggers)
+
+        if applied_scene_loras:
+            print(t("scene_loras_active", count=len(applied_scene_loras), loras=", ".join(applied_scene_loras)))
+
+        final_scene_prompt = scene_data["prompt"]
+        if extra_scene_triggers:
+            final_scene_prompt = f"{final_scene_prompt}\n\n[Scene enhancements: {', '.join(extra_scene_triggers)}]"
+        wf_i2v["138"]["inputs"]["value"] = final_scene_prompt
         
         keys_to_remove = [k for k in wf_i2v["136"]["inputs"].keys() if k.startswith("ref_images.ref_image_") or k.startswith("ref_videos.")]
         for k in keys_to_remove:

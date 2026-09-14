@@ -100,6 +100,7 @@ Each item in `szenen` represents an individual camera shot rendered by Minimax.
 | `direkter_anschluss` / `direct_continuation` / `match_cut` | `Boolean` | No | `false` | **Match Cut (Zero Jump Cut)**. Extracts the exact final frame of the previous scene and uses it as the initial frame (`MiniMaxH3AddGuide`). Motion continues seamlessly. |
 | `variablen_update` / `variables_update` / `set_variables` | `Object` | No | `{}` | Key-value updates to story/wardrobe variables (e.g. `{"outfit_chloe": "wearing only pink top, apron removed"}`). Persists for all subsequent shots until changed again. |
 | `charakter_status` / `character_status` | `Object` | No | `{}` | Per-scene character temporary state annotations (e.g. `{"Chloe": "sitting close to Liam, leaning forward"}`). |
+| `loras` / `lora` / `szene_loras` | `Array` / `String` | No | Auto-selected by LLM | **Scene-Specific MiniMax LoRAs**. List of MiniMax H3 LoRA keys (e.g. `["mmh3_combat_v2"]` or `["mmh3_poly_perfect"]`). If omitted, LM Studio automatically selects matching LoRAs based on scene motion and action. |
 | `ki_prompt_generieren` / `auto_prompt` / `generate_prompt` | `Boolean` | No | `true` | When `false`, uses the exact text in `idee`/`prompt` verbatim without LM Studio expansion. |
 
 ---

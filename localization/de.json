@@ -69,6 +69,8 @@
   "scene_extract_last_frame_failed": "   ⚠️ Konnte letzten Frame nicht extrahieren, fahre mit Standard-Workflow fort.",
   "scene_extracting_next_first_frame": "   📸 Extrahiere ersten Frame der folgenden Szene {next_id} als Endframe...",
   "scene_backward_connection_active": "   🎬 Rückwärts-Anschluss aktiv: Erster Frame von Szene {next_id} als last_frame verankert ({frame})!",
+  "scene_loras_chosen": "   🧬 LM Studio wählte Szene-LoRAs: {loras}",
+  "scene_loras_active": "   🧬 Aktive Szene-LoRAs ({count}): {loras}",
   "scene_rendering_started": "   🚀 Rendern gestartet...",
   "scene_finished": "   ✅ Szene {id} ist im Kasten! ({path})",
   "vram_cleanup": "   🧹 Gebe ungenutzten VRAM in ComfyUI frei...",

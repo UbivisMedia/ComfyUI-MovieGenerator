@@ -119,3 +119,61 @@ When a LoRA is applied:
 - `sdxl_gremlins`: Gremlin/Gizmo character LoRA (`xgremlinx, xgizmox`)
 - `sd15_cinematic`: Cinematic style lighting
 - `sd15_trainstation`: Visual novel train station background asset
+
+---
+
+## 4. MiniMax H3 Video LoRAs (Scene-Level)
+
+MiniMax H3 video diffusion models support scene-specific motion, combat, intimacy, physics, and visual aesthetics via ComfyUI node `674` (`Power Lora Loader (rgthree)`).
+
+### How It Works:
+1. **Automatic LLM Selection (LM Studio)**: During Phase 1 prompt generation, the complete catalog of compatible scene LoRAs is provided to LM Studio. The model analyzes the shot action and tags up to 2 relevant LoRAs (e.g. `LORAS: mmh3_combat_v2`).
+2. **Manual Director Override**: You can also manually specify LoRAs in any scene within your screenplay JSON:
+   ```json
+   {
+     "id": 3,
+     "idee": "Maya delivers a spinning martial arts kick to disarm the enemy.",
+     "loras": ["mmh3_combat_v2", "mmh3_poly_perfect"]
+   }
+   ```
+3. **Dynamic Stacking & Isolation**: Node `674` preserves the base 8-step turbo acceleration LoRA (`lora_1`) and dynamically loads scene LoRAs (`lora_2`, `lora_3`, etc.) with their respective weights and trigger words, automatically resetting after each scene.
+4. **Civitai Metadata**: All active scene LoRAs are embedded into the MP4 video header, companion preview PNG, and assembled final film metadata.
+
+### Catalog of MiniMax H3 Video LoRAs:
+
+| Key | Description | Trigger Words |
+| :--- | :--- | :--- |
+| `mmh3_combat_v2` | Combat Martial Arts Fight & Impact Booster | `prfight2, prfin1, martial arts fighting, dynamic combat impact` |
+| `mmh3_poly_perfect` | Polyhedron: Perfect Eyes, Skin & Hands Video Enhancer | `perfe8ct, perfect eyes, perfect skin, perfect hands` |
+| `mmh3_nafasp_natural` | Natural Lifelike Facial Expressions & Speech Movement | `nafasp, natural facial expressions, lifelike speech movement` |
+| `mmh3_cinematic_movie` | Film Grain & Cinematic Movie Texture | `cinematic texture, film grain` |
+| `mmh3_digicam_realism` | Y2K Vintage Digicam & Camcorder Flash Aesthetic | `d1g1cam, digicam style, raw camcorder footage` |
+| `mmh3_digital_art` | Vibrant Digital Concept Art Painting Visual Style | `digital art style, cinematic concept art, vibrant painted aesthetic` |
+| `mmh3_flatanime` | 2D Flat Anime Illustration Video Aesthetic | `flat anime style` |
+| `mmh3_bounce` | Intense Dynamic Bounce Motion & Physics | `bounce motion` |
+| `mmh3_bounce_fl2va` | Bouncing Breast Physics Motion (FL2VA Intense) | `her breast is bouncing up and down, her breast is bouncing from left to right` |
+| `mmh3_poly_cleavage` | Polyhedron: Deep Cleavage & Dirndl / Corset Enhancer | `cl8vage, deep cleavage, corset, dirndl, cleavage` |
+| `mmh3_sensual_fingering` | Sensual Intimate Hand & Finger Caress Motion | `Sensual_fingering, intimate hand motion, fingering` |
+| `mmh3_fingering_action` | Fingering Action & Intimate Touch | `fingering, intimate touch` |
+| `mmh3_worship_touch` | Sensual Body Worship & Passionate Touch | `worship it, sensual caressing, passionate touch` |
+| `mmh3_nipple_play` | Nipple Play & Breast Caress Motion | `nipple play, pinching nipples, caressing breasts` |
+| `mmh3_cowgirl_position` | Cowgirl Riding Position Sex Motion (Ref2V) | `cowgirl position, thrusting her body, riding from above` |
+| `mmh3_titjob` | Breast Sex & Titjob Motion | `titjob, titfuck, breast sex, breasts pressed around penis` |
+| `mmh3_blowjob_512` | Oral Sex & Blowjob Motion (INT8 Convrot) | `blowjob, sucking penis, intense oral sex` |
+| `mmh3_blowjob_v21` | Blowjob Concept v2.1 Motion | `blowjob` |
+| `mmh3_blowjob_v3` | Blowjob Concept v3 Motion | `blowjob` |
+| `mmh3_deepthroat_sideview` | SideView Deepthroat Oral Sex Motion (K3NK) | `sideview deepthroat, oral sex` |
+| `mmh3_licking_oral` | Licking Balls & Penis Foreplay Motion | `licking penis, licking testicles, licking penis tip` |
+| `mmh3_malesuckold` | Male Oral Sex & Sucking Motion | `malesuck, oral sex` |
+| `mmh3_cum_facial` | Facial Cumshot Climax Motion | `cum facial, cumshot on face, messy climax` |
+| `mmh3_hmcumshot` | HMCumshot v2 Climax Motion | — |
+| `mmh3_epic_cumshots` | Epic Cumshot Climax Motion | `CUMSH0T` |
+| `mmh3_vagina_vag` | Intimate Vag Anatomy Concept | `vagina` |
+| `mmh3_vagina_epoch20` | Vagina Epoch 20 Anatomy Concept | `vagina` |
+| `mmh3_mysticxxx` | MysticXXX Erotic Motion Enhancer v4 | — |
+| `mmh3_futa_transform` | Futanari Transformation & Morphing Motion | `futanari transformation, penis growth` |
+| `mmh3_thumb_anal` | Anal Touch & Intimate Play Motion | `thum1n8utt, intimate touch` |
+| `mmh3_furry_enhancer` | Furry Enhancer Video LoRA v2.54 | `furry` |
+| `mmh3_candi_character` | Candi Character Likeness LoRA | `candi, solo woman` |
+| `mmh3_fl2v_lightx2v_turbo` | FL2V Turbo 8-Step Acceleration *(Internal Base LoRA)* | — |
+

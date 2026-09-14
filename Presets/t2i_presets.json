@@ -801,6 +801,7 @@
       "beschreibung": "MiniMax H3 Flat Anime Style Video LoRA",
       "lora_name": "MiniMax H3\\anime\\FlatAnime_MiniMax_H3.safetensors",
       "kompatible_modelle": [
+        "minimax_h3",
         "minimax_h3_video"
       ],
       "strength_model": 0.8,
@@ -811,6 +812,7 @@
       "beschreibung": "MiniMax H3 Pruned Turbo LoRA with ALS",
       "lora_name": "MiniMax H3\\character\\minimax_h3_pruned_turbo_ckpt850_loraWithALS.safetensors",
       "kompatible_modelle": [
+        "minimax_h3",
         "minimax_h3_video"
       ],
       "strength_model": 1.0,
@@ -821,6 +823,7 @@
       "beschreibung": "MiniMax H3 Intense Bounce Motion Video LoRA",
       "lora_name": "MiniMax H3\\concept\\bounceV07-000230_Intense.safetensors",
       "kompatible_modelle": [
+        "minimax_h3",
         "minimax_h3_video"
       ],
       "strength_model": 0.8,
@@ -831,6 +834,7 @@
       "beschreibung": "MiniMax H3 HMCumshot v2 Video LoRA",
       "lora_name": "MiniMax H3\\concept\\HMCumshot_V2.safetensors",
       "kompatible_modelle": [
+        "minimax_h3",
         "minimax_h3_video"
       ],
       "strength_model": 0.8,
@@ -841,6 +845,7 @@
       "beschreibung": "MiniMax H3 Vag Concept Video LoRA",
       "lora_name": "MiniMax H3\\concept\\minimax_vag_000002500.safetensors",
       "kompatible_modelle": [
+        "minimax_h3",
         "minimax_h3_video"
       ],
       "strength_model": 0.8,
@@ -851,6 +856,7 @@
       "beschreibung": "MiniMax H3 Vagina Epoch 20 Video LoRA",
       "lora_name": "MiniMax H3\\concept\\Vagina_minimax-h3_epoch20.safetensors",
       "kompatible_modelle": [
+        "minimax_h3",
         "minimax_h3_video"
       ],
       "strength_model": 0.8,
@@ -861,6 +867,7 @@
       "beschreibung": "MiniMax H3 Blowjob Concept v2.1 Video LoRA",
       "lora_name": "MiniMax H3\\concept\\MM-H3 - Blowjob v2.1.safetensors",
       "kompatible_modelle": [
+        "minimax_h3",
         "minimax_h3_video"
       ],
       "strength_model": 0.8,
@@ -871,6 +878,7 @@
       "beschreibung": "MiniMax H3 Blowjob Concept v3 Video LoRA",
       "lora_name": "MiniMax H3\\concept\\MM-H3 - Blowjob v3.safetensors",
       "kompatible_modelle": [
+        "minimax_h3",
         "minimax_h3_video"
       ],
       "strength_model": 0.8,
@@ -881,6 +889,7 @@
       "beschreibung": "MiniMax H3 MysticXXX v4 Video LoRA",
       "lora_name": "MiniMax H3\\concept\\MysticXXX_MMH3-V4.safetensors",
       "kompatible_modelle": [
+        "minimax_h3",
         "minimax_h3_video"
       ],
       "strength_model": 0.8,
@@ -891,6 +900,7 @@
       "beschreibung": "MiniMax H3 Turbo 4-Step EMA Video LoRA",
       "lora_name": "MiniMax H3\\minimax h3 turbo lora\\minimax_h3_turbo_4step_ema_ckpt850.safetensors",
       "kompatible_modelle": [
+        "minimax_h3",
         "minimax_h3_video"
       ],
       "strength_model": 1.0,
@@ -901,6 +911,7 @@
       "beschreibung": "MiniMax H3 Furry Enhancer Video LoRA v2.54",
       "lora_name": "MiniMax H3\\realistic\\Furry enhancer Video H3  V2.54.safetensors",
       "kompatible_modelle": [
+        "minimax_h3",
         "minimax_h3_video"
       ],
       "strength_model": 0.8,
@@ -911,6 +922,7 @@
       "beschreibung": "MiniMax H3 Epic Cumshots Video LoRA",
       "lora_name": "MiniMax H3\\style\\epic_cumshots-MiniMaxH3-ALPHA-CUMSH0T.safetensors",
       "kompatible_modelle": [
+        "minimax_h3",
         "minimax_h3_video"
       ],
       "strength_model": 0.8,
@@ -921,6 +933,7 @@
       "beschreibung": "MiniMax H3 Filmische Kino-Textur v0.1",
       "lora_name": "MiniMax H3\\style\\Minimax H3真实电影质感V0.1（解决张量报错）.safetensors",
       "kompatible_modelle": [
+        "minimax_h3",
         "minimax_h3_video"
       ],
       "strength_model": 0.8,
@@ -931,6 +944,7 @@
       "beschreibung": "MiniMax H3 FL2V LightX2V Turbo 8-Step Video LoRA (Rank 24 BF16)",
       "lora_name": "MiniMax H3\\tool\\minimax_h3_fl2v_lightx2v_turbo_8step_v1.0_resized_avg_rank_24_bf16.safetensors",
       "kompatible_modelle": [
+        "minimax_h3",
         "minimax_h3_video"
       ],
       "strength_model": 1.0,
@@ -1156,6 +1170,247 @@
       "strength_model": 1.0,
       "strength_clip": 1.0,
       "trigger_words": "zariah, woman"
+    },
+    "mmh3_combat_v2": {
+      "beschreibung": "MiniMax H3 Combat Fight Motion / Impact / Drama Booster",
+      "lora_name": "MiniMax H3\\concept\\H3_Combat_V2.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": "prfight2, prfin1, martial arts fighting, dynamic combat impact"
+    },
+    "mmh3_sensual_fingering": {
+      "beschreibung": "MiniMax H3 - Sensual & Perfect Fingering Motion",
+      "lora_name": "MiniMax H3\\concept\\MMH3_Perfect_fingering_v1_000002000.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": "Sensual_fingering, intimate hand motion, fingering"
+    },
+    "mmh3_fingering_action": {
+      "beschreibung": "MiniMax H3 Fingering Action Motion",
+      "lora_name": "MiniMax H3\\action\\MinimaxH3-Fingering_000002000.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": "fingering, intimate touch"
+    },
+    "mmh3_blowjob_512": {
+      "beschreibung": "Minimax H3 Oral Sex / Blowjob Motion (INT8 Convrot)",
+      "lora_name": "MiniMax H3\\concept\\MinimaxH3-Blowjob-512_000000510.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": "blowjob, sucking penis, intense oral sex"
+    },
+    "mmh3_deepthroat_sideview": {
+      "beschreibung": "SideView Deepthroat Motion for MiniMax H3 (K3NK)",
+      "lora_name": "MiniMax H3\\action\\h3-sideview-deepthroat-step00007800-k3nk.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": "sideview deepthroat, oral sex"
+    },
+    "mmh3_licking_oral": {
+      "beschreibung": "Minimax H3 Licking Balls & Penis Foreplay Motion",
+      "lora_name": "MiniMax H3\\concept\\Minimaxh3-Licking_Balls_and_Penis-Ref2V-512_000000552.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": "licking penis, licking testicles, licking penis tip"
+    },
+    "mmh3_cowgirl_position": {
+      "beschreibung": "Minimax H3 Cowgirl Position Sex Motion (Ref2V)",
+      "lora_name": "MiniMax H3\\concept\\Minimaxh3-cowgirl_position-Ref2V-512_000000550.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": "cowgirl position, thrusting her body, riding from above"
+    },
+    "mmh3_titjob": {
+      "beschreibung": "Better Titfuck / Titjob Breast Sex Motion",
+      "lora_name": "MiniMax H3\\action\\Titjob - Titfuck v0.95.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": "titjob, titfuck, breast sex, breasts pressed around penis"
+    },
+    "mmh3_cum_facial": {
+      "beschreibung": "Minimax H3 Facial Cumshot & Climax Motion",
+      "lora_name": "MiniMax H3\\action\\cum_facial_000005400.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": "cum facial, cumshot on face, messy climax"
+    },
+    "mmh3_nipple_play": {
+      "beschreibung": "Nipple Play & Caress Motion for MiniMax H3",
+      "lora_name": "MiniMax H3\\concept\\[MiniMaxH3]-Nipple_Play_V2-1and3run.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": "nipple play, pinching nipples, caressing breasts"
+    },
+    "mmh3_bounce_fl2va": {
+      "beschreibung": "Bouncing Boobs Physics Motion (FL2VA Intense)",
+      "lora_name": "MiniMax H3\\concept\\bounceV07_fl2va-000230_Intense.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": "her breast is bouncing up and down, her breast is bouncing from left to right"
+    },
+    "mmh3_worship_touch": {
+      "beschreibung": "Minimax H3 Sensual Body Worship & Passionate Touch",
+      "lora_name": "MiniMax H3\\action\\worship_it_000006210.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": "worship it, sensual caressing, passionate touch"
+    },
+    "mmh3_poly_cleavage": {
+      "beschreibung": "Polyhedron: Deep Cleavage & Dirndl / Corset Enhancer",
+      "lora_name": "MiniMax H3\\assets\\polyhedron_minimax_h3_image_lora_cl8vage.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 0.9,
+      "strength_clip": 0.9,
+      "trigger_words": "cl8vage, deep cleavage, corset, dirndl, cleavage"
+    },
+    "mmh3_poly_perfect": {
+      "beschreibung": "Polyhedron: Perfect Eyes, Skin & Hands Video Enhancer",
+      "lora_name": "MiniMax H3\\assets\\polyhedron_minimax_h3_image_lora_v2__perfe8ct.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 0.8,
+      "strength_clip": 0.8,
+      "trigger_words": "perfe8ct, perfect eyes, perfect skin, perfect hands"
+    },
+    "mmh3_nafasp_natural": {
+      "beschreibung": "Natural Face & Speech Movement for MiniMax H3",
+      "lora_name": "MiniMax H3\\concept\\nafasp_lora_v1_500.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 0.8,
+      "strength_clip": 0.8,
+      "trigger_words": "nafasp, natural facial expressions, lifelike speech movement"
+    },
+    "mmh3_digicam_realism": {
+      "beschreibung": "Digicam Y2K Vintage Digital Camcorder Aesthetic",
+      "lora_name": "MiniMax H3\\style\\minimax-h3-digicam.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 0.9,
+      "strength_clip": 0.9,
+      "trigger_words": "d1g1cam, digicam style, raw camcorder footage, flash photography aesthetic"
+    },
+    "mmh3_digital_art": {
+      "beschreibung": "Minimax H3 Digital Art & Concept Painting Visual Style",
+      "lora_name": "MiniMax H3\\style\\minimax_digita_art.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 0.9,
+      "strength_clip": 0.9,
+      "trigger_words": "digital art style, cinematic concept art, vibrant painted aesthetic"
+    },
+    "mmh3_candi_character": {
+      "beschreibung": "Candi Character Appearance LoRA for MiniMax H3",
+      "lora_name": "MiniMax H3\\character\\Candi-MinimaxH3-v1.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": "candi, solo woman"
+    },
+    "mmh3_futa_transform": {
+      "beschreibung": "Futanari Transformation & Morphing LoRA for MiniMax H3",
+      "lora_name": "MiniMax H3\\concept\\MiniMax-H3_Futa_Transformations_LoRA_V5.1.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": "futanari transformation, penis growth"
+    },
+    "mmh3_thumb_anal": {
+      "beschreibung": "Minimax H3 Anal Touch & Play Motion",
+      "lora_name": "MiniMax H3\\action\\MiniMax H3 - ThumbInButt.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": "thum1n8utt, intimate touch"
+    },
+    "mmh3_malesuckold": {
+      "beschreibung": "Minimax H3 Male Oral Sex & Sucking Motion",
+      "lora_name": "MiniMax H3\\action\\H3.Malesuckold-000010.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": "malesuck, oral sex"
+    },
+    "illustrious_smoothmix_realism": {
+      "beschreibung": "SmoothMix Realism - Fotorealistische Texturen für Illustrious-basierte Modelle",
+      "lora_name": "Illustrious\\base model\\smoothmixRealism_realismV30.safetensors",
+      "kompatible_modelle": [
+        "illustrious"
+      ],
+      "strength_model": 0.8,
+      "strength_clip": 0.8,
+      "trigger_words": "realism, photorealistic, realistic skin, smooth shading"
     }
   }
 }

@@ -69,6 +69,8 @@
   "scene_extract_last_frame_failed": "   ⚠️ Could not extract last frame, continuing with standard workflow.",
   "scene_extracting_next_first_frame": "   📸 Extracting first frame of next scene {next_id} as end frame...",
   "scene_backward_connection_active": "   🎬 Backward match cut active: First frame of scene {next_id} anchored as last_frame ({frame})!",
+  "scene_loras_chosen": "   🧬 LM Studio selected scene LoRAs: {loras}",
+  "scene_loras_active": "   🧬 Active scene LoRAs ({count}): {loras}",
   "scene_rendering_started": "   🚀 Rendering started...",
   "scene_finished": "   ✅ Scene {id} wrapped! ({path})",
   "vram_cleanup": "   🧹 Freeing unused VRAM in ComfyUI...",

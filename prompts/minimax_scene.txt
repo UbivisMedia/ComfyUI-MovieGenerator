@@ -15,6 +15,10 @@ CRITICAL CHARACTER WARDROBE & STATE CONTINUITY:
 CRITICAL SCENE & SHOT CONTINUITY:
 {continuity_instruction}
 
+AVAILABLE SCENE LORAS (MiniMax H3):
+{available_loras}
+If this specific shot features motion, visual styles, combat, or intimate actions that match any of the LoRAs above, select 0 to 2 matching LoRA keys (e.g. 'mmh3_combat_v2' for martial arts, 'mmh3_nafasp_natural' for talking/facial motion, 'mmh3_poly_perfect' for close-up detail, or 'None').
+
 FORMAT TO FOLLOW STRICTLY:
 subject_definitions:
 {char_definitions}
@@ -32,6 +36,7 @@ non_diegetic_music:
 None
 
 DURATION: <number>
+LORAS: <comma-separated list of selected lora keys, or None>
 
 Here is the scene idea:
 {idee}
