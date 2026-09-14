@@ -121,14 +121,24 @@ python master_regisseur.py Projects/first_time.json
 
 ## Settings & Customization (`settings.json`)
 
-All machine-specific settings are centralized in `settings.json`, allowing you to update `master_regisseur.py` in the future without losing your local configuration:
+All machine-specific settings are centralized in `settings.json`, which is **ignored by Git** to prevent updates (`git pull`) from overwriting local configurations.
+
+- **Interactive First-Run Wizard**: If `settings.json` does not exist on first launch, MovieGenerator interactively asks for ComfyUI IP, Models paths, and automatically queries the LM Studio API (`/v1/models`) to let you pick your installed model from a numbered list.
+- **Auto-Healing Schema Migration**: Missing configuration keys are automatically added with defaults on every startup without modifying your existing custom values.
+- **Reference Template**: See [`settings.example.json`](../settings.example.json) for the full default configuration schema.
 
 ```json
 {
   "language": "auto",
   "comfyui": {
-    "server_address": "127.0.0.1:8188"
+    "server_address": "127.0.0.1:8188",
+    "models_dir": "D:\\ComfyUI_windows_portable\\ComfyUI\\models",
+    "models_search_paths": [
+      "../ComfyUI/models",
+      "../ComfyUI_windows_portable/ComfyUI/models"
+    ]
   },
+  "export_webm": true,
   "lm_studio": {
     "url": "http://127.0.0.1:1234/v1/chat/completions",
     "model_name": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
@@ -139,6 +149,9 @@ All machine-specific settings are centralized in `settings.json`, allowing you t
 
 - **`language`**: `"auto"` (detects OS UI language), or explicit language code like `"de"`, `"en"`.
 - **`comfyui.server_address`**: Host and port of your running ComfyUI instance (default: `127.0.0.1:8188`).
+- **`comfyui.models_dir`**: Path to your ComfyUI models folder (supports absolute or relative paths) to auto-resolve Civitai hashes and companion preview images.
+- **`comfyui.models_search_paths`**: Array of relative or absolute fallback paths for automatic discovery in portable setups.
+- **`export_webm`**: When `true`, additionally creates a compressed WebM (VP9/Opus) copy of the final film.
 - **`lm_studio.url`**: Local OpenAI-compatible completions endpoint (default: `http://127.0.0.1:1234/v1/chat/completions`).
 - **`lm_studio.model_name`**: LLM identifier loaded via LM Studio CLI (`lms load`).
 - **`lm_studio.temperature`**: Sampling temperature for creative screenwriting (default: `0.7`).

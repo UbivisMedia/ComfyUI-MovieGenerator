@@ -18,7 +18,7 @@ if sys.platform == "win32":
     except Exception:
         pass
 
-from localization import t
+from localization import t, init_localization, set_language, get_current_language
 
 # Base directories
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -28,54 +28,218 @@ PROJECTS_DIR = os.path.join(BASE_DIR, "Projects")
 PROMPTS_DIR = os.path.join(BASE_DIR, "prompts")
 SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
 
-def load_settings():
-    """Loads configuration from settings.json with safe fallback default values."""
-    defaults = {
-        "language": "auto",
-        "export_webm": False,
+DEFAULT_SETTINGS = {
+    "language": "auto",
+    "export_webm": True,
+    "comfyui": {
+        "server_address": "127.0.0.1:8188",
+        "models_dir": "",
+        "models_search_paths": [
+            "../ComfyUI/models",
+            "../ComfyUI_windows_portable/ComfyUI/models"
+        ]
+    },
+    "lm_studio": {
+        "url": "http://127.0.0.1:1234/v1/chat/completions",
+        "model_name": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+        "temperature": 0.7
+    }
+}
+
+def fetch_lm_studio_models(api_url):
+    """Attempts to retrieve available models from LM Studio /v1/models."""
+    try:
+        m = re.match(r'^(https?://[^/]+(?:/v1)?)', api_url)
+        if m:
+            base_prefix = m.group(1)
+            if not base_prefix.endswith('/v1'):
+                models_url = f"{base_prefix}/v1/models"
+            else:
+                models_url = f"{base_prefix}/models"
+        else:
+            models_url = "http://127.0.0.1:1234/v1/models"
+
+        req = urllib.request.Request(models_url, headers={"User-Agent": "MovieGenerator"})
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            models_list = []
+            if isinstance(data, dict) and "data" in data and isinstance(data["data"], list):
+                for item in data["data"]:
+                    mid = item.get("id")
+                    if mid and mid not in models_list:
+                        models_list.append(mid)
+            return models_list
+    except Exception:
+        return []
+
+def deep_merge_settings(user_cfg, default_cfg):
+    """Recursively merges default_cfg into user_cfg for any missing keys."""
+    added_keys = []
+    def _merge(target, source, path=""):
+        for k, v in source.items():
+            curr_path = f"{path}.{k}" if path else k
+            if k not in target:
+                target[k] = v
+                added_keys.append(curr_path)
+            elif isinstance(v, dict) and isinstance(target.get(k), dict):
+                _merge(target[k], v, curr_path)
+    
+    result = dict(user_cfg)
+    _merge(result, default_cfg)
+    return result, added_keys
+
+def interactive_setup_wizard():
+    """Interactively guides the user through setting up settings.json."""
+    print(t("wizard_welcome"))
+
+    # 1. Language
+    cur_lang = get_current_language()
+    default_lang = "auto"
+    try:
+        lang_input = input(t("wizard_lang_prompt", default=default_lang)).strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        lang_input = ""
+    chosen_lang = lang_input if lang_input in ("de", "en", "auto") else default_lang
+    if chosen_lang != "auto":
+        set_language(chosen_lang)
+
+    # 2. ComfyUI Server Address
+    default_server = "127.0.0.1:8188"
+    try:
+        server_input = input(t("wizard_comfyui_server_prompt", default=default_server)).strip()
+    except (EOFError, KeyboardInterrupt):
+        server_input = ""
+    chosen_server = server_input if server_input else default_server
+
+    # 3. ComfyUI Models Directory
+    default_models_dir = ""
+    for candidate in ["../ComfyUI/models", "../ComfyUI_windows_portable/ComfyUI/models", "D:\\ComfyUI_windows_portable\\ComfyUI\\models"]:
+        if os.path.exists(candidate):
+            default_models_dir = candidate
+            break
+    try:
+        models_input = input(t("wizard_models_dir_prompt", default=default_models_dir)).strip()
+    except (EOFError, KeyboardInterrupt):
+        models_input = ""
+    chosen_models_dir = models_input if models_input else default_models_dir
+
+    # 4. LM Studio API URL
+    default_lms_url = "http://127.0.0.1:1234/v1/chat/completions"
+    try:
+        lms_url_input = input(t("wizard_lms_url_prompt", default=default_lms_url)).strip()
+    except (EOFError, KeyboardInterrupt):
+        lms_url_input = ""
+    chosen_lms_url = lms_url_input if lms_url_input else default_lms_url
+
+    # Query models from LM Studio
+    print(t("wizard_lms_querying_models"))
+    available_models = fetch_lm_studio_models(chosen_lms_url)
+    chat_models = [m for m in available_models if "embedding" not in m.lower()]
+    default_model_name = "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+
+    chosen_model_name = default_model_name
+    if chat_models:
+        print(t("wizard_lms_models_found"))
+        default_idx = 1
+        for idx, m_id in enumerate(chat_models, 1):
+            if m_id == default_model_name:
+                default_idx = idx
+            marker = " (empfohlen / recommended)" if default_model_name in m_id else ""
+            print(f"     [{idx}] {m_id}{marker}")
+        
+        try:
+            m_choice = input(t("wizard_lms_select_model", count=len(chat_models), default=chat_models[default_idx-1], default_idx=default_idx)).strip()
+        except (EOFError, KeyboardInterrupt):
+            m_choice = ""
+        
+        if m_choice.isdigit() and 1 <= int(m_choice) <= len(chat_models):
+            chosen_model_name = chat_models[int(m_choice) - 1]
+        elif m_choice in chat_models:
+            chosen_model_name = m_choice
+        elif not m_choice:
+            chosen_model_name = chat_models[default_idx - 1]
+        else:
+            chosen_model_name = m_choice
+    else:
+        try:
+            m_choice = input(t("wizard_lms_no_models_fallback", default=default_model_name)).strip()
+        except (EOFError, KeyboardInterrupt):
+            m_choice = ""
+        chosen_model_name = m_choice if m_choice else default_model_name
+
+    # 5. WebM Export
+    default_webm = "j" if get_current_language() == "de" else "y"
+    try:
+        webm_input = input(t("wizard_webm_prompt", default=default_webm)).strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        webm_input = ""
+    chosen_webm = True
+    if webm_input in ("n", "no", "nein", "false", "0"):
+        chosen_webm = False
+
+    new_settings = {
+        "language": chosen_lang,
         "comfyui": {
-            "server_address": "127.0.0.1:8188",
-            "models_dir": "",
+            "server_address": chosen_server,
+            "models_dir": chosen_models_dir,
             "models_search_paths": [
                 "../ComfyUI/models",
                 "../ComfyUI_windows_portable/ComfyUI/models"
             ]
         },
+        "export_webm": chosen_webm,
         "lm_studio": {
-            "url": "http://127.0.0.1:1234/v1/chat/completions",
-            "model_name": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+            "url": chosen_lms_url,
+            "model_name": chosen_model_name,
             "temperature": 0.7
         }
     }
-    if os.path.exists(SETTINGS_FILE):
+
+    try:
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as sf:
+            json.dump(new_settings, sf, indent=2, ensure_ascii=False)
+        print(t("wizard_saved"))
+    except Exception as e:
+        print(f"⚠️ Konnte settings.json nicht speichern: {e}")
+
+    return new_settings
+
+def load_settings():
+    """Loads configuration from settings.json with interactive first-run wizard and auto-healing."""
+    defaults = json.loads(json.dumps(DEFAULT_SETTINGS))
+    
+    if not os.path.exists(SETTINGS_FILE):
+        if sys.stdin and hasattr(sys.stdin, "isatty") and sys.stdin.isatty():
+            return interactive_setup_wizard()
+        else:
+            try:
+                with open(SETTINGS_FILE, "w", encoding="utf-8") as sf:
+                    json.dump(defaults, sf, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
+            return defaults
+
+    try:
+        with open(SETTINGS_FILE, "r", encoding="utf-8") as sf:
+            cfg = json.load(sf)
+    except Exception as e:
+        print(f"⚠️ Fehler beim Lesen von settings.json: {e}")
+        return defaults
+
+    if not isinstance(cfg, dict):
+        cfg = {}
+
+    # Auto-migrate / auto-heal missing keys
+    merged_cfg, added_keys = deep_merge_settings(cfg, defaults)
+    if added_keys:
         try:
-            with open(SETTINGS_FILE, "r", encoding="utf-8") as sf:
-                cfg = json.load(sf)
-                if isinstance(cfg, dict):
-                    if "language" in cfg:
-                        defaults["language"] = cfg["language"]
-                    if "export_webm" in cfg:
-                        defaults["export_webm"] = bool(cfg["export_webm"])
-
-                    # ComfyUI configuration
-                    if "comfyui" in cfg and isinstance(cfg["comfyui"], dict):
-                        defaults["comfyui"].update(cfg["comfyui"])
-                    elif "server_address" in cfg:
-                        defaults["comfyui"]["server_address"] = cfg["server_address"]
-
-                    # LM Studio configuration
-                    if "lm_studio" in cfg and isinstance(cfg["lm_studio"], dict):
-                        defaults["lm_studio"].update(cfg["lm_studio"])
-                    else:
-                        if "lm_studio_url" in cfg:
-                            defaults["lm_studio"]["url"] = cfg["lm_studio_url"]
-                        if "llm_model_name" in cfg:
-                            defaults["lm_studio"]["model_name"] = cfg["llm_model_name"]
-                        if "temperature" in cfg:
-                            defaults["lm_studio"]["temperature"] = cfg["temperature"]
+            with open(SETTINGS_FILE, "w", encoding="utf-8") as sf:
+                json.dump(merged_cfg, sf, indent=2, ensure_ascii=False)
+            print(t("settings_migrated_notice", keys=", ".join(added_keys)))
         except Exception:
             pass
-    return defaults
+
+    return merged_cfg
 
 SETTINGS = load_settings()
 SERVER_ADDRESS = SETTINGS["comfyui"]["server_address"]

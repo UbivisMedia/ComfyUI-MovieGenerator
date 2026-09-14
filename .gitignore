@@ -45,3 +45,7 @@ Projects/*.json
 *.swp
 *.swo
 *~
+
+# Local user machine configuration (generated interactively, not overwritten by git pull)
+settings.json
+

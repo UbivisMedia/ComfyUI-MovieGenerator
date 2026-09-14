@@ -192,7 +192,12 @@ MovieGenerator includes a full production demonstration in [`Projects/three_scen
 
 ## 🔧 Configuration (`settings.json`)
 
-Adjust your local network addresses and preferences in `settings.json`:
+MovieGenerator uses a machine-specific `settings.json` that is **ignored by Git** (so running `git pull` will never overwrite your personal server addresses or model folders).
+
+- **First-Run Setup Wizard**: If `settings.json` does not exist, running the program automatically guides you through an interactive setup wizard asking for key settings (with smart defaults—simply press `[Enter]` to accept).
+  - During setup, it queries your LM Studio API (`/v1/models`) and presents a numbered selection list of installed models so you don't have to type long model identifiers.
+- **Auto-Healing Schema Migration**: Whenever new configuration features are added to MovieGenerator in future updates, the system automatically checks your existing `settings.json` upon launch, merges newly introduced keys with default values, and resaves it **without altering your custom settings**.
+- **Reference Template**: A complete blueprint is available in [`settings.example.json`](settings.example.json):
 
 ```json
 {

@@ -72,5 +72,18 @@
   "scene_rendering_started": "   🚀 Rendering started...",
   "scene_finished": "   ✅ Scene {id} wrapped! ({path})",
   "vram_cleanup": "   🧹 Freeing unused VRAM in ComfyUI...",
-  "all_scenes_finished": "\n🎉 ALL SCENES FINISHED!"
+  "all_scenes_finished": "\n🎉 ALL SCENES FINISHED!",
+
+  "wizard_welcome": "\n⚙️  INITIAL SETUP: No 'settings.json' found!\n   Let's configure the essential settings.\n   (Simply press [Enter] to accept the default value in brackets)\n",
+  "wizard_lang_prompt": "1️⃣  Language [auto | de | en] (Default: {default}): ",
+  "wizard_comfyui_server_prompt": "2️⃣  ComfyUI Server Address (Default: {default}): ",
+  "wizard_models_dir_prompt": "3️⃣  ComfyUI Models Directory (optional, [Enter] for auto-detection): ",
+  "wizard_lms_url_prompt": "4️⃣  LM Studio API URL (Default: {default}): ",
+  "wizard_lms_querying_models": "   🔄 Querying available models from LM Studio...",
+  "wizard_lms_models_found": "   📋 Available models found in LM Studio:",
+  "wizard_lms_select_model": "   👉 Select a model [1-{count}] (Default: [{default_idx}] {default}): ",
+  "wizard_lms_no_models_fallback": "   ℹ️ LM Studio did not respond or no models found.\n   Enter model name manually (Default: {default}): ",
+  "wizard_webm_prompt": "5️⃣  Export WebM video alongside MP4? [y/n] (Default: {default}): ",
+  "wizard_saved": "\n✅ Configuration successfully saved to 'settings.json'!\n",
+  "settings_migrated_notice": "ℹ️ 'settings.json' was automatically updated with new options: {keys}"
 }
