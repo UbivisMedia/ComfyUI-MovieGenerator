@@ -884,6 +884,7 @@ def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_
         for idx, s in enumerate(prepared_scenes):
             s_id = s.get("id", idx + 1)
             s_id_str = f"{int(s_id):02d}" if str(s_id).isdigit() else str(s_id)
+            s_dur = s.get("dauer") or s.get("dauer_sekunden") or s.get("duration") or 5
             s_cont_parts = []
             if s.get("direkter_anschluss") or s.get("direct_continuation") or s.get("match_cut"):
                 s_cont_parts.append("[Match Cut]")
