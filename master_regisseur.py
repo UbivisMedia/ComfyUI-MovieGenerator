@@ -31,8 +31,15 @@ SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
 def load_settings():
     """Loads configuration from settings.json with safe fallback default values."""
     defaults = {
+        "language": "auto",
+        "export_webm": False,
         "comfyui": {
-            "server_address": "127.0.0.1:8188"
+            "server_address": "127.0.0.1:8188",
+            "models_dir": "",
+            "models_search_paths": [
+                "../ComfyUI/models",
+                "../ComfyUI_windows_portable/ComfyUI/models"
+            ]
         },
         "lm_studio": {
             "url": "http://127.0.0.1:1234/v1/chat/completions",
@@ -45,17 +52,20 @@ def load_settings():
             with open(SETTINGS_FILE, "r", encoding="utf-8") as sf:
                 cfg = json.load(sf)
                 if isinstance(cfg, dict):
+                    if "language" in cfg:
+                        defaults["language"] = cfg["language"]
+                    if "export_webm" in cfg:
+                        defaults["export_webm"] = bool(cfg["export_webm"])
+
                     # ComfyUI configuration
                     if "comfyui" in cfg and isinstance(cfg["comfyui"], dict):
-                        defaults["comfyui"]["server_address"] = cfg["comfyui"].get("server_address", defaults["comfyui"]["server_address"])
+                        defaults["comfyui"].update(cfg["comfyui"])
                     elif "server_address" in cfg:
                         defaults["comfyui"]["server_address"] = cfg["server_address"]
 
                     # LM Studio configuration
                     if "lm_studio" in cfg and isinstance(cfg["lm_studio"], dict):
-                        defaults["lm_studio"]["url"] = cfg["lm_studio"].get("url", defaults["lm_studio"]["url"])
-                        defaults["lm_studio"]["model_name"] = cfg["lm_studio"].get("model_name", defaults["lm_studio"]["model_name"])
-                        defaults["lm_studio"]["temperature"] = cfg["lm_studio"].get("temperature", defaults["lm_studio"]["temperature"])
+                        defaults["lm_studio"].update(cfg["lm_studio"])
                     else:
                         if "lm_studio_url" in cfg:
                             defaults["lm_studio"]["url"] = cfg["lm_studio_url"]
@@ -283,18 +293,44 @@ def create_preview_image_with_metadata(video_path, preview_png_path, a1111_param
 _CIVITAI_META_CACHE = {}
 
 def get_comfy_models_dir():
-    """Resolves the ComfyUI models directory from settings or common installation paths."""
-    models_dir = SETTINGS.get("comfyui", {}).get("models_dir")
-    if models_dir and os.path.exists(models_dir):
-        return models_dir
-    candidates = [
-        r"D:\ComfyUI_windows_portable\ComfyUI\models",
-        r"C:\ComfyUI_windows_portable\ComfyUI\models",
-        r"E:\ComfyUI_windows_portable\ComfyUI\models",
+    """
+    Resolves the ComfyUI models directory without hardcoded drive paths.
+    Checks:
+    1. 'models_dir' configured in settings.json (absolute or relative to BASE_DIR)
+    2. 'models_search_paths' list configured in settings.json
+    3. Dynamic portable candidates relative to MovieGenerator (e.g. sibling ComfyUI folder)
+    """
+    comfy_cfg = SETTINGS.get("comfyui", {})
+
+    # 1. Configured direct models_dir
+    models_dir = comfy_cfg.get("models_dir")
+    if models_dir and isinstance(models_dir, str) and models_dir.strip():
+        m_path = models_dir.strip()
+        resolved = m_path if os.path.isabs(m_path) else os.path.abspath(os.path.join(BASE_DIR, m_path))
+        if os.path.exists(resolved) and os.path.isdir(resolved):
+            return resolved
+
+    # 2. Configured search paths list from settings.json
+    search_paths = comfy_cfg.get("models_search_paths", [])
+    if isinstance(search_paths, str):
+        search_paths = [search_paths]
+
+    # 3. Dynamic portable candidates relative to MovieGenerator
+    portable_fallbacks = [
+        os.path.join(BASE_DIR, "..", "ComfyUI", "models"),
+        os.path.join(BASE_DIR, "..", "ComfyUI_windows_portable", "ComfyUI", "models"),
+        os.path.join(BASE_DIR, "models"),
     ]
-    for c in candidates:
-        if os.path.exists(c):
-            return c
+
+    all_candidates = list(search_paths) + portable_fallbacks
+    for c in all_candidates:
+        if not isinstance(c, str) or not c.strip():
+            continue
+        c_clean = c.strip()
+        resolved = c_clean if os.path.isabs(c_clean) else os.path.abspath(os.path.join(BASE_DIR, c_clean))
+        if os.path.exists(resolved) and os.path.isdir(resolved):
+            return resolved
+
     return None
 
 def find_civitai_metadata(model_filename_or_path, subfolder=None):

@@ -2,7 +2,11 @@
   "language": "auto",
   "comfyui": {
     "server_address": "127.0.0.1:8188",
-    "models_dir": "D:\\ComfyUI_windows_portable\\ComfyUI\\models"
+    "models_dir": "D:\\ComfyUI_windows_portable\\ComfyUI\\models",
+    "models_search_paths": [
+      "../ComfyUI/models",
+      "../ComfyUI_windows_portable/ComfyUI/models"
+    ]
   },
   "export_webm": true,
   "lm_studio": {

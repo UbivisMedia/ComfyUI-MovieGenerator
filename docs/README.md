@@ -49,7 +49,7 @@ flowchart TD
 ## Directory Structure
 
 ```text
-e:\MovieGenerator\
+MovieGenerator/
 ├── Film_starten.bat             # Quick launch script (interactive or drag & drop)
 ├── master_regisseur.py          # Core pipeline director script
 ├── settings.json                # User settings (e.g. language, server addresses, models)

@@ -163,8 +163,14 @@ Adjust your local network addresses and preferences in `settings.json`:
 {
   "language": "auto",
   "comfyui": {
-    "server_address": "127.0.0.1:8188"
+    "server_address": "127.0.0.1:8188",
+    "models_dir": "D:\\ComfyUI_windows_portable\\ComfyUI\\models",
+    "models_search_paths": [
+      "../ComfyUI/models",
+      "../ComfyUI_windows_portable/ComfyUI/models"
+    ]
   },
+  "export_webm": true,
   "lm_studio": {
     "url": "http://127.0.0.1:1234/v1/chat/completions",
     "model_name": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
@@ -175,6 +181,9 @@ Adjust your local network addresses and preferences in `settings.json`:
 
 - **`language`**: `"auto"` (detects system language), `"en"`, or `"de"`.
 - **`comfyui.server_address`**: Address where ComfyUI is listening.
+- **`comfyui.models_dir`**: Path to your ComfyUI models folder (supports absolute or relative paths) to auto-resolve Civitai hashes and companion preview images.
+- **`comfyui.models_search_paths`**: Array of relative or absolute fallback paths for automatic discovery in portable setups.
+- **`export_webm`**: When `true`, additionally creates a compressed WebM (VP9/Opus) copy of the final film.
 - **`lm_studio.model_name`**: LLM identifier to load through `lms load`.
 
 ---
