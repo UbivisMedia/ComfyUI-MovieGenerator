@@ -179,32 +179,14 @@ MovieGenerator includes a full production demonstration in [`Projects/three_scen
 | Cast Portrait (`Maya`) | Final Cut Movie (`The Artifact`) |
 | :---: | :---: |
 | <img src="Projects/three_scenes_example/Characters/Maya.png" alt="Maya Casting Portrait" width="380" /> | [![The Artifact Final Movie](Projects/three_scenes_example/Movie/three_scenes_example_FINAL_preview.png)](https://github.com/user-attachments/assets/642e358c-1e81-4e83-980e-0d5281da2c3c) |
-| **Actor:** Maya (Cyber-Archeologist)<br>**Model:** `anima_cyberrealistic`<br>**LoRAs:** `realskin`, `anima_detailer` | 🎬 **[▶ Watch Final Movie (MP4)](https://github.com/user-attachments/assets/642e358c-1e81-4e83-980e-0d5281da2c3c)**<br>🌐 **[Watch WebM Version](https://github.com/user-attachments/assets/a0d34d43-230b-417d-8a4b-95cf596286d3)**<br>⏱️ Duration: 22s • 1344x768 • Audio & Metadata embedded |
-
-https://github.com/user-attachments/assets/642e358c-1e81-4e83-980e-0d5281da2c3c
+| **Actor:** Maya (Cyber-Archeologist)<br>**Model:** `anima_cyberrealistic`<br>**LoRAs:** `realskin`, `anima_detailer` | ⏱️ Duration: 22s • 1344x768 • Audio & Metadata embedded<br>🌐 **[Download WebM Version](https://github.com/user-attachments/assets/a0d34d43-230b-417d-8a4b-95cf596286d3)** |
 
 ### 🎞️ Rendered Scene Storyboard
 
 | Shot 01: Stone Corridor | Shot 02: Hovering Pedestal | Shot 03: Match Cut Activation |
 | :---: | :---: | :---: |
-| [![Scene 01](Projects/three_scenes_example/Scenes/Szene_01_preview.png)](https://github.com/user-attachments/assets/53b538de-7e7e-44a4-827b-67faedf3b0f3) | [![Scene 02](Projects/three_scenes_example/Scenes/Szene_02_preview.png)](https://github.com/user-attachments/assets/71722e45-9e60-491c-a209-973c9e4f981b) | [![Scene 03](Projects/three_scenes_example/Scenes/Szene_03_preview.png)](https://github.com/user-attachments/assets/4f208e5a-1a07-48f6-8de1-4c910695c4ee) |
-| [▶ Watch Scene 01 (MP4)](https://github.com/user-attachments/assets/53b538de-7e7e-44a4-827b-67faedf3b0f3) | [▶ Watch Scene 02 (MP4)](https://github.com/user-attachments/assets/71722e45-9e60-491c-a209-973c9e4f981b) | [▶ Watch Scene 03 (MP4)](https://github.com/user-attachments/assets/4f208e5a-1a07-48f6-8de1-4c910695c4ee) |
+| [![Scene 01](Projects/three_scenes_example/Scenes/Szene_01_preview.png)](https://github.com/user-attachments/assets/71722e45-9e60-491c-a209-973c9e4f981b) | [![Scene 02](Projects/three_scenes_example/Scenes/Szene_02_preview.png)](https://github.com/user-attachments/assets/4f208e5a-1a07-48f6-8de1-4c910695c4ee) | [![Scene 03](Projects/three_scenes_example/Scenes/Szene_03_preview.png)](https://github.com/user-attachments/assets/53b538de-7e7e-44a4-827b-67faedf3b0f3) |
 | *Environment Setup* | *Continuity Reference (`ref_videos`)* | *Seamless Match Cut (`first_frame` guide)* |
-
-<details>
-<summary>🎬 <b>Play Scene Clips Directly (Embedded Players)</b></summary>
-<br>
-
-**Scene 01 — Subterranean Vault Discovery:**
-https://github.com/user-attachments/assets/53b538de-7e7e-44a4-827b-67faedf3b0f3
-
-**Scene 02 — Hovering Pedestal & HUD Goggles:**
-https://github.com/user-attachments/assets/71722e45-9e60-491c-a209-973c9e4f981b
-
-**Scene 03 — Seamless Match Cut Activation:**
-https://github.com/user-attachments/assets/4f208e5a-1a07-48f6-8de1-4c910695c4ee
-
-</details>
 
 ---
 
