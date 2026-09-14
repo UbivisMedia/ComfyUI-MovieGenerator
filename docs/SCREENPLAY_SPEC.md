@@ -73,23 +73,31 @@ Each item in `szenen` represents an individual camera shot rendered by Minimax.
 ```json
 {
   "id": 1,
+  "sequence": "dining_table",
+  "location": "Modern Kitchen Dining Table",
   "dauer_sekunden": 5,
   "idee": "Elara stands on the balcony in the evening light. A gentle wind blows through her hair as she looks out over the city.",
   "anschluss_an_vorherige_szene": false,
-  "direkter_anschluss": false
+  "direkter_anschluss": false,
+  "same_scene": false
 }
 ```
 
 ### Field Details
 
-| Field | Type | Required | Default | Description |
+| Field (DE / EN) | Type | Required | Default | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| `id` | `Integer` | **Yes** | — | Numerical sequence identifier for the scene (`1, 2, 3...`). Scenes are rendered and ordered strictly by ID. |
-| `idee` / `prompt` | `String` | **Yes** | — | Scene narrative idea or director instruction. Supports `{variable_name}` placeholder substitution. |
-| `dauer_sekunden` | `Integer` | No | Estimated by LLM (3–10) | Target video length in seconds (typically between 4 and 8 seconds). |
-| `anschluss_an_vorherige_szene` | `Boolean` | No | `false` | **Environmental Continuity**. When `true`, passes the previous rendered scene video into Minimax as `ref_videos.ref_video_0` to preserve the room, lighting, and atmosphere. |
-| `direkter_anschluss` | `Boolean` | No | `false` | **Match Cut (Zero Jump Cut)**. When `true`, automatically extracts the exact last frame of the previous scene and uses it as the initial frame (`MiniMaxH3AddGuide`). The action continues without interruption. |
-| `variablen_update` / `set_variables` | `Object` | No | `{}` | Key-value updates to story/wardrobe variables (e.g. `{"outfit_chloe": "wearing only pink top, apron removed"}`). Updated values automatically persist for all subsequent scenes until modified again. |
+| `id` | `Integer` | **Yes** | — | Numerical sequence identifier for the shot/scene (`1, 2, 3...`). Ordered strictly by ID. |
+| `idee` / `idea` / `prompt` | `String` | **Yes** | — | Shot narrative idea or director instruction. Supports `{variable_name}` substitution. |
+| `dauer_sekunden` / `duration` / `duration_seconds` | `Integer` | No | Estimated by LLM (3–10) | Target video length in seconds. |
+| `sequence` / `sequenz` / `scene_group` / `bundle` | `String` | No | `null` | **Scene Grouping / Sequence ID**. Consecutive shots sharing the same sequence automatically share environment and physical proximity context. |
+| `location` / `ort` / `setting` | `String` | No | `null` | **Location Tag** (e.g. `"Balcony"`, `"Kitchen Dining Table"`). Informs the LLM of the continuous physical environment. |
+| `same_scene` / `gleiche_szene` / `angle_change` | `Boolean` | No | `false` | **Same Scene / Camera Angle Change**. Informs LM Studio that the shot is an angle cut (e.g. close-up, over-the-shoulder) within the same scene. Automatically enforces that characters start **ALREADY** in their established positions without resetting postures or re-approaching. |
+| `anschluss_an_vorherige_szene` / `continuity_environment` / `continuity` | `Boolean` | No | `false` (or auto if in same sequence) | **Environmental Continuity**. Passes the previous rendered scene video into Minimax as `ref_videos.ref_video_0` to preserve room lighting, background, and atmosphere. |
+| `direkter_anschluss` / `direct_continuation` / `match_cut` | `Boolean` | No | `false` | **Match Cut (Zero Jump Cut)**. Extracts the exact final frame of the previous scene and uses it as the initial frame (`MiniMaxH3AddGuide`). Motion continues seamlessly. |
+| `variablen_update` / `variables_update` / `set_variables` | `Object` | No | `{}` | Key-value updates to story/wardrobe variables (e.g. `{"outfit_chloe": "wearing only pink top, apron removed"}`). Persists for all subsequent shots until changed again. |
+| `charakter_status` / `character_status` | `Object` | No | `{}` | Per-scene character temporary state annotations (e.g. `{"Chloe": "sitting close to Liam, leaning forward"}`). |
+| `ki_prompt_generieren` / `auto_prompt` / `generate_prompt` | `Boolean` | No | `true` | When `false`, uses the exact text in `idee`/`prompt` verbatim without LM Studio expansion. |
 
 ---
 
@@ -125,25 +133,47 @@ The **Variable System** solves this by maintaining a persistent state machine ac
 
 ---
 
-## 4. Continuity Modes Explained
+## 4. Continuity Modes & Scene Bundling
 
-The pipeline provides two distinct levels of continuity between scenes:
+The pipeline provides four distinct levels of continuity between scenes:
 
 ### Mode A: Independent Cut (`anschluss_an_vorherige_szene: false`, `direkter_anschluss: false`)
 - **Use case**: New location, significant time skip, or complete change of scenery.
-- **Behavior**: Minimax generates the scene purely from the text prompt and the character face references (`ref_images`).
+- **Behavior**: Minimax generates the scene purely from the text prompt and the character face references (`ref_images`). Characters may begin in standard postures.
 
 ### Mode B: Environmental Continuity (`anschluss_an_vorherige_szene: true`, `direkter_anschluss: false`)
-- **Use case**: Camera angle change within the same room (e.g. from wide shot to close-up), or next moment in the same setting.
+- **Use case**: New angle or subsequent beat in the same setting.
 - **Behavior**: The previous video is fed into Minimax as a visual style and environmental guide (`ref_videos`), ensuring colors, furniture, and lighting match.
 
-### Mode C: Direct Seamless Continuation (`anschluss_an_vorherige_szene: true`, `direkter_anschluss: true`)
-- **Use case**: Continuous real-time action split across multiple render batches (e.g. dialog exchange, extended motion, continuous physical action).
-- **Behavior**: Extracts the last frame of the previous clip via FFmpeg and anchors it as `first_frame` (frame 0) of the new clip. Eliminates pose snapping and visual jumps.
+### Mode C: Direct Seamless Continuation / Match Cut (`direkter_anschluss: true` / `direct_continuation: true`)
+- **Use case**: Continuous real-time action split across multiple render batches (e.g. uninterrupted motion, continuous dialog delivery).
+- **Behavior**: Extracts the last frame of the previous clip via FFmpeg and anchors it as `first_frame` (frame 0) of the new clip (`MiniMaxH3AddGuide`). Eliminates pose snapping and visual jumps entirely.
+
+### Mode D: Same Scene Angle Cut (`same_scene: true` / `gleiche_szene: true`)
+- **Use case**: Changing camera perspectives (e.g. wide shot to close-up, over-the-shoulder, reaction shot) while characters remain in the same physical position.
+- **Behavior**: Does not force a static initial frame (allowing full freedom of camera choreography), but strictly instructs LM Studio that characters are **ALREADY** in their established physical posture. Prevents redundant actions like characters repeatedly walking in, sitting down again, or re-initiating hugs across cuts.
+
+### 5. Sequence Bundles (`sequence` / `sequenz`)
+When multiple consecutive shots belong to the same dramatic scene (e.g. shots 14 to 25 at a breakfast table), group them using `"sequence"`:
+```json
+{
+  "id": 14,
+  "sequence": "breakfast_table",
+  "location": "Kitchen Dining Table",
+  "idee": "Chloe and Liam sit down facing each other."
+},
+{
+  "id": 15,
+  "sequence": "breakfast_table",
+  "same_scene": true,
+  "idee": "Close-up on their hands touching over the plate."
+}
+```
+All shots sharing the same `"sequence"` tag automatically inherit environmental continuity and physical posture tracking.
 
 ---
 
-## 4. Complete Valid Screenplay Example
+## 6. Complete Valid Screenplay Example
 
 ```json
 {

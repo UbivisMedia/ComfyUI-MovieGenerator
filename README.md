@@ -113,45 +113,56 @@ MovieGenerator/
 
 ---
 
-## 📝 Example Screenplay Format
+## 📝 Screenplay Format (Bilingual: English & German)
+
+MovieGenerator supports both English and German syntax interchangeably with 100% backward compatibility. You can write your script in English (`title`, `characters`, `scenes`, `sequence`, `idea`, `duration`) or German (`titel`, `charaktere`, `szenen`, `sequenz`, `idee`, `dauer_sekunden`).
 
 Here is an example screenplay structure ([`Projects/three_scenes_example.json`](Projects/three_scenes_example.json)):
 
 ```json
 {
-  "titel": "The Artifact",
-  "charaktere": [
+  "title": "The Artifact",
+  "characters": [
     {
       "id": 1,
       "name": "Maya",
-      "modell": "anima_cyberrealistic",
+      "model": "anima_cyberrealistic",
       "loras": ["realskin", "anima_detailer"],
       "prompt": "masterpiece, 1girl, 26 years old, ponytail, tactical jacket, techwear vest, simple dark background"
     }
   ],
-  "szenen": [
+  "scenes": [
     {
       "id": 1,
-      "dauer_sekunden": 5,
-      "idee": "Maya walks cautiously through a dimly lit ancient stone corridor with a holographic scanner."
+      "sequence": "Chamber Discovery",
+      "location": "Ancient Temple Corridor",
+      "duration": 5,
+      "idea": "Maya walks cautiously through a dimly lit ancient stone corridor with a holographic scanner."
     },
     {
       "id": 2,
-      "anschluss_an_vorherige_szene": true,
-      "direkter_anschluss": false,
-      "dauer_sekunden": 5,
-      "idee": "Maya discovers a pedestal in the chamber and reaches out toward a hovering golden artifact."
+      "sequence": "Chamber Discovery",
+      "same_scene": true,
+      "duration": 5,
+      "idea": "Reverse angle: Maya spots an elevated stone pedestal across the chamber with a hovering golden artifact."
     },
     {
       "id": 3,
-      "anschluss_an_vorherige_szene": true,
-      "direkter_anschluss": true,
-      "dauer_sekunden": 4,
-      "idee": "Direct match cut: Maya's fingers touch the artifact. Radiant energy ripples across its surface."
+      "sequence": "Chamber Discovery",
+      "match_cut": true,
+      "duration": 4,
+      "idea": "Close-up match cut: Maya's fingers touch the artifact. Radiant blue energy ripples outward across its surface."
     }
   ]
 }
 ```
+
+> [!TIP]
+> **Continuity Controls**:
+> - `sequence` / `sequenz`: Groups consecutive shots in the same dramatic scene, retaining character end-states and preventing action loops.
+> - `same_scene` / `gleiche_szene`: Flags camera angle cuts within the same room/scene.
+> - `match_cut` / `direkter_anschluss`: Seamless physical match cut (starts from previous frame).
+> - For full schema documentation and all options, see [SCREENPLAY_SPEC.md](docs/SCREENPLAY_SPEC.md).
 
 ---
 

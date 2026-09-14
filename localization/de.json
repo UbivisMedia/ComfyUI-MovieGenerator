@@ -40,6 +40,8 @@
   "phase1_writing_scenes": "\n🎬 Schreibe Minimax-Szenenprompts...",
   "scene_continuity_seamless": " | 🔗 Nahtloser Anschluss",
   "scene_continuity_ref": " | 🔗 Vorherige Szene als Referenz",
+  "scene_continuity_same_scene": " | 🎬 Gleiche Szene (Winkelwechsel)",
+  "scene_sequence_badge": " | 📍 Sequenz: {seq}",
   "scene_written": "   ✅ Szene {id} getippt ({dauer} Sek{anschluss}).",
   "scene_keep_manual_prompt": "   ℹ️ Behalte manuellen Prompt für Szene {id}.",
   "screenplay_extended_saved": "   💾 Erweiterte Drehbuchfassung mit LM Studio Prompts gespeichert:\n   👉 {path}",

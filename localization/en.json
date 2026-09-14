@@ -40,6 +40,8 @@
   "phase1_writing_scenes": "\n🎬 Writing Minimax scene prompts...",
   "scene_continuity_seamless": " | 🔗 Seamless match cut",
   "scene_continuity_ref": " | 🔗 Previous scene as reference",
+  "scene_continuity_same_scene": " | 🎬 Same scene (angle change)",
+  "scene_sequence_badge": " | 📍 Sequence: {seq}",
   "scene_written": "   ✅ Scene {id} written ({dauer} sec{anschluss}).",
   "scene_keep_manual_prompt": "   ℹ️ Keeping manual prompt for Scene {id}.",
   "screenplay_extended_saved": "   💾 Saved extended screenplay with LM Studio prompts:\n   👉 {path}",

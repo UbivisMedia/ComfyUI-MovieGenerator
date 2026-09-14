@@ -12,6 +12,9 @@ CRITICAL CHARACTER WARDROBE & STATE CONTINUITY:
 - Visual Identity vs. Clothing: The reference image (<Picture X>) establishes the character's facial features and identity. However, their CLOTHING and CURRENT STATE in this scene MUST strictly match the active state listed above!
 - When a character's state specifies a wardrobe change (e.g. apron removed, topless, shirtless, nude, wearing different clothes, wet hair), you MUST explicitly describe them in their current clothing state in [Shot 1], explicitly stating their current outfit so Minimax overrides what was in <Picture X>.
 
+CRITICAL SCENE & SHOT CONTINUITY:
+{continuity_instruction}
+
 FORMAT TO FOLLOW STRICTLY:
 subject_definitions:
 {char_definitions}

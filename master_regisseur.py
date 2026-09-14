@@ -524,8 +524,9 @@ def ask_lm_studio_character(char, screenplay, preset_name, preset):
     char_name = char.get("name", "Character")
     existing_prompt = char.get("prompt") or char.get("beschreibung") or char.get("rolle") or char.get("idee") or char.get("description") or ""
     
-    # Short scenes overview for narrative context
-    scenes_overview = "\n".join([f"- Szene {s.get('id', idx+1)}: {s.get('idee', '')}" for idx, s in enumerate(screenplay.get("szenen", []))])
+    # Short scenes overview for narrative context (bilingual support)
+    sc_list = screenplay.get("szenen") or screenplay.get("scenes") or []
+    scenes_overview = "\n".join([f"- Szene {s.get('id', idx+1)}: {s.get('idee') or s.get('idea') or s.get('prompt', '')}" for idx, s in enumerate(sc_list)])
     model_desc = preset.get("beschreibung", preset_name) if preset else preset_name
     
     default_instruction = """You are an expert AI prompt engineer for image generation models (Stable Diffusion / SDXL / Pony / Anima / CyberRealistic).
@@ -636,32 +637,73 @@ def format_state_instruction(characters, active_variables=None, character_states
         return "\n".join(lines)
     return "None (All characters appear in their standard reference wardrobe/appearance)."
 
-def ask_lm_studio(idea, characters, use_previous_scene=False, direct_continuation=False, active_variables=None, character_states=None):
+def ask_lm_studio(
+    idea,
+    characters,
+    use_previous_scene=False,
+    direct_continuation=False,
+    active_variables=None,
+    character_states=None,
+    previous_shot_context=None,
+    same_scene=False,
+    sequence_info=None
+):
     print(t("scene_elaborating", idea=idea))
     
     char_definitions = ""
     for i, char in enumerate(characters):
         char_definitions += f"<Subject {i+1}> is the character in <Picture {i+1}> ({char['name']}).\n"
 
-    video_instructions = []
-    if use_previous_scene:
-        env_snippet = load_prompt_template(
-            "continuity_environment.txt",
-            "The user wants to keep the continuity from the previous scene. You MUST include '<Video 1> establishes the environment' in your detailed description so the model knows to use the previous video as a reference for the location/setting."
-        )
-        video_instructions.append(env_snippet.strip())
+    continuity_rules = []
+    
+    # 1. Sequence & Location setting
+    if sequence_info and (sequence_info.get("sequence") or sequence_info.get("location")):
+        seq_val = sequence_info.get("sequence") or ""
+        loc_val = sequence_info.get("location") or ""
+        desc_parts = []
+        if loc_val:
+            desc_parts.append(f"Location: {loc_val}")
+        if seq_val:
+            desc_parts.append(f"Scene Group/Sequence: {seq_val}")
+        continuity_rules.append(f"- SETTING: {', '.join(desc_parts)}")
+
+    # 2. Previous shot context to prevent redundant actions and maintain physical posture
+    if previous_shot_context:
+        prev_id = previous_shot_context.get("id", "?")
+        prev_summary = previous_shot_context.get("summary", "").strip()
+        is_same_seq = previous_shot_context.get("same_sequence", False)
+        is_same_scene = previous_shot_context.get("same_scene", False) or same_scene
+
+        if is_same_seq or is_same_scene or direct_continuation or use_previous_scene:
+            continuity_rules.append(
+                f"- PRECEDING SHOT #{prev_id} ACTION: \"{prev_summary}\"\n"
+                "- PHYSICAL CONTINUITY (CRITICAL):\n"
+                f"  * Characters are ALREADY in the physical posture, position, and proximity established at the end of Shot #{prev_id}.\n"
+                "  * DO NOT REPEAT ACTIONS: Never have characters walk up again, sit down again, or reach across if they already completed that action in the preceding shot!\n"
+                "  * MANDATORY STARTING WORD: In 'detailed_description' under [Shot 1], you MUST explicitly begin by describing characters 'ALREADY' in their posture (e.g. '[Shot 1]: A medium close-up frames Chloe and Liam as they are ALREADY seated closely opposite each other at the table...', '[Shot 1]: A profile shot shows both characters ALREADY embracing intimately...').\n"
+                "  * If this shot changes the camera angle or perspective (e.g. from wide shot to close-up, or over-the-shoulder), frame the new angle smoothly without resetting posture or moving characters back apart."
+            )
+
     if direct_continuation:
         matchcut_snippet = load_prompt_template(
             "continuity_matchcut.txt",
             "CRITICAL CONTINUITY: This scene is a DIRECT SEAMLESS CONTINUATION (match cut) starting from the exact final frame of the previous scene. The action and character motion must immediately pick up where the previous scene ended without resetting posture or changing camera angle abruptly."
         )
-        video_instructions.append(matchcut_snippet.strip())
+        continuity_rules.append(f"- MATCH CUT: {matchcut_snippet.strip()}")
 
-    video_instruction = ("\nIMPORTANT CONTINUITY INSTRUCTIONS:\n" + "\n".join(video_instructions)) if video_instructions else ""
+    if use_previous_scene:
+        env_snippet = load_prompt_template(
+            "continuity_environment.txt",
+            "The user wants to keep the continuity from the previous scene. You MUST include '<Video 1> establishes the environment' in your detailed description so the model knows to use the previous video as a reference for the location/setting."
+        )
+        continuity_rules.append(f"- ENVIRONMENT: {env_snippet.strip()}")
+
+    continuity_instruction = "\n".join(continuity_rules) if continuity_rules else "Independent shot. Standard scene staging."
+    video_instruction = f"\n\nIMPORTANT CONTINUITY INSTRUCTIONS:\n{continuity_instruction}" if continuity_rules else ""
     state_instruction = format_state_instruction(characters, active_variables, character_states)
 
     default_minimax_instruction = """You are an expert prompt engineer for the Minimax video generation model.
-You will receive a short scene idea in German. Translate it to English and expand it into this EXACT format.
+You will receive a short scene idea in German or English. Translate/expand it into this EXACT format.
 Also, estimate how many seconds this shot should take based on the action (between 3 and 15) and write it at the very end as DURATION: X.
 
 CRITICAL AUDIO REQUIREMENT:
@@ -673,6 +715,9 @@ CRITICAL CHARACTER WARDROBE & STATE CONTINUITY:
 {state_instruction}
 - Visual Identity vs. Clothing: The reference image (<Picture X>) establishes the character's facial features and identity. However, their CLOTHING and CURRENT STATE in this scene MUST strictly match the active state listed above!
 - When a character's state specifies a wardrobe change (e.g. apron removed, topless, shirtless, nude, wearing different clothes, wet hair), you MUST explicitly describe them in their current clothing state in [Shot 1], explicitly stating their current outfit so Minimax overrides what was in <Picture X>.
+
+CRITICAL SCENE & SHOT CONTINUITY:
+{continuity_instruction}
 
 FORMAT TO FOLLOW STRICTLY:
 subject_definitions:
@@ -699,6 +744,7 @@ Here is the scene idea:
     instruction = format_prompt_template(
         minimax_template,
         char_definitions=char_definitions.strip(),
+        continuity_instruction=continuity_instruction,
         video_instruction=video_instruction,
         state_instruction=state_instruction,
         idee=idea
@@ -815,8 +861,18 @@ def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_
         for idx, s in enumerate(prepared_scenes):
             s_id = s.get("id", idx + 1)
             s_id_str = f"{int(s_id):02d}" if str(s_id).isdigit() else str(s_id)
-            s_dur = s.get("dauer") or s.get("dauer_sekunden") or s.get("duration") or "?"
-            s_cont = " [Match Cut]" if (s.get("direkter_anschluss") or s.get("direct_continuation")) else (" [Environment Ref]" if (s.get("nutze_vorherige_szene") or s.get("anschluss_an_vorherige_szene") or s.get("continuity_environment")) else "")
+            s_cont_parts = []
+            if s.get("direkter_anschluss") or s.get("direct_continuation") or s.get("match_cut"):
+                s_cont_parts.append("[Match Cut]")
+            elif s.get("gleiche_szene") or s.get("same_scene") or s.get("angle_change"):
+                s_cont_parts.append("[Same Scene Angle]")
+            elif s.get("nutze_vorherige_szene") or s.get("anschluss_an_vorherige_szene") or s.get("continuity_environment") or s.get("continuity"):
+                s_cont_parts.append("[Environment Ref]")
+                
+            s_seq = s.get("sequenz") or s.get("sequence") or s.get("ort") or s.get("location")
+            if s_seq:
+                s_cont_parts.append(f"[{s_seq}]")
+            s_cont = (" " + " ".join(s_cont_parts)) if s_cont_parts else ""
             
             raw_p = (s.get("idee") or s.get("idea") or s.get("prompt") or "").strip()
             # If the prompt is the multi-line Minimax prompt, extract its summary if available
@@ -1073,7 +1129,7 @@ def main():
     characters_list = screenplay.get("charaktere") or screenplay.get("characters") or []
     for c in characters_list:
         c_name = c.get("name", "").strip()
-        c_outfit = c.get("outfit") or c.get("kleidung") or c.get("status")
+        c_outfit = c.get("outfit") or c.get("kleidung") or c.get("status") or c.get("wardrobe")
         if c_outfit and c_name:
             var_key = f"outfit_{re.sub(r'[^a-zA-Z0-9]', '_', c_name.lower())}"
             if var_key not in active_variables:
@@ -1101,7 +1157,12 @@ def main():
             presets_dict = t2i_presets.get("presets", {})
             preset = presets_dict.get(preset_name, {})
 
-            if char.get("ki_prompt_generieren") is False or char.get("auto_prompt") is False:
+            auto_prompt = not (
+                char.get("ki_prompt_generieren") is False or 
+                char.get("auto_prompt") is False or 
+                char.get("generate_prompt") is False
+            )
+            if not auto_prompt:
                 print(t("char_keep_manual_prompt", name=char_name))
                 continue
 
@@ -1110,63 +1171,181 @@ def main():
             char["prompt"] = ki_char_prompt
             print(t("char_new_prompt", name=char_name, prompt=ki_char_prompt[:90]))
 
-        # 2. Generate Minimax scene prompts
+        # 2. Generate Minimax scene prompts with sequence grouping & previous shot context
         print(t("phase1_writing_scenes"))
+        previous_shot_info = None
         scenes_list = screenplay.get("szenen") or screenplay.get("scenes") or []
-        for scene in scenes_list:
-            use_previous_scene = scene.get("anschluss_an_vorherige_szene", False) or scene.get("continuity_environment", False)
-            direct_continuation = scene.get("direkter_anschluss", False) or scene.get("direct_continuation", False)
+        for idx, scene in enumerate(scenes_list):
+            scene_id = scene.get("id", idx + 1)
 
-            # Check for scene-level variable updates
+            # Bilingual sequence / bundle / location grouping
+            seq_name = (
+                scene.get("sequenz") or 
+                scene.get("sequence") or 
+                scene.get("scene_group") or 
+                scene.get("bundle") or 
+                scene.get("group")
+            )
+            loc_name = (
+                scene.get("ort") or 
+                scene.get("location") or 
+                scene.get("setting")
+            )
+
+            # Bilingual continuity flags
+            direct_continuation = bool(
+                scene.get("direkter_anschluss") or 
+                scene.get("direct_continuation") or 
+                scene.get("match_cut")
+            )
+            same_scene = bool(
+                scene.get("gleiche_szene") or 
+                scene.get("same_scene") or 
+                scene.get("angle_change") or 
+                scene.get("shot_reverse_shot")
+            )
+            use_previous_scene = bool(
+                scene.get("anschluss_an_vorherige_szene") or 
+                scene.get("continuity_environment") or 
+                scene.get("environmental_continuity") or 
+                scene.get("continuity")
+            )
+
+            # Detect if this shot belongs to the same ongoing sequence/scene
+            is_same_seq = False
+            if previous_shot_info:
+                prev_seq = previous_shot_info.get("sequence")
+                prev_loc = previous_shot_info.get("location")
+                if seq_name and prev_seq and str(seq_name).strip().lower() == str(prev_seq).strip().lower():
+                    is_same_seq = True
+                elif loc_name and prev_loc and str(loc_name).strip().lower() == str(prev_loc).strip().lower():
+                    is_same_seq = True
+                elif same_scene or direct_continuation:
+                    is_same_seq = True
+                elif use_previous_scene and (not seq_name or seq_name == prev_seq):
+                    is_same_seq = True
+
+            # If within the same sequence or same scene, automatically maintain environment reference
+            if (is_same_seq or same_scene) and not direct_continuation:
+                if scene.get("anschluss_an_vorherige_szene") is not False and scene.get("continuity_environment") is not False:
+                    use_previous_scene = True
+
+            # Check for scene-level variable updates (bilingual)
             scene_var_updates = (
                 scene.get("variablen_update") or 
-                scene.get("variablen") or 
-                scene.get("set_variables") or 
                 scene.get("variables_update") or 
+                scene.get("set_variables") or 
+                scene.get("variablen") or 
                 scene.get("variables") or 
                 {}
             )
             if isinstance(scene_var_updates, dict) and scene_var_updates:
                 active_variables.update(scene_var_updates)
                 update_summary = ", ".join(f"{k}='{v}'" for k, v in scene_var_updates.items())
-                print(t("variables_updated", id=scene['id'], updates=update_summary))
+                print(t("variables_updated", id=scene_id, updates=update_summary))
 
-            # Check for per-scene character status updates (e.g. {"Chloe": "apron removed", ...})
-            char_status_updates = scene.get("charakter_status") or scene.get("character_status") or {}
+            # Check for per-scene character status updates (bilingual)
+            char_status_updates = (
+                scene.get("charakter_status") or 
+                scene.get("character_status") or 
+                scene.get("character_states") or 
+                {}
+            )
 
             # Interpolate variables in scene idea: {variable_name}
-            raw_scene_idea = scene.get("idee") or scene.get("idea", "")
+            raw_scene_idea = scene.get("idee") or scene.get("idea") or scene.get("prompt") or ""
             scene_idea = interpolate_variables(raw_scene_idea, active_variables)
 
-            if (scene.get("ki_prompt_generieren") is False or scene.get("auto_prompt") is False) and scene.get("prompt"):
-                print(t("scene_keep_manual_prompt", id=scene['id']))
+            # Build context of the previous shot for LM Studio
+            prev_shot_ctx = None
+            if previous_shot_info:
+                prev_shot_ctx = {
+                    "id": previous_shot_info["id"],
+                    "summary": previous_shot_info["summary"],
+                    "same_sequence": is_same_seq,
+                    "same_scene": same_scene,
+                    "sequence": seq_name or previous_shot_info.get("sequence"),
+                    "location": loc_name or previous_shot_info.get("location")
+                }
+
+            seq_info = {
+                "sequence": seq_name,
+                "location": loc_name
+            }
+
+            auto_prompt = not (
+                scene.get("ki_prompt_generieren") is False or 
+                scene.get("auto_prompt") is False or 
+                scene.get("generate_prompt") is False
+            )
+
+            if not auto_prompt and scene.get("prompt"):
+                print(t("scene_keep_manual_prompt", id=scene_id))
                 minimax_prompt = scene["prompt"]
-                calculated_duration = scene.get("dauer_sekunden") or scene.get("dauer", 5)
+                calculated_duration = (
+                    scene.get("dauer_sekunden") or 
+                    scene.get("duration_seconds") or 
+                    scene.get("duration") or 
+                    scene.get("dauer") or 
+                    5
+                )
             else:
                 minimax_prompt, calculated_duration = ask_lm_studio(
                     scene_idea,
                     characters_list,
-                    use_previous_scene,
-                    direct_continuation,
+                    use_previous_scene=use_previous_scene,
+                    direct_continuation=direct_continuation,
                     active_variables=active_variables,
-                    character_states=char_status_updates
+                    character_states=char_status_updates,
+                    previous_shot_context=prev_shot_ctx,
+                    same_scene=same_scene,
+                    sequence_info=seq_info
                 )
+
+            # Extract shot summary for the next shot's continuity context
+            m_sum = re.search(r'summary:\s*([^\n]+(?:\n[^\n]+)?)', minimax_prompt, re.IGNORECASE)
+            cur_summary = m_sum.group(1).strip() if m_sum else scene_idea
+
+            previous_shot_info = {
+                "id": scene_id,
+                "summary": cur_summary,
+                "sequence": seq_name,
+                "location": loc_name
+            }
 
             # Update scene dictionary in screenplay with generated prompt & duration
             scene["prompt"] = minimax_prompt
             scene["dauer_sekunden"] = calculated_duration
-            
+            if seq_name and "sequenz" not in scene and "sequence" not in scene:
+                scene["sequence"] = seq_name
+            if loc_name and "ort" not in scene and "location" not in scene:
+                scene["location"] = loc_name
+
             prepared_scenes.append({
-                "id": scene["id"],
+                "id": scene_id,
                 "prompt": minimax_prompt,
                 "dauer": calculated_duration,
                 "nutze_vorherige_szene": use_previous_scene,
                 "direkter_anschluss": direct_continuation,
+                "gleiche_szene": same_scene,
+                "sequenz": seq_name,
+                "ort": loc_name,
                 "variables": dict(active_variables),
                 "idee": scene_idea
             })
-            continuity_txt = t("scene_continuity_seamless") if direct_continuation else (t("scene_continuity_ref") if use_previous_scene else "")
-            print(t("scene_written", id=scene['id'], dauer=calculated_duration, anschluss=continuity_txt))
+
+            continuity_badges = []
+            if direct_continuation:
+                continuity_badges.append(t("scene_continuity_seamless"))
+            elif same_scene:
+                continuity_badges.append(t("scene_continuity_same_scene"))
+            elif use_previous_scene:
+                continuity_badges.append(t("scene_continuity_ref"))
+            if seq_name:
+                continuity_badges.append(t("scene_sequence_badge", seq=seq_name))
+
+            anschluss_txt = "".join(continuity_badges)
+            print(t("scene_written", id=scene_id, dauer=calculated_duration, anschluss=anschluss_txt))
 
         # Save extended screenplay with AI-generated character & scene prompts to the project directory
         try:
