@@ -1411,6 +1411,50 @@
       "strength_model": 0.8,
       "strength_clip": 0.8,
       "trigger_words": "realism, photorealistic, realistic skin, smooth shading"
+    },
+    "mmh3_minimax_h3_fl2v_turbo_4step_768p_comfyui": {
+      "beschreibung": "Minimax H3 Fl2V Turbo 4Step V1.1 768P Comfyui Bf16 LoRA",
+      "lora_name": "MiniMax H3\\base model\\minimax_h3_fl2v_turbo_4step_v1.1_768p_comfyui_bf16.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": ""
+    },
+    "mmh3_minimax_h3_fl2v_turbo_4step_768p_comfyui_2": {
+      "beschreibung": "Minimax H3 Fl2V Turbo 4Step V1.2 768P Comfyui Bf16 LoRA",
+      "lora_name": "MiniMax H3\\turbo\\minimax_h3_fl2v_turbo_4step_v1.2_768p_comfyui_bf16.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": ""
+    },
+    "mmh3_minimax_h3_ref2v_turbo_8step_768p_comfyui": {
+      "beschreibung": "Minimax H3 Ref2V Turbo 8Step V1.0 768P Comfyui Bf16 LoRA",
+      "lora_name": "MiniMax H3\\turbo\\minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": ""
+    },
+    "mmh3_minimax_h3_taomate_fl2va_3step_ema_comfyui": {
+      "beschreibung": "Minimax H3 Taomate Fl2Va 3Step Ema Comfyui LoRA",
+      "lora_name": "MiniMax H3\\turbo\\minimax_h3_taomate_fl2va_3step_ema_comfyui.safetensors",
+      "kompatible_modelle": [
+        "minimax_h3",
+        "minimax_h3_video"
+      ],
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "trigger_words": ""
     }
   }
 }

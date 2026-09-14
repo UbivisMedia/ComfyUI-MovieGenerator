@@ -87,5 +87,10 @@
   "wizard_lms_no_models_fallback": "   ℹ️ LM Studio antwortet nicht oder keine geladenen Modelle gefunden.\n   Modellname manuell eingeben (Standard: {default}): ",
   "wizard_webm_prompt": "5️⃣  Zusätzlich WebM-Video exportieren? [j/n] (Standard: {default}): ",
   "wizard_saved": "\n✅ Konfiguration erfolgreich in 'settings.json' gespeichert!\n",
-  "settings_migrated_notice": "ℹ️ 'settings.json' wurde automatisch um neue Optionen aktualisiert: {keys}"
+  "settings_migrated_notice": "ℹ️ 'settings.json' wurde automatisch um neue Optionen aktualisiert: {keys}",
+  "catalog_scan_start": "\n🔍 Scanne ComfyUI-Modelle in: {dir}...",
+  "catalog_scan_completed": "✅ Scan abgeschlossen! {total_loras} LoRAs ({new_loras} neu) und {total_models} Modell-Presets im Katalog erfasst.",
+  "catalog_scan_no_models_dir": "⚠️ Konnte kein ComfyUI-Modelle-Verzeichnis finden. Bitte 'models_dir' in 'settings.json' prüfen.",
+  "menu_scan_models_option": "  [S] ComfyUI-Modelle & LoRAs scannen / Presets aktualisieren",
+  "presets_not_found_autoscan": "ℹ️ Keine 't2i_presets.json' gefunden. Baue Katalog automatisch aus lokalen ComfyUI-Modellen auf..."
 }

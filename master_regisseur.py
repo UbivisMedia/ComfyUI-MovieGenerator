@@ -19,6 +19,7 @@ if sys.platform == "win32":
         pass
 
 from localization import t, init_localization, set_language, get_current_language
+from catalog_builder import build_or_update_catalog
 
 # Base directories
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -1284,33 +1285,73 @@ def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_
             pass
 
 def main():
+    # 0. Check for CLI maintenance flags
+    if len(sys.argv) >= 2 and sys.argv[1].lower() in ["--scan-models", "--scan", "--rebuild-presets", "--update-catalog", "-s"]:
+        models_dir = get_comfy_models_dir()
+        if not models_dir:
+            print(t("catalog_scan_no_models_dir"))
+            return
+        print(t("catalog_scan_start", dir=models_dir))
+        stats = build_or_update_catalog(models_dir)
+        print(t("catalog_scan_completed", total_loras=stats["total_loras"], new_loras=stats["new_loras"], total_models=stats["total_presets"]))
+        return
+
     # 1. Determine screenplay input
     if len(sys.argv) >= 2:
         screenplay_input = sys.argv[1]
     else:
         # Interactive menu selection or fallback
         available = [f for f in os.listdir(PROJECTS_DIR) if f.endswith(".json")]
-        if available:
-            print(t("menu_available_screenplays"))
-            for idx, f in enumerate(available, 1):
-                print(f"  [{idx}] {f}")
-            print(t("menu_instruction"))
-            try:
-                choice = input(t("menu_prompt")).strip()
-                if choice.isdigit() and 1 <= int(choice) <= len(available):
-                    screenplay_input = os.path.join(PROJECTS_DIR, available[int(choice) - 1])
-                elif choice in available:
-                    screenplay_input = os.path.join(PROJECTS_DIR, choice)
-                else:
-                    print(t("menu_invalid_choice"))
-                    time.sleep(3)
+        while True:
+            if available:
+                print(t("menu_available_screenplays"))
+                for idx, f in enumerate(available, 1):
+                    print(f"  [{idx}] {f}")
+                print(t("menu_scan_models_option"))
+                print(t("menu_instruction"))
+                try:
+                    choice = input(t("menu_prompt")).strip()
+                    if choice.lower() in ["s", "scan"]:
+                        models_dir = get_comfy_models_dir()
+                        if not models_dir:
+                            print(t("catalog_scan_no_models_dir"))
+                        else:
+                            print(t("catalog_scan_start", dir=models_dir))
+                            stats = build_or_update_catalog(models_dir)
+                            print(t("catalog_scan_completed", total_loras=stats["total_loras"], new_loras=stats["new_loras"], total_models=stats["total_presets"]))
+                        print()
+                        continue
+                    elif choice.isdigit() and 1 <= int(choice) <= len(available):
+                        screenplay_input = os.path.join(PROJECTS_DIR, available[int(choice) - 1])
+                        break
+                    elif choice in available:
+                        screenplay_input = os.path.join(PROJECTS_DIR, choice)
+                        break
+                    else:
+                        print(t("menu_invalid_choice"))
+                        time.sleep(3)
+                        return
+                except Exception:
                     return
-            except Exception:
+            else:
+                print(t("menu_no_screenplays"))
+                print(t("menu_scan_models_option"))
+                try:
+                    choice = input(t("menu_prompt")).strip()
+                    if choice.lower() in ["s", "scan"]:
+                        models_dir = get_comfy_models_dir()
+                        if not models_dir:
+                            print(t("catalog_scan_no_models_dir"))
+                        else:
+                            print(t("catalog_scan_start", dir=models_dir))
+                            stats = build_or_update_catalog(models_dir)
+                            print(t("catalog_scan_completed", total_loras=stats["total_loras"], new_loras=stats["new_loras"], total_models=stats["total_presets"]))
+                        print()
+                        continue
+                except Exception:
+                    pass
+                time.sleep(5)
                 return
-        else:
-            print(t("menu_no_screenplays"))
-            time.sleep(5)
-            return
 
     # Resolve screenplay path
     if not os.path.exists(screenplay_input):
@@ -1386,6 +1427,12 @@ def main():
         wf_i2v = json.load(f)
 
     t2i_presets = {}
+    if not os.path.exists(t2i_presets_path):
+        models_dir = get_comfy_models_dir()
+        if models_dir:
+            print(t("presets_not_found_autoscan"))
+            build_or_update_catalog(models_dir, presets_path=t2i_presets_path)
+
     if os.path.exists(t2i_presets_path):
         try:
             with open(t2i_presets_path, "r", encoding="utf-8") as pf:

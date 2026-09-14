@@ -1,10 +1,34 @@
 # Presets & LoRA Catalog Reference
 
-MovieGenerator includes a centralized catalog in [Presets/t2i_presets.json](file:///e:/MovieGenerator/Presets/t2i_presets.json) configuring base diffusion models (presets) and 104+ curated LoRA weights.
+MovieGenerator includes a centralized catalog in [Presets/t2i_presets.json](file:///e:/MovieGenerator/Presets/t2i_presets.json) configuring base diffusion models (presets) and 130+ curated LoRA weights.
 
 ---
 
-## 1. Base Model Presets (`presets`)
+## 1. Automatic Model & LoRA Catalog Builder
+
+MovieGenerator is designed to work on any machine with any collection of local models. You do not need to manually configure JSON files for your installed models and LoRAs:
+
+### How to Run the Scanner:
+1. **Interactive Menu**: When launching MovieGenerator without arguments, select option `[S]` from the screenplay menu:
+   ```text
+   [S] ComfyUI-Modelle & LoRAs scannen / Presets aktualisieren
+   ```
+2. **Command Line Flag**:
+   ```bash
+   python master_regisseur.py --scan-models
+   ```
+3. **Automatic Fallback**: If `Presets/t2i_presets.json` does not exist on startup, MovieGenerator automatically triggers the scanner and generates the catalog directly from your local ComfyUI `models/` directory.
+
+### What the Scanner Does:
+* **Deep Directory Scan**: Recursively explores `models/loras/`, `models/diffusion_models/`, and `models/checkpoints/` for `.safetensors` and `.gguf` files.
+* **Metadata Extraction**:
+  * **Companion Files**: Reads `.metadata.json`, `.civitai.info`, and `.json` downloaded by Civitai Helper / Civitai Manager for titles, descriptions, and trained trigger words.
+  * **Safetensors Headers**: Parses the internal `__metadata__` header to extract `ss_tag_frequency`, `modelspec.trigger_phrase`, and architecture details.
+* **Smart Merge**: Existing manual fine-tunings, custom strengths (`strength_model`), and curated descriptions in `t2i_presets.json` are **strictly preserved**, while newly downloaded LoRAs and models are seamlessly added.
+
+---
+
+## 2. Base Model Presets (`presets`)
 
 Specify the model in character definitions using `"modell": "<preset_name>"` (or `"preset": "<preset_name>"`).
 
@@ -18,7 +42,7 @@ Specify the model in character definitions using `"modell": "<preset_name>"` (or
 
 ---
 
-## 2. Using LoRAs in Character Definitions
+## 3. Using LoRAs in Character Definitions
 
 LoRAs can be attached to characters in the screenplay JSON in two ways:
 
@@ -45,7 +69,7 @@ When a LoRA is applied:
 
 ---
 
-## 3. LoRA Catalog by Family
+## 4. LoRA Catalog by Family
 
 ### A. Anima Models (CyberRealistic, CatPony, Turbo, FinalCut)
 
@@ -122,7 +146,7 @@ When a LoRA is applied:
 
 ---
 
-## 4. MiniMax H3 Video LoRAs (Scene-Level)
+## 5. MiniMax H3 Video LoRAs (Scene-Level)
 
 MiniMax H3 video diffusion models support scene-specific motion, combat, intimacy, physics, and visual aesthetics via ComfyUI node `674` (`Power Lora Loader (rgthree)`).
 
