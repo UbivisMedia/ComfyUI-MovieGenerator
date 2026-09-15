@@ -68,7 +68,8 @@ MovieGenerator/
 │   ├── PRESETS_AND_LORAS.md     # Model presets and LoRA catalog
 │   └── LLM_SYSTEM_PROMPT.md     # System prompt for LLMs to author scripts
 ├── Presets/
-│   └── t2i_presets.json         # T2I model settings and 104+ curated LoRAs
+│   ├── t2i_presets.example.json # Starter template for base models
+│   └── t2i_presets.json         # Local model & LoRA catalog (auto-built on setup)
 ├── Projects/
 │   ├── <film_name>.json         # User screenplay definition files
 │   └── <film_name>/             # Generated project assets

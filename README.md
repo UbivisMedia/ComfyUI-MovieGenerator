@@ -92,7 +92,8 @@ MovieGenerator/
 │   ├── continuity_environment.txt # Room/setting continuity instruction
 │   └── continuity_matchcut.txt  # Seamless match-cut instruction
 ├── Presets/
-│   └── t2i_presets.json         # T2I base model configs & 100+ curated LoRAs
+│   ├── t2i_presets.example.json # Starter template for base models
+│   └── t2i_presets.json         # Local model & LoRA catalog (auto-built on setup)
 ├── Projects/                    # Screenplay JSONs & generated outputs
 │   ├── three_scenes_example.json# Ready-to-render 3-scene demo script
 │   └── <film_name>/             # Created automatically during production

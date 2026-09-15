@@ -190,7 +190,43 @@ def generate_clean_key(filename, rel_path):
     return clean or "lora_custom"
 
 
-def scan_loras_directory(loras_dir):
+def is_nsfw_lora(rel_path, filename, companion_meta, header_meta):
+    """
+    Detects if a LoRA contains adult/NSFW content based on file paths, civitai metadata, and trigger words.
+    """
+    combined_text = f"{rel_path} {filename}".lower()
+    
+    # 1. Companion civitai metadata checks
+    if companion_meta:
+        if companion_meta.get("nsfw") is True:
+            return True
+        nsfw_level = companion_meta.get("nsfwLevel")
+        if isinstance(nsfw_level, (int, float)) and nsfw_level > 1:
+            return True
+        model_meta = companion_meta.get("model", {})
+        if isinstance(model_meta, dict) and model_meta.get("nsfw") is True:
+            return True
+        tags = companion_meta.get("tags") or []
+        for t in tags:
+            tag_name = (t if isinstance(t, str) else t.get("name", "")).lower()
+            if any(w in tag_name for w in ["nsfw", "nude", "nudity", "erotic", "hentai", "sex", "porn", "xxx"]):
+                return True
+
+    # 2. Common explicit keywords in relative path or filename
+    explicit_keywords = [
+        "nsfw", "xxx", "nude", "naked", "erotic", "hentai", "futa",
+        "blowjob", "cumshot", "deepthroat", "fingering", "titjob", "penis",
+        "vagina", "nipple_play", "cowgirl_position", "anal", "masturbat",
+        "sensual_fingering", "malesuck", "worship_touch", "underwear"
+    ]
+    for kw in explicit_keywords:
+        if kw in combined_text:
+            return True
+
+    return False
+
+
+def scan_loras_directory(loras_dir, filter_nsfw=False):
     """
     Recursively scans loras_dir for .safetensors and .gguf files.
     Returns a dict mapping candidate_key -> lora_config.
@@ -210,6 +246,9 @@ def scan_loras_directory(loras_dir):
             # Extract metadata
             companion_meta = find_companion_metadata(full_path)
             header_meta = read_safetensors_header(full_path) if f.endswith(".safetensors") else {}
+            
+            if filter_nsfw and is_nsfw_lora(rel_path, f, companion_meta, header_meta):
+                continue
             
             # Determine human-readable title / description
             title = ""
@@ -360,7 +399,7 @@ def scan_diffusion_models(models_dir):
     return discovered_presets
 
 
-def build_or_update_catalog(models_dir, presets_path=None, dry_run=False):
+def build_or_update_catalog(models_dir, presets_path=None, dry_run=False, filter_nsfw=False):
     """
     Scans models_dir and updates or creates presets_path.
     Preserves existing user configurations and custom strength tweaks.
@@ -376,6 +415,15 @@ def build_or_update_catalog(models_dir, presets_path=None, dry_run=False):
                 existing_catalog = json.load(f)
         except Exception:
             pass
+    else:
+        # Load clean baseline template if available
+        example_path = os.path.join(os.path.dirname(presets_path), "t2i_presets.example.json")
+        if os.path.exists(example_path):
+            try:
+                with open(example_path, "r", encoding="utf-8") as ef:
+                    existing_catalog = json.load(ef)
+            except Exception:
+                pass
 
     existing_loras = existing_catalog.get("lora_presets", {})
     existing_presets = existing_catalog.get("presets", {})
@@ -390,7 +438,7 @@ def build_or_update_catalog(models_dir, presets_path=None, dry_run=False):
 
     # 1. Scan LoRAs
     loras_dir = os.path.join(models_dir, "loras")
-    discovered_loras = scan_loras_directory(loras_dir)
+    discovered_loras = scan_loras_directory(loras_dir, filter_nsfw=filter_nsfw)
 
     new_loras_count = 0
     updated_loras_count = 0

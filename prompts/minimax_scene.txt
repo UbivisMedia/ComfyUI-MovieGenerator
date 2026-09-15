@@ -11,6 +11,9 @@ CRITICAL CHARACTER WARDROBE & STATE CONTINUITY:
 {state_instruction}
 - Visual Identity vs. Clothing: The reference image (<Picture X>) establishes the character's facial features and identity. However, their CLOTHING and CURRENT STATE in this scene MUST strictly match the active state listed above!
 - When a character's state specifies a wardrobe change (e.g. apron removed, topless, shirtless, nude, wearing different clothes, wet hair), you MUST explicitly describe them in their current clothing state in [Shot 1], explicitly stating their current outfit so Minimax overrides what was in <Picture X>.
+- MANDATORY SUBJECT TAGGING: In 'detailed_description' under [Shot 1], you MUST refer to characters exclusively by their tag '<Subject X>' (e.g. '<Subject 1>') alongside their action, NEVER solely by their character name. Minimax models rely on '<Subject X>' to bind the description to '<Picture X>'.
+- CRITICAL VISUAL STYLE: State the visual medium clearly in [Shot 1]: If live-action, specify 'photorealistic 35mm cinematic film footage, real life camera shot, hyperrealistic textures'. If animated/anime, specify 'cel-shaded vibrant anime style, expressive animation aesthetics'.
+
 
 CRITICAL SCENE & SHOT CONTINUITY:
 {continuity_instruction}

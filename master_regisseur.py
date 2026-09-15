@@ -40,12 +40,183 @@ DEFAULT_SETTINGS = {
             "../ComfyUI_windows_portable/ComfyUI/models"
         ]
     },
+    "minimax_i2v": {
+        "unet_name": "MiniMax H3\\base model\\minimaxH3INT8INT4_flREF2VAPruned.safetensors",
+        "turbo_lora": "MiniMax H3\\tool\\minimax_h3_fl2v_lightx2v_turbo_8step_v1.0_resized_avg_rank_24_bf16.safetensors",
+        "turbo_strength": 1.0,
+        "steps": 8,
+        "clip_name": "minimaxH3INT8INT4_fl2vaINT8Pruned_txt.safetensors",
+        "video_vae_name": "minimax_h3_video_vae_int8_convrot.safetensors",
+        "audio_vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
     "lm_studio": {
         "url": "http://127.0.0.1:1234/v1/chat/completions",
         "model_name": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
         "temperature": 0.7
     }
 }
+
+def find_minimax_unets(models_dir):
+    """Finds Minimax diffusion models in models/diffusion_models and models/unet."""
+    found = []
+    if not models_dir or not os.path.exists(models_dir):
+        return found
+    for sub in ["diffusion_models", "unet"]:
+        base = os.path.join(models_dir, sub)
+        if not os.path.exists(base):
+            continue
+        for root, _, files in os.walk(base):
+            for f in files:
+                if f.endswith((".safetensors", ".gguf", ".sft", ".pt")):
+                    rel_p = os.path.relpath(os.path.join(root, f), base)
+                    rp_lower = rel_p.lower()
+                    if ("minimax" in rp_lower or "h3" in rp_lower) and "music" not in rp_lower:
+                        if rel_p not in found:
+                            found.append(rel_p)
+    return sorted(found)
+
+def find_minimax_turbo_loras(models_dir):
+    """Finds Minimax Turbo/LightX2V LoRAs in models/loras."""
+    found = []
+    if not models_dir or not os.path.exists(models_dir):
+        return found
+    base = os.path.join(models_dir, "loras")
+    if not os.path.exists(base):
+        return found
+    for root, _, files in os.walk(base):
+        for f in files:
+            if f.endswith((".safetensors", ".gguf", ".sft", ".pt")):
+                rel_p = os.path.relpath(os.path.join(root, f), base)
+                rp_lower = rel_p.lower()
+                if "minimax" in rp_lower and any(kw in rp_lower for kw in ["turbo", "lightx2v", "taomate"]):
+                    if rel_p not in found:
+                        found.append(rel_p)
+    return sorted(found)
+
+def detect_steps_from_lora_name(lora_name, default=8):
+    """Heuristically detects recommended step count from LoRA filename."""
+    if not lora_name:
+        return default
+    m = re.search(r'(\d+)\s*step', lora_name, re.IGNORECASE)
+    if m:
+        try:
+            val = int(m.group(1))
+            if 1 <= val <= 50:
+                return val
+        except ValueError:
+            pass
+    if "taomate" in lora_name.lower():
+        return 3
+    if "4step" in lora_name.lower():
+        return 4
+    if "8step" in lora_name.lower():
+        return 8
+    return default
+
+def configure_minimax_interactive(models_dir=None, current_cfg=None):
+    """Interactively guides the user through selecting Minimax diffusion model, Turbo LoRA, and steps."""
+    if not models_dir:
+        models_dir = get_comfy_models_dir()
+    
+    current_cfg = current_cfg or {}
+    cur_unet = current_cfg.get("unet_name", "MiniMax H3\\base model\\minimaxH3INT8INT4_flREF2VAPruned.safetensors")
+    cur_turbo = current_cfg.get("turbo_lora", "MiniMax H3\\tool\\minimax_h3_fl2v_lightx2v_turbo_8step_v1.0_resized_avg_rank_24_bf16.safetensors")
+    cur_steps = current_cfg.get("steps", 8)
+    cur_strength = current_cfg.get("turbo_strength", 1.0)
+
+    print(t("wizard_minimax_header"))
+    
+    # 1. UNET / Diffusion Model selection
+    unets = find_minimax_unets(models_dir)
+    chosen_unet = cur_unet
+    if unets:
+        print(t("wizard_minimax_unets_found"))
+        default_idx = 1
+        for idx, u in enumerate(unets, 1):
+            marker = ""
+            if u == cur_unet or os.path.basename(u) == os.path.basename(cur_unet):
+                default_idx = idx
+                marker = " [aktiv / current]"
+            print(f"     [{idx}] {u}{marker}")
+        try:
+            choice = input(t("wizard_minimax_select_unet", count=len(unets), default=unets[default_idx-1], default_idx=default_idx)).strip()
+        except (EOFError, KeyboardInterrupt):
+            choice = ""
+        if choice.isdigit() and 1 <= int(choice) <= len(unets):
+            chosen_unet = unets[int(choice) - 1]
+        elif choice in unets:
+            chosen_unet = choice
+        elif not choice:
+            chosen_unet = unets[default_idx - 1]
+        else:
+            chosen_unet = choice
+    else:
+        try:
+            choice = input(t("wizard_minimax_unet_manual", default=cur_unet)).strip()
+        except (EOFError, KeyboardInterrupt):
+            choice = ""
+        chosen_unet = choice if choice else cur_unet
+
+    # 2. Turbo LoRA selection
+    loras = find_minimax_turbo_loras(models_dir)
+    chosen_turbo = cur_turbo
+    if loras:
+        print(t("wizard_minimax_loras_found"))
+        default_idx = 1
+        for idx, l in enumerate(loras, 1):
+            marker = ""
+            if l == cur_turbo or os.path.basename(l) == os.path.basename(cur_turbo):
+                default_idx = idx
+                marker = " [aktiv / current]"
+            det_steps = detect_steps_from_lora_name(l)
+            print(f"     [{idx}] {l} ({det_steps} Steps){marker}")
+        try:
+            choice = input(t("wizard_minimax_select_lora", count=len(loras), default=loras[default_idx-1], default_idx=default_idx)).strip()
+        except (EOFError, KeyboardInterrupt):
+            choice = ""
+        if choice.isdigit() and 1 <= int(choice) <= len(loras):
+            chosen_turbo = loras[int(choice) - 1]
+        elif choice in loras:
+            chosen_turbo = choice
+        elif not choice:
+            chosen_turbo = loras[default_idx - 1]
+        else:
+            chosen_turbo = choice
+    else:
+        try:
+            choice = input(t("wizard_minimax_lora_manual", default=cur_turbo)).strip()
+        except (EOFError, KeyboardInterrupt):
+            choice = ""
+        chosen_turbo = choice if choice else cur_turbo
+
+    # 3. Sampling Steps
+    auto_steps = detect_steps_from_lora_name(chosen_turbo, default=cur_steps)
+    try:
+        steps_input = input(t("wizard_minimax_steps_prompt", default=auto_steps)).strip()
+    except (EOFError, KeyboardInterrupt):
+        steps_input = ""
+    chosen_steps = int(steps_input) if steps_input.isdigit() and 1 <= int(steps_input) <= 50 else auto_steps
+
+    # 4. Turbo LoRA Strength
+    try:
+        strength_input = input(t("wizard_minimax_strength_prompt", default=cur_strength)).strip()
+    except (EOFError, KeyboardInterrupt):
+        strength_input = ""
+    try:
+        chosen_strength = float(strength_input) if strength_input else cur_strength
+    except ValueError:
+        chosen_strength = cur_strength
+
+    result = {
+        "unet_name": chosen_unet,
+        "turbo_lora": chosen_turbo,
+        "turbo_strength": chosen_strength,
+        "steps": chosen_steps,
+        "clip_name": current_cfg.get("clip_name", "minimaxH3INT8INT4_fl2vaINT8Pruned_txt.safetensors"),
+        "video_vae_name": current_cfg.get("video_vae_name", "minimax_h3_video_vae_int8_convrot.safetensors"),
+        "audio_vae_name": current_cfg.get("audio_vae_name", "minimax_h3_audio_vae_fp32.safetensors")
+    }
+    return result
 
 def fetch_lm_studio_models(api_url):
     """Attempts to retrieve available models from LM Studio /v1/models."""
@@ -168,7 +339,10 @@ def interactive_setup_wizard():
             m_choice = ""
         chosen_model_name = m_choice if m_choice else default_model_name
 
-    # 5. WebM Export
+    # 5. Minimax I2V Configuration
+    chosen_minimax = configure_minimax_interactive(chosen_models_dir)
+
+    # 6. WebM Export
     default_webm = "j" if get_current_language() == "de" else "y"
     try:
         webm_input = input(t("wizard_webm_prompt", default=default_webm)).strip().lower()
@@ -188,6 +362,7 @@ def interactive_setup_wizard():
                 "../ComfyUI_windows_portable/ComfyUI/models"
             ]
         },
+        "minimax_i2v": chosen_minimax,
         "export_webm": chosen_webm,
         "lm_studio": {
             "url": chosen_lms_url,
@@ -202,6 +377,29 @@ def interactive_setup_wizard():
         print(t("wizard_saved"))
     except Exception as e:
         print(f"⚠️ Konnte settings.json nicht speichern: {e}")
+
+    # 7. Model & LoRA Catalog Scan (t2i_presets.json)
+    target_presets_path = os.path.join(PRESETS_DIR, "t2i_presets.json")
+    if chosen_models_dir and os.path.exists(chosen_models_dir):
+        default_scan = "j" if get_current_language() == "de" else "y"
+        try:
+            scan_input = input(t("wizard_scan_catalog_prompt", default=default_scan)).strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            scan_input = ""
+        do_scan = False if scan_input in ("n", "no", "nein", "false", "0") else True
+        if do_scan:
+            default_nsfw = "j" if get_current_language() == "de" else "y"
+            try:
+                nsfw_input = input(t("wizard_filter_nsfw_prompt", default=default_nsfw)).strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                nsfw_input = ""
+            filter_nsfw = False if nsfw_input in ("n", "no", "nein", "false", "0") else True
+            print(t("catalog_scan_start", dir=chosen_models_dir))
+            try:
+                stats = build_or_update_catalog(chosen_models_dir, presets_path=target_presets_path, filter_nsfw=filter_nsfw)
+                print(t("catalog_scan_completed", total_loras=stats["total_loras"], new_loras=stats["new_loras"], total_models=stats["total_presets"]))
+            except Exception as scan_err:
+                print(f"⚠️ Katalog-Scan Fehler: {scan_err}")
 
     return new_settings
 
@@ -853,6 +1051,82 @@ def format_available_scene_loras(available_loras):
         lines.append(f"- {k}: {desc}{trig_str}")
     return "\n".join(lines)
 
+def resolve_scene_characters(scene, characters_list):
+    """
+    Resolves the list of character objects active in a specific scene.
+    Looks for scene-level 'charaktere', 'characters', 'cast', or 'actors'.
+    Falls back to checking mentions in 'idee', 'idea', or 'prompt'.
+    Defaults to characters_list if no specific characters are identified.
+    """
+    if not characters_list:
+        return []
+
+    char_map = {}
+    for idx, c in enumerate(characters_list):
+        c_id = str(c.get("id", idx + 1))
+        char_map[c_id] = c
+        if c.get("name"):
+            char_map[c.get("name").strip().lower()] = c
+
+    raw_chars = (
+        scene.get("charaktere") or 
+        scene.get("characters") or 
+        scene.get("cast") or 
+        scene.get("actors")
+    )
+
+    if raw_chars:
+        if isinstance(raw_chars, str):
+            raw_list = [x.strip() for x in raw_chars.split(",") if x.strip()]
+        elif isinstance(raw_chars, list):
+            raw_list = raw_chars
+        else:
+            raw_list = [raw_chars]
+
+        resolved = []
+        for item in raw_list:
+            if isinstance(item, dict):
+                k = str(item.get("id") or item.get("name") or "").strip().lower()
+                c_obj = char_map.get(k) or item
+                if c_obj not in resolved:
+                    resolved.append(c_obj)
+            else:
+                k = str(item).strip().lower()
+                if k in char_map:
+                    if char_map[k] not in resolved:
+                        resolved.append(char_map[k])
+                else:
+                    for c_name_key, c_obj in char_map.items():
+                        if k == c_name_key or k in c_name_key:
+                            if c_obj not in resolved:
+                                resolved.append(c_obj)
+                            break
+        if resolved:
+            return resolved
+
+    # Fallback: Check mentions in idea / prompt
+    text_corpus = (
+        str(scene.get("idee") or "") + " " + 
+        str(scene.get("idea") or "") + " " + 
+        str(scene.get("prompt") or "")
+    ).lower()
+
+    mentioned = []
+    for idx, c in enumerate(characters_list):
+        c_name = str(c.get("name", "")).strip().lower()
+        c_id = str(c.get("id", idx + 1))
+        if c_name and c_name in text_corpus:
+            if c not in mentioned:
+                mentioned.append(c)
+        elif f"<picture {c_id}>" in text_corpus or f"<subject {c_id}>" in text_corpus:
+            if c not in mentioned:
+                mentioned.append(c)
+
+    if mentioned:
+        return mentioned
+
+    return list(characters_list)
+
 def ask_lm_studio(
     idea,
     characters,
@@ -935,6 +1209,8 @@ CRITICAL CHARACTER WARDROBE & STATE CONTINUITY:
 {state_instruction}
 - Visual Identity vs. Clothing: The reference image (<Picture X>) establishes the character's facial features and identity. However, their CLOTHING and CURRENT STATE in this scene MUST strictly match the active state listed above!
 - When a character's state specifies a wardrobe change (e.g. apron removed, topless, shirtless, nude, wearing different clothes, wet hair), you MUST explicitly describe them in their current clothing state in [Shot 1], explicitly stating their current outfit so Minimax overrides what was in <Picture X>.
+- MANDATORY SUBJECT TAGGING: In 'detailed_description' under [Shot 1], you MUST refer to characters exclusively by their tag '<Subject X>' (e.g. '<Subject 1>') alongside their action, NEVER solely by their character name. Minimax models rely on '<Subject X>' to bind the description to '<Picture X>'.
+- CRITICAL VISUAL STYLE: State the visual medium clearly in [Shot 1]: If live-action, specify 'photorealistic 35mm cinematic film footage, real life camera shot, hyperrealistic textures'. If animated/anime, specify 'cel-shaded vibrant anime style, expressive animation aesthetics'.
 
 CRITICAL SCENE & SHOT CONTINUITY:
 {continuity_instruction}
@@ -1296,6 +1572,19 @@ def main():
         print(t("catalog_scan_completed", total_loras=stats["total_loras"], new_loras=stats["new_loras"], total_models=stats["total_presets"]))
         return
 
+    if len(sys.argv) >= 2 and sys.argv[1].lower() in ["--configure-minimax", "-m", "--minimax"]:
+        models_dir = get_comfy_models_dir()
+        cur_mm = SETTINGS.get("minimax_i2v", {})
+        updated_mm = configure_minimax_interactive(models_dir, cur_mm)
+        SETTINGS["minimax_i2v"] = updated_mm
+        try:
+            with open(SETTINGS_FILE, "w", encoding="utf-8") as sf:
+                json.dump(SETTINGS, sf, indent=2, ensure_ascii=False)
+            print(t("minimax_config_saved"))
+        except Exception as e:
+            print(f"⚠️ Konnte settings.json nicht speichern: {e}")
+        return
+
     # 1. Determine screenplay input
     if len(sys.argv) >= 2:
         screenplay_input = sys.argv[1]
@@ -1308,6 +1597,7 @@ def main():
                 for idx, f in enumerate(available, 1):
                     print(f"  [{idx}] {f}")
                 print(t("menu_scan_models_option"))
+                print(t("menu_minimax_option"))
                 print(t("menu_instruction"))
                 try:
                     choice = input(t("menu_prompt")).strip()
@@ -1319,6 +1609,19 @@ def main():
                             print(t("catalog_scan_start", dir=models_dir))
                             stats = build_or_update_catalog(models_dir)
                             print(t("catalog_scan_completed", total_loras=stats["total_loras"], new_loras=stats["new_loras"], total_models=stats["total_presets"]))
+                        print()
+                        continue
+                    elif choice.lower() in ["m", "minimax"]:
+                        models_dir = get_comfy_models_dir()
+                        cur_mm = SETTINGS.get("minimax_i2v", {})
+                        updated_mm = configure_minimax_interactive(models_dir, cur_mm)
+                        SETTINGS["minimax_i2v"] = updated_mm
+                        try:
+                            with open(SETTINGS_FILE, "w", encoding="utf-8") as sf:
+                                json.dump(SETTINGS, sf, indent=2, ensure_ascii=False)
+                            print(t("minimax_config_saved"))
+                        except Exception as e:
+                            print(f"⚠️ Konnte settings.json nicht speichern: {e}")
                         print()
                         continue
                     elif choice.isdigit() and 1 <= int(choice) <= len(available):
@@ -1336,6 +1639,7 @@ def main():
             else:
                 print(t("menu_no_screenplays"))
                 print(t("menu_scan_models_option"))
+                print(t("menu_minimax_option"))
                 try:
                     choice = input(t("menu_prompt")).strip()
                     if choice.lower() in ["s", "scan"]:
@@ -1346,6 +1650,19 @@ def main():
                             print(t("catalog_scan_start", dir=models_dir))
                             stats = build_or_update_catalog(models_dir)
                             print(t("catalog_scan_completed", total_loras=stats["total_loras"], new_loras=stats["new_loras"], total_models=stats["total_presets"]))
+                        print()
+                        continue
+                    elif choice.lower() in ["m", "minimax"]:
+                        models_dir = get_comfy_models_dir()
+                        cur_mm = SETTINGS.get("minimax_i2v", {})
+                        updated_mm = configure_minimax_interactive(models_dir, cur_mm)
+                        SETTINGS["minimax_i2v"] = updated_mm
+                        try:
+                            with open(SETTINGS_FILE, "w", encoding="utf-8") as sf:
+                                json.dump(SETTINGS, sf, indent=2, ensure_ascii=False)
+                            print(t("minimax_config_saved"))
+                        except Exception as e:
+                            print(f"⚠️ Konnte settings.json nicht speichern: {e}")
                         print()
                         continue
                 except Exception:
@@ -1425,6 +1742,41 @@ def main():
         
     with open(wf_i2v_path, "r", encoding="utf-8") as f:
         wf_i2v = json.load(f)
+
+    # Apply Minimax I2V configuration from settings.json
+    mm_cfg = SETTINGS.get("minimax_i2v", {})
+    if mm_cfg and wf_i2v:
+        configured_unet = mm_cfg.get("unet_name")
+        if configured_unet and "620" in wf_i2v and "inputs" in wf_i2v["620"]:
+            wf_i2v["620"]["inputs"]["unet_name"] = configured_unet
+
+        configured_turbo = mm_cfg.get("turbo_lora")
+        if configured_turbo and "674" in wf_i2v and "inputs" in wf_i2v["674"]:
+            if "lora_1" in wf_i2v["674"]["inputs"]:
+                wf_i2v["674"]["inputs"]["lora_1"]["lora"] = configured_turbo
+                wf_i2v["674"]["inputs"]["lora_1"]["strength"] = float(mm_cfg.get("turbo_strength", 1.0))
+
+        configured_steps = mm_cfg.get("steps")
+        if configured_steps is not None and "750" in wf_i2v and "inputs" in wf_i2v["750"]:
+            wf_i2v["750"]["inputs"]["value"] = int(configured_steps)
+
+        configured_clip = mm_cfg.get("clip_name")
+        if configured_clip and "128" in wf_i2v and "inputs" in wf_i2v["128"]:
+            wf_i2v["128"]["inputs"]["clip_name"] = configured_clip
+
+        configured_v_vae = mm_cfg.get("video_vae_name")
+        if configured_v_vae and "119" in wf_i2v and "inputs" in wf_i2v["119"]:
+            wf_i2v["119"]["inputs"]["vae_name"] = configured_v_vae
+
+        configured_a_vae = mm_cfg.get("audio_vae_name")
+        if configured_a_vae and "120" in wf_i2v and "inputs" in wf_i2v["120"]:
+            wf_i2v["120"]["inputs"]["vae_name"] = configured_a_vae
+
+        unet_disp = os.path.basename(configured_unet) if configured_unet else "default"
+        turbo_disp = os.path.basename(configured_turbo) if configured_turbo else "default"
+        steps_disp = configured_steps if configured_steps is not None else wf_i2v.get("750", {}).get("inputs", {}).get("value", "?")
+        print(t("minimax_loaded_config", unet=unet_disp, turbo=turbo_disp, steps=steps_disp))
+
 
     t2i_presets = {}
     if not os.path.exists(t2i_presets_path):
@@ -1654,6 +2006,9 @@ def main():
             else:
                 existing_scene_loras = []
 
+            # Resolve characters active in this specific scene
+            scene_chars = resolve_scene_characters(scene, characters_list)
+
             if not auto_prompt and existing_p:
                 if needs_llm:
                     print(t("scene_keep_manual_prompt", id=scene_id))
@@ -1681,7 +2036,7 @@ def main():
             else:
                 minimax_prompt, calculated_duration, selected_loras = ask_lm_studio(
                     scene_idea,
-                    characters_list,
+                    scene_chars,
                     use_previous_scene=use_previous_scene,
                     direct_continuation=direct_continuation,
                     active_variables=active_variables,
@@ -1719,6 +2074,7 @@ def main():
                 "prompt": minimax_prompt,
                 "dauer": calculated_duration,
                 "loras": final_scene_loras,
+                "characters": scene_chars,
                 "nutze_vorherige_szene": use_previous_scene,
                 "direkter_anschluss": direct_continuation,
                 "gleiche_szene": same_scene,
@@ -2116,13 +2472,26 @@ def main():
         current_cond_node = "648"
         wf_i2v["126"]["inputs"]["conditioning"] = ["648", 0]
             
-        for i, char in enumerate(characters_list):
-            node_id = f"900{i}" 
-            wf_i2v[node_id] = {
-                "inputs": {"image": char["echter_dateiname"]},
-                "class_type": "LoadImage"
-            }
-            wf_i2v["136"]["inputs"][f"ref_images.ref_image_{i}"] = [node_id, 0]
+        # Clean up any leftover 900X character image loader nodes
+        for k in [k for k in list(wf_i2v.keys()) if re.match(r"^900\d+$", k)]:
+            del wf_i2v[k]
+
+        scene_chars = scene_data.get("characters") or resolve_scene_characters(scene_data, characters_list)
+        if scene_chars:
+            char_names_log = ", ".join(c.get("name", f"Actor_{idx+1}") for idx, c in enumerate(scene_chars))
+            print(f"   🎭 Scene {szene_id} active cast: {char_names_log}")
+            for i, char in enumerate(scene_chars):
+                fallback_name = char.get("name") or f"actor_{i+1}"
+                safe_char_name = re.sub(r'[\\/*?:"<>| ]', '_', fallback_name)
+                char_file_name = char.get("echter_dateiname") or f"{safe_char_name}.png"
+                node_id = f"900{i}"
+                wf_i2v[node_id] = {
+                    "inputs": {"image": char_file_name},
+                    "class_type": "LoadImage"
+                }
+                wf_i2v["136"]["inputs"][f"ref_images.ref_image_{i}"] = [node_id, 0]
+
+
             
         if scene_data["nutze_vorherige_szene"] and last_video_data is not None:
             uploaded_video = upload_file(last_video_data, "previous_scene.mp4", "video/mp4")

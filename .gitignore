@@ -49,3 +49,7 @@ Projects/*.json
 # Local user machine configuration (generated interactively, not overwritten by git pull)
 settings.json
 
+# Machine-specific model & LoRA catalog (built locally during setup or first run)
+Presets/t2i_presets.json
+!Presets/t2i_presets.example.json
+

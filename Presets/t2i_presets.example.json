@@ -1,0 +1,76 @@
+{
+  "default": "anima_catpony",
+  "presets": {
+    "anima_catpony": {
+      "beschreibung": "Anima CatPony - Spezialisiert auf ausdrucksstarke, stilisierte Charaktere",
+      "unet_name": "Anima/sexy/CatPony_Ani_v1.0.fp16.safetensors",
+      "clip_name": "qwen_3_06b_base.safetensors",
+      "clip_type": "stable_diffusion",
+      "vae_name": "qwen_image_vae.safetensors",
+      "steps": 30,
+      "cfg": 4.0,
+      "sampler_name": "er_sde",
+      "scheduler": "beta57",
+      "aspect_ratio": "3:4 (Portrait Standard)",
+      "megapixels": 1.2,
+      "negative_prompt": "worst quality, low quality, artist name, blurry, jpeg artifacts, chromatic aberration"
+    },
+    "anima_cyberrealistic": {
+      "beschreibung": "Anima CyberRealistic - Für detaillierte, fotorealistische Menschen und Gesichter",
+      "unet_name": "Anima/realistic/cyberrealisticAnima_v60AestheticV11.safetensors",
+      "clip_name": "qwen_3_06b_base.safetensors",
+      "clip_type": "stable_diffusion",
+      "vae_name": "qwen_image_vae.safetensors",
+      "steps": 28,
+      "cfg": 3.5,
+      "sampler_name": "er_sde",
+      "scheduler": "beta57",
+      "aspect_ratio": "3:4 (Portrait Standard)",
+      "megapixels": 1.2,
+      "negative_prompt": "worst quality, low quality, cartoon, 3d, render, anime, illustration, blurry, bad anatomy"
+    },
+    "anima_turbo": {
+      "beschreibung": "Anima Turbo - Extrem schnelles Casting mit nur 8 Schritten",
+      "unet_name": "Anima/anime/anima_turboV11.safetensors",
+      "clip_name": "qwen_3_06b_base.safetensors",
+      "clip_type": "stable_diffusion",
+      "vae_name": "qwen_image_vae.safetensors",
+      "steps": 8,
+      "cfg": 1.8,
+      "sampler_name": "er_sde",
+      "scheduler": "beta57",
+      "aspect_ratio": "3:4 (Portrait Standard)",
+      "megapixels": 1.0,
+      "negative_prompt": "worst quality, low quality, blurry"
+    },
+    "anima_finalcut_int8": {
+      "beschreibung": "Anima FinalCut INT8 - VRAM-schonendes INT8-Modell für Low-CFG",
+      "unet_name": "Anima/base model/animaFinalcutNewINT8_turboINT8LOWCFG.safetensors",
+      "clip_name": "qwen_3_06b_base.safetensors",
+      "clip_type": "stable_diffusion",
+      "vae_name": "qwen_image_vae.safetensors",
+      "steps": 12,
+      "cfg": 2.0,
+      "sampler_name": "er_sde",
+      "scheduler": "beta57",
+      "aspect_ratio": "3:4 (Portrait Standard)",
+      "megapixels": 1.0,
+      "negative_prompt": "worst quality, low quality, blurry"
+    },
+    "krea2_turbo_int8": {
+      "beschreibung": "Krea 2 Turbo INT8 - Schnelle, moderne Fotorealistik",
+      "unet_name": "Krea 2/base model/krea2TurboOfficialComfy_krea2TurboInt8.safetensors",
+      "clip_name": "qwen_3_06b_base.safetensors",
+      "clip_type": "stable_diffusion",
+      "vae_name": "qwen_image_vae.safetensors",
+      "steps": 8,
+      "cfg": 1.0,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "aspect_ratio": "3:4 (Portrait Standard)",
+      "megapixels": 1.0,
+      "negative_prompt": ""
+    }
+  },
+  "lora_presets": {}
+}

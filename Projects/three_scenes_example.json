@@ -14,9 +14,7 @@
         "realskin",
         "anima_detailer"
       ],
-      "description": "A skilled cyber-archeologist exploring an ancient subterranean vault.",
-      "prompt": "masterpiece, best quality, high resolution, 8k, photorealistic, cinematic portrait, full body shot, solo character casting sheet, young adult woman, Maya, 26 years old, messy dark hair tied in a ponytail, focused hazel eyes, subtle facial scar, intense expression of awe, reaching hand, touching a hovering golden crystalline artifact, radiant energy ripples across the crystal surface, volumetric lighting, dramatic rim light, deep shadows, detailed skin pores, highly textured fabric, worn tactical jacket with intricate shoulder patches, high-collar techwear vest, utility belt with glowing cyan tools, futuristic dust goggles around neck, soft ethereal glow illumination, dark ancient stone corridor background, cinematic composition, sharp focus, shallow depth of field, ultra detail, Anima CyberRealistic style",
-      "actual_filename": "Maya.png"
+      "description": "A skilled cyber-archeologist exploring an ancient subterranean vault."
     }
   ],
   "scenes": [
@@ -25,8 +23,7 @@
       "sequence": "Subterranean Vault Discovery",
       "location": "Ancient Stone Corridor",
       "duration": 8,
-      "idea": "Maya walks cautiously through a dimly lit ancient stone corridor in her {outfit_maya}, holding a holographic scanner casting a soft cyan glow.",
-      "prompt": "subject_definitions:\n<Subject 1> is the character in <Picture 1> (Maya).\n\nsummary:\nMaya cautiously walks through a dimly lit, ancient stone corridor while holding and activating a holographic scanner that casts a soft cyan glow.\n\ndetailed_description:\n[Shot 1]: A medium shot frames Maya as she moves slowly and deliberately down a damp, moss-covered ancient stone corridor. She is wearing her worn tactical jacket over techwear vest, with goggles resting around her neck. She holds a holographic scanner in her right hand; the device emits a steady, soft cyan light that beautifully illuminates her face, casting deep shadows across the rough texture of the surrounding stonework and emphasizing the damp air. Her posture suggests caution and focus as she navigates the passage.\n\noverall_soundscape:\nSlow, deliberate footsteps echoing on ancient stone flooring; subtle rustling of her tactical jacket fabric with each step; a faint, low hum emanating from the holographic scanner; slight ambient echo/reverberation typical of a large, enclosed corridor.\n\nnon_diegetic_music:\nNone"
+      "idea": "Maya walks cautiously through a dimly lit ancient stone corridor in her {outfit_maya}, holding a holographic scanner casting a soft cyan glow."
     },
     {
       "id": 2,
@@ -36,16 +33,14 @@
       "variables_update": {
         "goggles": "pulled up over her eyes, glowing with cyan digital HUD readouts"
       },
-      "idea": "Maya discovers an illuminated pedestal. With her goggles {goggles}, she approaches slowly and reaches toward the hovering golden crystalline artifact.",
-      "prompt": "subject_definitions:\n<Subject 1> is the character in <Picture 1> (Maya). She is wearing a worn tactical jacket over a techwear vest, with her goggles pulled up over her eyes, glowing with cyan digital HUD readouts.\n\nsummary:\nMaya discovers an illuminated pedestal and slowly approaches it to reach out toward a floating golden crystalline artifact.\n\ndetailed_description:\n[Shot 1]: A medium shot frames Maya as she surveys a dramatic environment (<Video 1> establishes the environment). She is positioned slightly off-center, gazing intently at an ornate, glowing pedestal. The pedestal emits a soft, brilliant white light that illuminates dust motes floating in the air. As Maya begins her slow approach, her tactical boots scuff lightly against the polished floor. Her gaze locks onto a magnificent golden crystalline artifact hovering just above the surface of the pedestal. She slowly extends her right arm, reaching out with deliberate focus towards the shimmering object.\n\noverall_soundscape:\nSoft, low hum emanating from the illuminated pedestal; gentle scuffing and rhythmic padding of boots on a polished metal floor as Maya approaches; faint, high-pitched crystalline chime or resonance coming from the hovering artifact; shallow, focused breathing from Maya; subtle electrical crackle/static sound originating from her cyan HUD goggles.\n\nnon_diegetic_music:\nNone"
+      "idea": "Maya discovers an illuminated pedestal. With her goggles {goggles}, she approaches slowly and reaches toward the hovering golden crystalline artifact."
     },
     {
       "id": 3,
       "sequence": "Subterranean Vault Discovery",
       "match_cut": true,
       "duration": 7,
-      "idea": "Direct seamless continuation: Maya's fingers touch the artifact. Instantly, radiant energy ripples across its surface, illuminating her goggles and face in pure awe.",
-      "prompt": "subject_definitions:\n<Subject 1> is the character in <Picture 1> (Maya).\n\nsummary:\nMaya gently touches a mysterious, glowing artifact, causing brilliant, radiant energy to ripple across its surface and illuminating her face with profound awe.\n\ndetailed_description:\n[Shot 1]: A medium shot frames Maya as she reaches out and makes contact with the ancient, crystalline artifact. This is a direct seamless continuation from the final frame of the previous scene; her posture and hand position are immediately carried forward. The moment her fingers touch the surface, a brilliant cyan-white energy ripple instantly radiates outward across the artifact's structure. As the ripples expand, the light intensely floods the shot, brightly illuminating Maya's face and causing the digital HUD readouts on her goggles (pulled up over her eyes) to flare dramatically with concentrated cyan light. Her expression shifts instantly from focused curiosity to sheer, overwhelming awe.\n\noverall_soundscape:\nA subtle, crisp *tap* as Maya's fingers meet the artifact; followed immediately by a rising, sustained electrical hum and a low-frequency resonant whoosh as the energy ripples spread across the crystal structure; punctuated by Maya taking a sharp, audible intake of breath (gasp) in reaction to the sudden illumination.\n\nnon_diegetic_music:\nNone"
+      "idea": "Direct seamless continuation: Maya's fingers touch the artifact. Instantly, radiant energy ripples across its surface, illuminating her goggles and face in pure awe."
     }
   ]
 }
