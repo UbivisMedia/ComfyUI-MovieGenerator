@@ -190,10 +190,6 @@
       "audio_vae": [
         "120",
         0
-      ],
-      "ref_images.ref_image_0": [
-        "687",
-        0
       ]
     },
     "class_type": "MiniMaxH3ReferenceToVideo",
@@ -329,17 +325,6 @@
     "class_type": "Any Switch (rgthree)",
     "_meta": {
       "title": "LATENT"
-    }
-  },
-  "687": {
-    "inputs": {
-      "image": "2025-09-08-181422_0.png",
-      "crop": "",
-      "max_megapixels": 2
-    },
-    "class_type": "LoadImageCrop",
-    "_meta": {
-      "title": "Load Image & Crop"
     }
   },
   "691": {

@@ -506,7 +506,12 @@ def queue_prompt(prompt_workflow):
     p = {"prompt": prompt_workflow, "client_id": "master_regisseur"}
     data = json.dumps(p).encode('utf-8')
     req = urllib.request.Request(f"http://{SERVER_ADDRESS}/prompt", data=data)
-    return json.loads(urllib.request.urlopen(req).read())
+    try:
+        return json.loads(urllib.request.urlopen(req).read())
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode('utf-8', errors='replace')
+        print(f"   ❌ HTTPError from ComfyUI ({e.code}): {err_body}")
+        raise
 
 def get_history(prompt_id):
     try:
@@ -2587,7 +2592,7 @@ def main():
         keys_to_remove = [k for k in wf_i2v["136"]["inputs"].keys() if k.startswith("ref_images.ref_image_") or k.startswith("ref_videos.")]
         for k in keys_to_remove:
             del wf_i2v["136"]["inputs"][k]
-        for k in ["9100", "9200", "9201", "9202", "9203"]:
+        for k in ["687", "9100", "9200", "9201", "9202", "9203"]:
             if k in wf_i2v:
                 del wf_i2v[k]
         
