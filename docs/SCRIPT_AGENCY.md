@@ -39,10 +39,153 @@ By default, the server runs locally on **`http://127.0.0.1:7860/`** (or incremen
 - **LoRA Trigger Phrases & Strength**: Inspect LoRA descriptions, trigger words, and tweak strength values per actor.
 - **Instant Model Re-scan**: Click `🔄 Katalog-Scan` anytime to scan newly downloaded models and LoRAs directly from ComfyUI without restarting.
 
-### 3. Persistent Variables & Wardrobe State Machine
-- **Global Variables**: Define initial character wardrobe states or environmental attributes (`{outfit_maya}`, `{weather}`, `{scanner}`).
-- **Interactive Insertion Chips**: Insert `{variable_name}` placeholders directly into scene ideas with a single click.
-- **Scene-Specific Overrides (`variables_update`)**: Update a character's wardrobe or props in any shot (e.g. `{"outfit_maya": "tactical jacket removed, wearing black tank top"}`). Subsequent shots inherit this state automatically!
+---
+
+## 🎭 The Dynamic Variable & Wardrobe System (In-Depth Guide)
+
+In multi-scene AI filmmaking, characters frequently change clothes, undress, put on gear, get wet, or pick up props. 
+
+### Why the Variable System is Essential
+By default, video diffusion models (like Minimax) reference the static casting portrait (`<Picture X>`) to identify the actor. Without explicit intervention, Minimax will continuously attempt to redraw the original clothing shown in that casting portrait!
+
+The **MovieGenerator Variable System** solves this by maintaining a persistent state machine across all scenes:
+1. It separates **Facial Likeness** (anchored by `<Picture X>`) from **Wardrobe & State** (driven dynamically by variables).
+2. It tracks wardrobe changes as the film progresses and automatically feeds the active wardrobe into LM Studio and Minimax prompt engineering.
+
+```mermaid
+flowchart LR
+    A[Root Variables\noutfit_maya: heavy jacket] --> B[Scene 1\nInherits: heavy jacket]
+    B --> C[Scene 2: variables_update\noutfit_maya: jacket removed, tank top]
+    C --> D[Scene 3\nInherits: tank top]
+    D --> E[Scene 4\nInherits: tank top]
+```
+
+---
+
+### 1. Where to Define Global Variables
+
+#### A. In the Script Agency Web Interface
+At the very top of the editor, beneath the title and logline, you will find the **Story-Variablen (Wardrobe / Requisiten / Kontinuität)** card:
+- Click **`+ Variable hinzufügen`** to add a new key-value pair.
+- Enter the **Key** (variable name) on the left and the **Value** (visual description) on the right.
+- To delete a variable, click the trash icon `🗑️`.
+
+#### B. In the Screenplay JSON File
+In `Projects/<film_name>.json`, define the initial state inside the root `"variables"` (or German `"variablen"`) dictionary:
+
+```json
+{
+  "title": "Cyberpunk Protocol",
+  "variables": {
+    "outfit_maya": "dark tactical field jacket with high collar, grey cargo pants",
+    "outfit_kael": "formal charcoal suit with open white collar",
+    "scanner_device": "handheld holographic cyan scanning prism",
+    "room_lighting": "dim amber mood lighting casting long shadows"
+  },
+  "characters": [ ... ],
+  "scenes": [ ... ]
+}
+```
+
+#### Best Practices for Variable Naming & Values
+| Variable Type | Recommended Key Format | Recommended Value Style (English) |
+| :--- | :--- | :--- |
+| **Actor Wardrobe** | `outfit_<character_name>` (e.g. `outfit_delia`, `outfit_gunnar`) | Detailed fabric, color, cut, and accessories: `"delicate emerald green silk slip dress, thin shoulder straps, barefoot"` |
+| **Props & Tech** | `<prop_name>` (e.g. `scanner`, `crystal_artifact`, `flashlight`) | Physical material, emission color, size: `"heavy metallic datapad with glowing holographic interface"` |
+| **Environment / Atmosphere** | `<setting>_<attribute>` (e.g. `lab_lighting`, `weather_state`) | Lighting direction, color temperature, atmospheric density: `"flickering cold cyan neon strobes with drifting mist"` |
+
+> [!TIP]
+> **Always write variable values in English!** Diffusion models generate visuals significantly better when guided by descriptive English adjectives rather than brief or German words.
+
+---
+
+### 2. How to Use Variables in Scene Ideas (`{variable_name}`)
+
+Whenever you write a scene description, you can reference any active variable using curly brace placeholders: `{variable_name}`.
+
+#### A. Single-Click Insertion via Web UI Chips
+Above each scene's idea textarea, the Script Agency provides interactive variable chips:
+```text
+[Variablen einfügen:]  [ {outfit_delia} ]  [ {outfit_gunnar} ]  [ {scanner} ]
+```
+- Click any chip, and `{variable_name}` will be inserted directly at your text cursor position inside the idea box!
+
+#### B. Example in Scene Text
+```text
+Delia ({outfit_delia}) und Gunnar ({outfit_gunnar}) betreten nervös das Schlafzimmer. Delia hält den {scanner} vorsichtig vor sich.
+```
+
+#### How the Engine Processes This:
+When you click **"🪄 Elaborate Idea"** (or during production with `master_regisseur.py`):
+1. The engine checks the current active value of `{outfit_delia}` and `{outfit_gunnar}`.
+2. It instructs LM Studio to explicitly describe the actors in these exact garments in `[Shot 1]`, forcefully instructing Minimax to override the clothing from the casting picture (`<Picture X>`).
+
+---
+
+### 3. How to Update Variables in a Scene (`variables_update`)
+
+When an action causes a character to undress, change clothes, or alter their state (e.g. taking off a coat, getting drenched in rain, or unbuttoning a shirt), you record this change directly on that specific scene.
+
+#### A. In the Script Agency Web Interface
+Each scene card contains a dedicated input field:
+**`Variablen Update in dieser Szene`**
+
+You can enter updates in three different ways:
+
+1. **Simple Key-Value Shorthand** (Most convenient):
+   ```text
+   outfit_delia: nightgown slipped off shoulders, wearing black lace lingerie
+   ```
+2. **Standard JSON Object**:
+   ```json
+   {"outfit_delia": "nightgown slipped off shoulders", "outfit_gunnar": "shirt unbuttoned"}
+   ```
+3. **🪄 AI-Assisted Auto-Suggestion**:
+   Click the magic wand button **`🪄 Vorschlag für Variablen`** right next to the header. LM Studio will analyze the scene text, detect any wardrobe or prop changes mentioned in the idea, and automatically populate the update!
+
+#### B. In the Screenplay JSON File
+Add `"variables_update"` (or `"variablen_update"`) to the scene object:
+
+```json
+{
+  "id": 4,
+  "sequence": "Bedroom Intimacy",
+  "location": "Master Bedroom",
+  "idea": "Delia slowly unties Gunnar's shirt and slips it off his shoulders.",
+  "variables_update": {
+    "outfit_gunnar": "shirt removed, bare chest, dark trousers"
+  },
+  "same_scene": true
+}
+```
+
+---
+
+### 4. The State Machine: Automatic Inheritance Across Scenes
+
+Variables updated in a scene are **not** one-shot; they alter the persistent story timeline:
+
+| Scene | Action | Active Wardrobe State |
+| :--- | :--- | :--- |
+| **Scene 1** | Gunnar enters the house. | `outfit_gunnar`: `"formal black suit with tie"` *(Inherited from Root)* |
+| **Scene 2** | Gunnar takes off his jacket and loosens tie. | `variables_update`: `{"outfit_gunnar": "jacket removed, loosened tie, rolled-up sleeves"}` |
+| **Scene 3** | Gunnar sits on the couch drinking coffee. | `outfit_gunnar`: `"jacket removed, loosened tie, rolled-up sleeves"` *(Automatically inherited from Scene 2!)* |
+| **Scene 4** | Gunnar unties his tie and unbuttons shirt. | `variables_update`: `{"outfit_gunnar": "tie removed, white shirt completely unbuttoned"}` |
+| **Scene 5** | Gunnar walks onto the terrace. | `outfit_gunnar`: `"tie removed, white shirt completely unbuttoned"` *(Automatically inherited from Scene 4!)* |
+
+> [!IMPORTANT]
+> You only need to specify `variables_update` when an actual change occurs! All subsequent shots naturally retain that new state until another update is triggered.
+
+---
+
+### 5. Summary Cheat Sheet: Where to Write What
+
+| Component | UI Location in Script Agency | JSON Key | Format & Syntax | Example |
+| :--- | :--- | :--- | :--- | :--- |
+| **Initial Global State** | Top bar under "Story-Variablen" | `"variables": { ... }` | `Key: Value` dictionary | `"outfit_maya": "white silk dress"` |
+| **In-Line Reference** | Inserted via chips into Idea box | Inside `"idea"` string | `{key_name}` with curly braces | `"Maya ({outfit_maya}) walks..."` |
+| **Scene Wardrobe Change** | "Variablen Update in dieser Szene" field | `"variables_update": { ... }` | `key: new_value` or `{"key": "new_value"}` | `outfit_maya: dress removed, barefoot` |
+| **AI Prompt Generation** | Generated via `🪄 Elaborate Idea` | Stored in `"idea"` or shot prompt | Standard Minimax block (`summary:`, `detailed_description: [Shot 1]`, etc.) | Auto-generated by LM Studio |
 
 ---
 
