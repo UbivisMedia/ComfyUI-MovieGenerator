@@ -53,3 +53,4 @@ settings.json
 Presets/t2i_presets.json
 !Presets/t2i_presets.example.json
 
+Projects/*.json.bak

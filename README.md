@@ -72,6 +72,9 @@ Double-click `create_movie.bat` without arguments. An interactive menu will appe
 python master_regisseur.py Projects/three_scenes_example.json
 ```
 
+### Method 4: Visual Web Editor (Script Agency)
+Double-click `start_script_agency.bat`, run `python script_agency.py`, or select `[E]` in the interactive start menu of `create_movie.bat`. This launches a browser-based visual studio with live model selection, dynamic LoRA suggestions, variable managers, and continuity badges!
+
 ---
 
 ## 📂 Project Structure
@@ -79,6 +82,9 @@ python master_regisseur.py Projects/three_scenes_example.json
 ```text
 MovieGenerator/
 ├── create_movie.bat             # One-click launcher (interactive or drag & drop)
+├── start_script_agency.bat      # One-click launcher for the visual web screenplay editor
+├── script_agency.py             # Web server & REST API for the visual screenplay studio
+├── web/                         # Visual Screenplay Studio web interface (HTML/CSS/JS)
 ├── master_regisseur.py          # Core film director and pipeline orchestrator
 ├── settings.json                # User settings (servers, ports, LLM model, language)
 ├── README.md                    # Main GitHub project documentation (this file)
@@ -232,9 +238,43 @@ MovieGenerator uses a machine-specific `settings.json` that is **ignored by Git*
 ## 📚 Documentation Index
 
 For in-depth references, check the `docs/` folder:
+- **[Script Agency & AI Screenwriter Studio](docs/SCRIPT_AGENCY.md)**: Visual screenplay studio, LM Studio integration, prompt elaboration, and continuity guide.
 - **[Screenplay JSON Specification](docs/SCREENPLAY_SPEC.md)**: Field-by-field reference, data types, and continuity flags.
 - **[Presets & LoRA Reference](docs/PRESETS_AND_LORAS.md)**: Catalog of 100+ supported LoRAs and model presets.
 - **[LLM System Prompt](docs/LLM_SYSTEM_PROMPT.md)**: Copy-paste system prompt for ChatGPT/Claude/Gemma to write valid screenplays.
+
+---
+
+## 🎬 Script Agency — Visual Web Screenplay Studio & AI Screenwriter
+
+The **Script Agency** is an interactive, browser-based studio that pairs visual storyboarding with an intelligent local AI Screenwriter co-director:
+
+- **AI Screenwriter Co-Director (LM Studio)**:
+  - 🪄 **Elaborate Idea (`btn-ai-elaborate-scene`)**: Translates brief scene ideas into complete Minimax prompts (`summary`, `detailed_description [Shot 1]`, `overall_soundscape`, and `non_diegetic_music: None`).
+  - 🧠 **Docs-Grounded**: Dynamically ingests `docs/LLM_SYSTEM_PROMPT.md` and `prompts/minimax_scene.txt` so prompts adhere strictly to project specifications.
+  - 🎞️ **Shot Continuity Ingestion**: Ingests preceding shots in the same sequence/location so characters never reset posture, repeat entries, or break spatial continuity.
+  - 💡 **Suggest Next Scene**: Brainstorms logical next scenes considering story arc, cast, variables, and preceding beats.
+  - 🪄 **Dynamic Variable Suggestion**: Detects wardrobe/prop changes in scenes and suggests `variables_update` keys without hallucinating unmentioned props.
+  - 🛡️ **Hardened Reasoning Sanitizer**: Allocates 4000+ token budgets and strips internal Chain-of-Thought / reasoning preambles from models like Gemma-4 or DeepSeek so only clean prompts enter your script.
+- **Actor Casting & LoRA Explorer**: Choose your base diffusion model, and the editor automatically filters and displays compatible LoRAs with descriptions, trigger phrases, and recommended strengths.
+- **Dynamic Storyboarding**: Manage scene sequences, locations, actor appearances, and continuity switches (Match-Cuts, Same-Scene angle switches, Environmental continuity).
+- **Centralized Variables**: Define global variables (`{outfit}`, `{meadow}`, `{scanner}`) with 1-click token insertion chips.
+- **Instant Model Rescan**: Click `Katalog-Scan` anytime to immediately scan newly downloaded models and LoRAs from ComfyUI into your editor.
+- **Safety Backups**: Saving automatically writes `.bak` backups to ensure your original work is never lost.
+
+```bash
+# Start directly from CLI:
+python script_agency.py
+
+# Or via double-click on Windows:
+start_script_agency.bat
+
+# Or from create_movie.bat:
+# Press [E] in the interactive menu
+```
+
+> [!TIP]
+> For a full walkthrough of all features, API endpoints, and screenwriting workflows, see the dedicated guide: **[docs/SCRIPT_AGENCY.md](docs/SCRIPT_AGENCY.md)**.
 
 ---
 

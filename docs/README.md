@@ -174,9 +174,10 @@ If any prompt file is removed, `master_regisseur.py` automatically falls back to
 
 ## Documentation Index
 
-- [Screenplay JSON Specification](file:///e:/MovieGenerator/docs/SCREENPLAY_SPEC.md): Complete field reference, data types, continuity options, and validation rules for creating movie scripts.
-- [Presets & LoRA Reference](file:///e:/MovieGenerator/docs/PRESETS_AND_LORAS.md): Catalog of all supported base models and 100+ LoRA triggers and weights.
-- [LLM System Prompt & Agent Guide](file:///e:/MovieGenerator/docs/LLM_SYSTEM_PROMPT.md): Ready-to-use prompt for Language Models to design consistent, cinematic screenplays.
+- [Script Agency & AI Screenwriter Studio](SCRIPT_AGENCY.md): Complete guide to the visual web editor, AI co-director, prompt elaboration, and continuity system.
+- [Screenplay JSON Specification](SCREENPLAY_SPEC.md): Complete field reference, data types, continuity options, and validation rules for creating movie scripts.
+- [Presets & LoRA Reference](PRESETS_AND_LORAS.md): Catalog of all supported base models and 100+ LoRA triggers and weights.
+- [LLM System Prompt & Agent Guide](LLM_SYSTEM_PROMPT.md): Ready-to-use prompt for Language Models to design consistent, cinematic screenplays.
 
 ---
 

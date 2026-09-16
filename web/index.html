@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Script Agency • MovieGenerator Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-theme">
+  <!-- Top Navigation Bar -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="brand">
+        <span class="brand-icon">🎬</span>
+        <div class="brand-text">
+          <span class="brand-title">SCRIPT AGENCY</span>
+          <span class="brand-subtitle" data-i18n="brandSubtitle">MovieGenerator Visual Screenplay Studio</span>
+        </div>
+      </div>
+      <div class="project-selector-wrapper">
+        <label for="projectSelect" class="sr-only" data-i18n="selectScreenplay">Projekt wählen</label>
+        <select id="projectSelect" class="select-input project-select" title="Drehbuch auswählen">
+          <option value="" disabled selected data-i18n="loadingProjects">Lade Drehbücher...</option>
+        </select>
+        <button id="btnNewProject" class="btn btn-secondary btn-sm" data-i18n-title="btnNewTitle" title="Neues Drehbuch erstellen">
+          <span>➕</span> <span data-i18n="btnNew">Neu</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="header-center">
+      <div class="save-status-pill" id="saveStatusPill">
+        <span class="status-dot"></span>
+        <span id="saveStatusText" data-i18n="ready">Bereit</span>
+      </div>
+      <div class="llm-status-pill offline" id="llmStatusPill" title="LM Studio Local Server Status">
+        <span class="llm-dot"></span>
+        <span id="llmStatusText" data-i18n="llmStatusChecking">LM Studio...</span>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <button id="btnSave" class="btn btn-primary" data-i18n-title="btnSaveTitle" title="Drehbuch speichern (Strg+S)">
+        <span>💾</span> <span class="btn-text" data-i18n="btnSave">Speichern</span>
+      </button>
+      <button id="btnDuplicate" class="btn btn-secondary btn-sm" data-i18n-title="btnDuplicateTitle" title="Als neue Datei duplizieren">
+        <span>📋</span> <span data-i18n="btnDuplicate">Duplizieren</span>
+      </button>
+      <button id="btnRescan" class="btn btn-secondary btn-sm" data-i18n-title="btnRescanTitle" title="Modelle und LoRAs in ComfyUI neu scannen">
+        <span id="rescanIcon">🔄</span> <span data-i18n="btnRescan">Katalog-Scan</span>
+      </button>
+      <button id="btnLaunchMovie" class="btn btn-accent btn-sm" data-i18n-title="btnLaunchTitle" title="Kommando zum Rendern anzeigen">
+        <span>⚡</span> <span data-i18n="btnLaunch">Film rendern</span>
+      </button>
+      <div class="lang-switch">
+        <button id="btnLangToggle" class="btn btn-ghost btn-sm" data-i18n-title="btnLangToggleTitle" title="Sprache wechseln / Switch Language">
+          🌐 <span id="currentLangLabel">DE</span>
+        </button>
+      </div>
+      <button id="btnExit" class="btn btn-ghost btn-sm text-muted" data-i18n-title="btnExitTitle" title="Editor beenden und zum Hauptmenü zurückkehren">
+        ✕
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div class="app-layout">
+    <!-- Sidebar: Story Info & Variables -->
+    <aside class="sidebar">
+      <section class="sidebar-section">
+        <div class="section-header">
+          <h2 class="section-title" data-i18n="sectionScreenplayInfo">📖 Drehbuch-Info</h2>
+        </div>
+        <div class="form-group">
+          <label for="movieTitle" data-i18n="labelTitle">Filmtitel</label>
+          <input type="text" id="movieTitle" class="form-control" data-i18n-placeholder="placeholderTitle" placeholder="Titel des Films eingeben...">
+        </div>
+        <div class="form-group">
+          <label for="movieFilename" data-i18n="labelFilename">Dateiname (.json)</label>
+          <div class="input-with-suffix">
+            <input type="text" id="movieFilename" class="form-control" data-i18n-placeholder="placeholderFilename" placeholder="mein_film">
+            <span class="suffix">.json</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="movieDescription" data-i18n="labelDescription">Storyline & Logline</label>
+          <textarea id="movieDescription" class="form-control" rows="3" data-i18n-placeholder="placeholderDescription" placeholder="Worum geht es in diesem Film? (Wird von der KI für konsistente Zusammenhänge genutzt)"></textarea>
+        </div>
+      </section>
+
+      <!-- Global Variables Section -->
+      <section class="sidebar-section">
+        <div class="section-header">
+          <h2 class="section-title" data-i18n="sectionVariables">🏷️ Globale Variablen</h2>
+          <div style="display:flex;gap:4px;">
+            <button id="btnAiExtractVars" class="btn btn-ai-magic btn-xs" data-i18n-title="btnAiExtractVarsTitle" title="Requisiten & Outfits mit KI aus der Storyline extrahieren">
+              <span class="ai-sparkle">🪄</span> <span data-i18n="btnAiExtractVars">Extrahieren</span>
+            </button>
+            <button id="btnAddVariable" class="btn btn-ghost btn-xs" data-i18n-title="btnAddVariableTitle" title="Neue Variable definieren">
+              <span>➕</span> <span data-i18n="btnNewVar">Neu</span>
+            </button>
+          </div>
+        </div>
+        <p class="section-desc" data-i18n="descVariables">
+          Zentrale Requisiten, Outfits oder Umgebungen. Klicke auf einen Chip, um {name} in deine Szenenidee einzufügen:
+        </p>
+        <div id="variableChipsList" class="variable-chips-container">
+          <!-- Dynamic Chips -->
+        </div>
+
+        <div id="variablesEditorList" class="variables-table">
+          <!-- Key Value Inputs -->
+        </div>
+      </section>
+
+      <!-- Screenplay Quick Stats -->
+      <section class="sidebar-section stats-section">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-number" id="statCharsCount">0</span>
+            <span class="stat-label" data-i18n="statCharacters">Charaktere</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-number" id="statScenesCount">0</span>
+            <span class="stat-label" data-i18n="statScenes">Szenen</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-number" id="statTotalDuration">0s</span>
+            <span class="stat-label" data-i18n="statDuration">Gesamtlänge</span>
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Tab Navigation -->
+      <nav class="content-tabs">
+        <button class="tab-btn active" data-tab="characters">
+          <span class="tab-icon">🎭</span> <span data-i18n="tabCharacters">Charaktere</span> (<span id="tabBadgeChars">0</span>)
+        </button>
+        <button class="tab-btn" data-tab="scenes">
+          <span class="tab-icon">🎬</span> <span data-i18n="tabScenes">Storyboard & Szenen</span> (<span id="tabBadgeScenes">0</span>)
+        </button>
+        <button class="tab-btn" data-tab="json">
+          <span class="tab-icon">📝</span> <span data-i18n="tabJson">JSON & Code</span>
+        </button>
+      </nav>
+
+      <!-- TAB 1: Characters -->
+      <div id="tabContentCharacters" class="tab-content active">
+        <div class="tab-actions-bar">
+          <div class="tab-actions-left">
+            <h2 class="tab-heading" data-i18n="headingCast">Schauspieler & Cast</h2>
+            <span class="tab-subheading" data-i18n="subheadingCast">Definiere Charaktere, wähle ihr Basis-Modell und füge optimierte LoRAs hinzu.</span>
+          </div>
+          <button id="btnAddCharacter" class="btn btn-primary">
+            <span>➕</span> <span data-i18n="btnAddCharacter">Charakter hinzufügen</span>
+          </button>
+        </div>
+
+        <div id="charactersContainer" class="characters-grid">
+          <!-- Character cards injected here -->
+        </div>
+      </div>
+
+      <!-- TAB 2: Scenes -->
+      <div id="tabContentScenes" class="tab-content">
+        <div class="tab-actions-bar">
+          <div class="tab-actions-left">
+            <h2 class="tab-heading" data-i18n="headingScenes">Szenen & Storyboard</h2>
+            <span class="tab-subheading" data-i18n="subheadingScenes">Gestalte die filmische Reihenfolge, Kameraanschlüsse und Handlungen.</span>
+          </div>
+          <div class="tab-actions-right" style="display:flex;gap:8px;">
+            <button id="btnAiSuggestScene" class="btn btn-ai-magic" data-i18n-title="btnAiSuggestSceneTitle" title="Nächste Szene mit KI brainstormen">
+              <span class="ai-sparkle">🪄</span> <span data-i18n="btnAiSuggestScene">Szene vorschlagen</span>
+            </button>
+            <button id="btnAddScene" class="btn btn-primary">
+              <span>➕</span> <span data-i18n="btnAddScene">Szene hinzufügen</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="scenesContainer" class="scenes-list">
+          <!-- Scene cards injected here -->
+        </div>
+      </div>
+
+      <!-- TAB 3: JSON & Code -->
+      <div id="tabContentJson" class="tab-content">
+        <div class="tab-actions-bar">
+          <div class="tab-actions-left">
+            <h2 class="tab-heading" data-i18n="headingJson">Live JSON Inspektor</h2>
+            <span class="tab-subheading" data-i18n="subheadingJson">Echtzeit-Vorschau des Drehbuchs. Kann kopiert oder direkt als Datei gespeichert werden.</span>
+          </div>
+          <div class="tab-actions-right">
+            <button id="btnCopyJson" class="btn btn-secondary btn-sm">
+              <span>📋</span> <span data-i18n="btnCopyJson">JSON kopieren</span>
+            </button>
+            <button id="btnFormatJson" class="btn btn-secondary btn-sm">
+              <span>🧹</span> <span data-i18n="btnFormatJson">Formatieren</span>
+            </button>
+          </div>
+        </div>
+        <div class="json-editor-wrapper">
+          <pre id="jsonPreview" class="code-preview"></pre>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- LoRA Picker Modal -->
+  <div id="loraModal" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" data-i18n="modalLoraTitle">✨ LoRA für Charakter auswählen</h3>
+        <button class="modal-close" id="btnCloseLoraModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-search-bar">
+          <input type="text" id="loraSearchInput" class="form-control" data-i18n-placeholder="placeholderLoraSearch" placeholder="LoRA suchen (Name, Stil, Beschreibung)...">
+          <label class="filter-toggle">
+            <input type="checkbox" id="chkShowAllLoras">
+            <span data-i18n="chkShowAllLoras">Alle LoRAs anzeigen (auch andere Modelle)</span>
+          </label>
+        </div>
+
+        <div class="model-context-badge">
+          <span data-i18n="modalActiveModel">Aktives Modell:</span> <strong id="modalActiveModelName">-</strong>
+        </div>
+
+        <div id="loraCardsList" class="lora-cards-grid">
+          <!-- Dynamically populated LoRA cards -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Launch / Render Modal -->
+  <div id="renderModal" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" data-i18n="modalRenderTitle">⚡ Film rendern & starten</h3>
+        <button class="modal-close" id="btnCloseRenderModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p data-i18n="modalRenderDesc">Um diesen Film mit dem MovieGenerator zu produzieren, kannst du entweder das Terminal-Kommando ausführen oder die Datei auswählen:</p>
+        <div class="terminal-box">
+          <code id="renderCliCommand">python master_regisseur.py Projects/film.json</code>
+          <button id="btnCopyCli" class="btn btn-secondary btn-xs" data-i18n="btnCopy">Kopieren</button>
+        </div>
+        <div class="render-instructions">
+          <p data-i18n="modalRenderAlt">Alternativ: Starte create_movie.bat und wähle die Datei aus dem Menü aus.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btnCloseRenderModalBtn" data-i18n="modalClose">Schließen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Suggestion Modal -->
+  <div id="aiSuggestionModal" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" id="aiModalTitle" data-i18n="aiModalTitleSuggest">🪄 KI-Szenenvorschlag</h3>
+        <button class="modal-close" id="btnCloseAiModal">✕</button>
+      </div>
+      <div class="modal-body" id="aiModalBody">
+        <!-- Dynamically rendered AI suggestion content -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btnDiscardAiModal" data-i18n="btnDiscard">Verwerfen</button>
+        <button class="btn btn-primary" id="btnApplyAiModal" data-i18n="btnApplySuggestion">Ins Storyboard übernehmen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

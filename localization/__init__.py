@@ -128,5 +128,20 @@ def t(key, **kwargs):
             return template
     return template
 
+def get_all_editor_translations():
+    """Gibt die Editor-Übersetzungen aller verfügbaren Sprachdateien zurück."""
+    translations = {}
+    if os.path.exists(LOCALIZATION_DIR):
+        for fname in sorted(os.listdir(LOCALIZATION_DIR)):
+            if fname.endswith(".json"):
+                lang_code = fname[:-5]
+                f_path = os.path.join(LOCALIZATION_DIR, fname)
+                data = _load_json_file(f_path)
+                editor_dict = data.get("editor", {})
+                if editor_dict:
+                    translations[lang_code] = editor_dict
+    return translations
+
 # Automatische Initialisierung beim Modulimport
 init_localization()
+

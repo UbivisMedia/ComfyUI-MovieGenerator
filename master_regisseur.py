@@ -1585,19 +1585,25 @@ def main():
             print(f"⚠️ Konnte settings.json nicht speichern: {e}")
         return
 
+    if len(sys.argv) >= 2 and sys.argv[1].lower() in ["--editor", "-e", "--agency", "--script-agency"]:
+        from script_agency import run_script_agency
+        run_script_agency(blocking=True)
+        return
+
     # 1. Determine screenplay input
     if len(sys.argv) >= 2:
         screenplay_input = sys.argv[1]
     else:
         # Interactive menu selection or fallback
-        available = [f for f in os.listdir(PROJECTS_DIR) if f.endswith(".json")]
         while True:
+            available = [f for f in os.listdir(PROJECTS_DIR) if f.endswith(".json")]
             if available:
                 print(t("menu_available_screenplays"))
                 for idx, f in enumerate(available, 1):
                     print(f"  [{idx}] {f}")
                 print(t("menu_scan_models_option"))
                 print(t("menu_minimax_option"))
+                print(t("menu_editor_option"))
                 print(t("menu_instruction"))
                 try:
                     choice = input(t("menu_prompt")).strip()
@@ -1624,6 +1630,11 @@ def main():
                             print(f"⚠️ Konnte settings.json nicht speichern: {e}")
                         print()
                         continue
+                    elif choice.lower() in ["e", "editor", "agency"]:
+                        from script_agency import run_script_agency
+                        run_script_agency(blocking=True)
+                        print()
+                        continue
                     elif choice.isdigit() and 1 <= int(choice) <= len(available):
                         screenplay_input = os.path.join(PROJECTS_DIR, available[int(choice) - 1])
                         break
@@ -1640,6 +1651,7 @@ def main():
                 print(t("menu_no_screenplays"))
                 print(t("menu_scan_models_option"))
                 print(t("menu_minimax_option"))
+                print(t("menu_editor_option"))
                 try:
                     choice = input(t("menu_prompt")).strip()
                     if choice.lower() in ["s", "scan"]:
@@ -1663,6 +1675,11 @@ def main():
                             print(t("minimax_config_saved"))
                         except Exception as e:
                             print(f"⚠️ Konnte settings.json nicht speichern: {e}")
+                        print()
+                        continue
+                    elif choice.lower() in ["e", "editor", "agency"]:
+                        from script_agency import run_script_agency
+                        run_script_agency(blocking=True)
                         print()
                         continue
                 except Exception:
@@ -2333,10 +2350,21 @@ def main():
         res = queue_prompt(wf_t2i)
         prompt_id = res['prompt_id']
         
+        char_saved = False
         while True:
             history = get_history(prompt_id)
             if prompt_id in history:
-                outputs = history[prompt_id]['outputs']
+                prompt_info = history[prompt_id]
+                status_info = prompt_info.get("status", {})
+                if status_info.get("status_str") == "error":
+                    err_msg = "Unknown ComfyUI error"
+                    for msg in status_info.get("messages", []):
+                        if msg[0] == "execution_error":
+                            err_msg = msg[1].get("exception_message", str(msg[1]))
+                    print(f"   ❌ ComfyUI Error during character casting for '{char_name}': {err_msg.strip()}")
+                    break
+
+                outputs = prompt_info.get('outputs', {})
                 for node_id in outputs:
                     if 'images' in outputs[node_id]:
                         img_info = outputs[node_id]['images'][0]
@@ -2365,10 +2393,15 @@ def main():
 
                         uploaded_name = upload_file(saved_img_bytes, f"{safe_name}.png", "image/png")
                         char["echter_dateiname"] = uploaded_name
+                        char_saved = True
                         print(t("char_generated_saved", name=char_name, file=char_file))
                         break
                 break
             time.sleep(2)
+
+        if not char_saved and not os.path.exists(char_file):
+            print(f"⚠️ Character casting for '{char_name}' could not be completed. Stopping generation to prevent downstream errors.")
+            return
 
     # Free T2I casting models (Anima, WanVAE, BiRefNet) from VRAM before starting video generation
     free_comfyui_memory(unload_models=True, free_memory=True)
@@ -2476,20 +2509,55 @@ def main():
         for k in [k for k in list(wf_i2v.keys()) if re.match(r"^900\d+$", k)]:
             del wf_i2v[k]
 
-        scene_chars = scene_data.get("characters") or resolve_scene_characters(scene_data, characters_list)
-        if scene_chars:
-            char_names_log = ", ".join(c.get("name", f"Actor_{idx+1}") for idx, c in enumerate(scene_chars))
-            print(f"   🎭 Scene {szene_id} active cast: {char_names_log}")
-            for i, char in enumerate(scene_chars):
-                fallback_name = char.get("name") or f"actor_{i+1}"
+        raw_scene_chars = scene_data.get("characters") or resolve_scene_characters(scene_data, characters_list)
+        resolved_scene_chars = []
+        if raw_scene_chars:
+            for sc in raw_scene_chars:
+                if isinstance(sc, dict):
+                    resolved_scene_chars.append(sc)
+                elif isinstance(sc, str):
+                    matched = char_lookup.get(sc.strip().lower()) or char_lookup.get(sc.strip())
+                    if matched:
+                        resolved_scene_chars.append(matched)
+                    else:
+                        resolved_scene_chars.append({"name": sc.strip()})
+                else:
+                    resolved_scene_chars.append(sc)
+
+        if resolved_scene_chars:
+            char_names_log = ", ".join(c.get("name", f"Actor_{c_idx+1}") for c_idx, c in enumerate(resolved_scene_chars) if isinstance(c, dict))
+            if char_names_log:
+                print(f"   🎭 Scene {szene_id} active cast: {char_names_log}")
+            valid_ref_idx = 0
+            for i, char in enumerate(resolved_scene_chars):
+                fallback_name = (char.get("name") if isinstance(char, dict) else str(char)) or f"actor_{i+1}"
                 safe_char_name = re.sub(r'[\\/*?:"<>| ]', '_', fallback_name)
-                char_file_name = char.get("echter_dateiname") or f"{safe_char_name}.png"
-                node_id = f"900{i}"
+                
+                # Retrieve uploaded filename, or upload from disk if exists
+                char_file_name = char.get("echter_dateiname") if isinstance(char, dict) else None
+                if not char_file_name:
+                    local_char_file = os.path.join(characters_dir, f"{safe_char_name}.png")
+                    if os.path.exists(local_char_file):
+                        try:
+                            with open(local_char_file, "rb") as cf:
+                                uploaded_name = upload_file(cf.read(), f"{safe_char_name}.png", "image/png")
+                            char_file_name = uploaded_name
+                            if isinstance(char, dict):
+                                char["echter_dateiname"] = uploaded_name
+                        except Exception as up_err:
+                            print(f"   ⚠️ Could not upload local image for '{fallback_name}': {up_err}")
+                
+                if not char_file_name:
+                    print(f"   ⚠️ Warning: Character portrait '{safe_char_name}.png' not found! Skipping reference.")
+                    continue
+
+                node_id = f"900{valid_ref_idx}"
                 wf_i2v[node_id] = {
                     "inputs": {"image": char_file_name},
                     "class_type": "LoadImage"
                 }
-                wf_i2v["136"]["inputs"][f"ref_images.ref_image_{i}"] = [node_id, 0]
+                wf_i2v["136"]["inputs"][f"ref_images.ref_image_{valid_ref_idx}"] = [node_id, 0]
+                valid_ref_idx += 1
 
 
             
@@ -2580,7 +2648,17 @@ def main():
         while True:
             history = get_history(prompt_id)
             if prompt_id in history:
-                outputs = history[prompt_id]['outputs']
+                prompt_info = history[prompt_id]
+                status_info = prompt_info.get("status", {})
+                if status_info.get("status_str") == "error":
+                    err_msg = "Unknown ComfyUI error"
+                    for msg in status_info.get("messages", []):
+                        if msg[0] == "execution_error":
+                            err_msg = msg[1].get("exception_message", str(msg[1]))
+                    print(f"   ❌ ComfyUI Error during rendering of Scene {szene_id}: {err_msg.strip()}")
+                    break
+
+                outputs = prompt_info.get('outputs', {})
                 for node_id in outputs:
                     for media_key in ['gifs', 'videos', 'images']:
                         if media_key in outputs[node_id]:

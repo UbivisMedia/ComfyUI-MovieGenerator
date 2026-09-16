@@ -60,8 +60,8 @@
     "krea2_turbo_int8": {
       "beschreibung": "Krea 2 Turbo INT8 - Schnelle, moderne Fotorealistik",
       "unet_name": "Krea 2/base model/krea2TurboOfficialComfy_krea2TurboInt8.safetensors",
-      "clip_name": "qwen_3_06b_base.safetensors",
-      "clip_type": "stable_diffusion",
+      "clip_name": "qwen3VL_4b.safetensors",
+      "clip_type": "krea2",
       "vae_name": "qwen_image_vae.safetensors",
       "steps": 8,
       "cfg": 1.0,
