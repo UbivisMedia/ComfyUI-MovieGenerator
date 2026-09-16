@@ -387,18 +387,163 @@
     }
   }
 
+  // --- Normalize Legacy Screenplay Data ---
+  function normalizeScreenplay(data, filename = '') {
+    if (!data || typeof data !== 'object') data = {};
+
+    const norm = {};
+    const defaultTitle = filename ? filename.replace(/\.json$/i, '').replace(/[_-]/g, ' ') : 'Untitled Movie';
+    norm.title = data.title || data.titel || defaultTitle;
+    norm.description = data.description || data.beschreibung || '';
+
+    // Variables
+    norm.variables = data.variables || data.variablen || {};
+    if (typeof norm.variables !== 'object' || Array.isArray(norm.variables)) {
+      norm.variables = {};
+    }
+
+    // Characters
+    let rawChars = data.characters || data.charaktere || [];
+    if (!Array.isArray(rawChars) && data.charakter_prompt) {
+      rawChars = [{ id: 1, name: 'Hero', prompt: data.charakter_prompt }];
+    } else if (!Array.isArray(rawChars)) {
+      rawChars = [];
+    }
+
+    const defaultModel = (state.presetsData && state.presetsData.default) || 'anima_catpony';
+    norm.characters = rawChars.map((c, idx) => {
+      if (!c || typeof c !== 'object') c = { name: String(c) };
+      const cId = c.id || (idx + 1);
+      const cName = c.name || c.charakter || `Actor_${cId}`;
+      const cModel = c.model || c.modell || c.preset || defaultModel;
+      let cLoras = c.loras || c.lora || [];
+      if (typeof cLoras === 'string') {
+        cLoras = cLoras.split(',').map(s => s.trim()).filter(Boolean);
+      } else if (!Array.isArray(cLoras)) {
+        cLoras = [];
+      }
+      const cDesc = c.description || c.beschreibung || c.prompt || '';
+      const cPrompt = c.prompt || c.description || '';
+      const autoPrompt = c.auto_prompt !== undefined ? c.auto_prompt : (c.ki_prompt_generieren !== undefined ? c.ki_prompt_generieren : !Boolean(c.prompt));
+
+      const charObj = {
+        id: cId,
+        name: cName,
+        model: cModel,
+        loras: cLoras,
+        description: cDesc,
+        prompt: cPrompt,
+        auto_prompt: autoPrompt
+      };
+      if (c.reference_id !== undefined) charObj.reference_id = c.reference_id;
+      if (c.reference_character !== undefined) charObj.reference_character = c.reference_character;
+      if (c.denoise !== undefined) charObj.denoise = c.denoise;
+      return charObj;
+    });
+
+    // Scenes
+    let rawScenes = data.scenes || data.szenen || [];
+    if (!Array.isArray(rawScenes)) rawScenes = [];
+
+    norm.scenes = rawScenes.map((s, idx) => {
+      if (!s || typeof s !== 'object') s = { idea: String(s) };
+      const sId = s.id || (idx + 1);
+      const sSeq = s.sequence || s.sequenz || s.scene_group || s.group || '';
+      const sLoc = s.location || s.ort || s.setting || '';
+      const sDur = parseInt(s.duration || s.dauer_sekunden || s.duration_seconds || s.dauer || 6, 10) || 6;
+      let sIdea = s.idea || s.idee || s.prompt || '';
+      let sPrompt = s.prompt || sIdea;
+      let sSummary = s.summary || '';
+      let sSoundscape = s.soundscape || s.overall_soundscape || '';
+
+      // De-clutter legacy multi-section prompts so textarea only contains the pure [Shot 1]: ...
+      const cand = (sPrompt.includes('detailed_description:') || sPrompt.includes('summary:')) ? sPrompt : ((sIdea.includes('detailed_description:') || sIdea.includes('summary:')) ? sIdea : '');
+      if (cand) {
+        const sumMatch = cand.match(/summary:\s*([\s\S]*?)(?=\n\s*(?:detailed_description:|overall_soundscape:|non_diegetic_music:|$))/i);
+        if (sumMatch && !sSummary) {
+          sSummary = sumMatch[1].replace(/^\[reference generation\]\s*/i, '').trim();
+        }
+        const detMatch = cand.match(/detailed_description:\s*([\s\S]*?)(?=\n\s*(?:overall_soundscape:|non_diegetic_music:|$))/i);
+        if (detMatch) {
+          sIdea = detMatch[1].trim();
+          sPrompt = sIdea;
+        } else {
+          const shotMatch = cand.match(/(\[Shot \d+\]:?[\s\S]*?)(?=\n\s*(?:overall_soundscape:|non_diegetic_music:|$))/i);
+          if (shotMatch) {
+            sIdea = shotMatch[1].trim();
+            sPrompt = sIdea;
+          }
+        }
+        const soundMatch = cand.match(/overall_soundscape:\s*([\s\S]*?)(?=\n\s*(?:non_diegetic_music:|$))/i);
+        if (soundMatch && !sSoundscape) {
+          sSoundscape = soundMatch[1].trim();
+        }
+      }
+
+      sIdea = sIdea.replace(/^\[Shot \d+\]:?\s*/i, '').trim();
+      sPrompt = sPrompt.replace(/^\[Shot \d+\]:?\s*/i, '').trim();
+
+      const sMatchCut = Boolean(s.match_cut || s.direkter_anschluss || s.direct_continuation);
+      const sSameScene = Boolean(s.same_scene || s.gleiche_szene || s.angle_change);
+      const sRefPrev = Boolean(s.use_previous_scene || s.nutze_vorherige_szene || s.anschluss_an_vorherige_szene || s.continuity_environment);
+
+      let sChars = s.characters || s.charaktere;
+      if (!sChars && s.character) sChars = [s.character];
+      else if (!sChars && s.charakter) sChars = [s.charakter];
+      if (!Array.isArray(sChars)) sChars = [];
+
+      let sVarUpd = s.variables_update || s.variablen_update || s.set_variables || {};
+      if (typeof sVarUpd === 'string' && sVarUpd.trim()) {
+        try {
+          sVarUpd = JSON.parse(sVarUpd);
+        } catch {
+          const parts = sVarUpd.split(':');
+          if (parts.length >= 2) {
+            sVarUpd = { [parts[0].trim()]: parts.slice(1).join(':').trim() };
+          } else {
+            sVarUpd = {};
+          }
+        }
+      }
+      if (typeof sVarUpd !== 'object' || Array.isArray(sVarUpd)) sVarUpd = {};
+
+      let sLoras = s.loras || s.lora || [];
+      if (typeof sLoras === 'string') {
+        sLoras = sLoras.split(',').map(str => str.trim()).filter(Boolean);
+      } else if (!Array.isArray(sLoras)) {
+        sLoras = [];
+      }
+
+      const sceneObj = {
+        id: sId,
+        sequence: sSeq,
+        location: sLoc,
+        duration: sDur,
+        idea: sIdea,
+        prompt: sPrompt
+      };
+      if (sSummary) sceneObj.summary = sSummary;
+      if (sSoundscape) sceneObj.soundscape = sSoundscape;
+      if (sChars.length > 0) sceneObj.characters = sChars;
+      if (sMatchCut) sceneObj.match_cut = true;
+      if (sSameScene) sceneObj.same_scene = true;
+      if (sRefPrev) sceneObj.use_previous_scene = true;
+      if (Object.keys(sVarUpd).length > 0) sceneObj.variables_update = sVarUpd;
+      if (sLoras.length > 0) sceneObj.loras = sLoras;
+
+      return sceneObj;
+    });
+
+    return norm;
+  }
+
   // --- Load / New / Save Project ---
   async function loadProject(filename) {
     try {
       markSaving();
       const proj = await API.getProject(filename);
       state.currentFilename = filename;
-      state.screenplay = proj.data;
-
-      // Ensure expected fields exist
-      if (!state.screenplay.variables) state.screenplay.variables = {};
-      if (!state.screenplay.characters) state.screenplay.characters = [];
-      if (!state.screenplay.scenes) state.screenplay.scenes = [];
+      state.screenplay = normalizeScreenplay(proj.data, filename);
 
       // Update UI form fields
       el.movieTitle.value = state.screenplay.title || filename.replace('.json', '');
@@ -415,7 +560,13 @@
       updateStats();
       renderJsonPreview();
       markClean();
-      showToast(t('screenplayLoaded').replace('{name}', filename), 'info');
+
+      if (proj.converted_legacy) {
+        showToast(state.lang === 'en' ? `Legacy format auto-converted to current standard!` : `Älteres Format automatisch in aktuellen Standard konvertiert!`, 'info');
+        markDirty();
+      } else {
+        showToast(t('screenplayLoaded').replace('{name}', filename), 'info');
+      }
     } catch (err) {
       showToast(err.message, 'error');
       markClean();
@@ -1313,6 +1464,9 @@
 
     ideaTextarea.addEventListener('input', () => {
       scene.idea = ideaTextarea.value;
+      if ('prompt' in scene || ideaTextarea.value.includes('summary:')) {
+        scene.prompt = ideaTextarea.value;
+      }
       markDirty();
     });
 
@@ -1327,6 +1481,9 @@
         ideaTextarea.selectionStart = ideaTextarea.selectionEnd = start + token.length;
         ideaTextarea.focus();
         scene.idea = ideaTextarea.value;
+        if ('prompt' in scene || ideaTextarea.value.includes('summary:')) {
+          scene.prompt = ideaTextarea.value;
+        }
         markDirty();
       });
     });
@@ -1359,7 +1516,28 @@
         try {
           elaborateBtn.disabled = true;
           elaborateBtn.innerHTML = `<span class="ai-loading-spinner"></span> <span>${escapeHtml(t('aiThinking'))}</span>`;
-          // Extract preceding scenes for continuity context (especially same sequence / location)
+
+          // Calculate cumulative variables up to this scene from global variables + preceding scene updates
+          const cumulativeVars = Object.assign({}, state.screenplay.variables || {});
+          for (let i = 0; i < idx; i++) {
+            const sc = allScenes[i];
+            const up = sc.variables_update || sc.variablen_update || sc.set_variables;
+            if (up && typeof up === 'object') {
+              Object.assign(cumulativeVars, up);
+            } else if (typeof up === 'string' && up.trim()) {
+              try {
+                const parsed = JSON.parse(up);
+                if (typeof parsed === 'object') Object.assign(cumulativeVars, parsed);
+              } catch (e) {
+                const parts = up.split(':');
+                if (parts.length >= 2) {
+                  cumulativeVars[parts[0].trim()] = parts.slice(1).join(':').trim();
+                }
+              }
+            }
+          }
+
+          // Extract preceding scenes for continuity context (including variable updates)
           const precedingScenes = allScenes.slice(0, idx).map(s => ({
             id: s.id,
             sequence: s.sequence || '',
@@ -1368,7 +1546,8 @@
             duration: s.duration || 6,
             match_cut: Boolean(s.match_cut),
             same_scene: Boolean(s.same_scene),
-            use_previous_scene: Boolean(s.use_previous_scene)
+            use_previous_scene: Boolean(s.use_previous_scene),
+            variables_update: s.variables_update || {}
           }));
 
           const res = await API.generateLlm('elaborate_scene', {
@@ -1385,21 +1564,32 @@
             },
             title: state.screenplay.title,
             description: state.screenplay.description,
-            variables: state.screenplay.variables,
+            variables: cumulativeVars,
+            active_variables: cumulativeVars,
+            global_variables: state.screenplay.variables,
             characters: scene.characters || state.screenplay.characters
           });
           if (res && (res.scene || res.elaborated_idea)) {
             const sc = res.scene || {};
-            const newIdea = sc.idea || res.elaborated_idea;
-            if (newIdea) scene.idea = newIdea;
+            let newIdea = sc.idea || res.elaborated_idea;
+            if (newIdea) {
+              newIdea = newIdea.replace(/^\[Shot \d+\]:?\s*/i, '').trim();
+              scene.idea = newIdea;
+              scene.prompt = newIdea;
+            }
+            const newSummary = sc.summary || res.summary;
+            if (newSummary) scene.summary = newSummary;
+            const newSoundscape = sc.soundscape || res.soundscape;
+            if (newSoundscape) scene.soundscape = newSoundscape;
             const newDur = sc.duration || res.duration;
             if (newDur) scene.duration = newDur;
             const newLoras = sc.loras || res.loras;
             if (Array.isArray(newLoras) && newLoras.length > 0) {
               scene.loras = newLoras;
             }
-            if (sc.variables_update && typeof sc.variables_update === 'object' && Object.keys(sc.variables_update).length > 0) {
-              scene.variables_update = Object.assign({}, scene.variables_update || {}, sc.variables_update);
+            const newVars = sc.variables_update || res.variables_update;
+            if (newVars && typeof newVars === 'object' && Object.keys(newVars).length > 0) {
+              scene.variables_update = Object.assign({}, scene.variables_update || {}, newVars);
             }
             renderScenes();
             markDirty();

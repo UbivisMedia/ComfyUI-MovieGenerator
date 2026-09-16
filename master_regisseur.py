@@ -1321,6 +1321,66 @@ Here is the scene idea:
             []
         )
 
+def build_minimax_api_prompt(prompt_text, characters=None, scene_data=None):
+    """Ensures the final prompt submitted to ComfyUI node 138 has the full Minimax template envelope:
+    subject_definitions, summary, detailed_description, overall_soundscape, and non_diegetic_music: None.
+    If prompt_text already has the full envelope, it is returned intact with subject_definitions ensured."""
+    if not prompt_text:
+        return ""
+
+    p_lower = prompt_text.lower()
+
+    # If already has full envelope (summary, detailed_description, and non_diegetic_music)
+    if "detailed_description:" in p_lower and "summary:" in p_lower and "non_diegetic_music:" in p_lower:
+        if "subject_definitions:" not in p_lower and characters:
+            char_defs = ""
+            for i, char in enumerate(characters):
+                c_name = char.get("name") if isinstance(char, dict) else str(char)
+                char_defs += f"<Subject {i+1}> is the character in <Picture {i+1}> ({c_name}).\n"
+            return f"subject_definitions:\n{char_defs.strip()}\n\n{prompt_text.strip()}"
+        return prompt_text.strip()
+
+    # Assemble subject definitions
+    char_defs = ""
+    chars_to_use = characters or (scene_data.get("characters") if scene_data else None) or []
+    for i, char in enumerate(chars_to_use):
+        c_name = char.get("name") if isinstance(char, dict) else str(char)
+        char_defs += f"<Subject {i+1}> is the character in <Picture {i+1}> ({c_name}).\n"
+
+    # Extract summary
+    summary = ""
+    if scene_data and scene_data.get("summary"):
+        summary = str(scene_data["summary"]).strip()
+    if not summary:
+        clean_first = re.sub(r'^\[Shot \d+\]:?\s*', '', prompt_text.strip())
+        sentences = [s.strip() for s in re.split(r'[.!?\n]', clean_first) if s.strip()]
+        summary = sentences[0] if sentences else clean_first[:100]
+
+    # Clean detailed description
+    detailed = prompt_text.strip()
+    if not detailed.lower().startswith("[shot"):
+        detailed = f"[Shot 1]: {detailed}"
+
+    # Extract soundscape
+    soundscape = ""
+    if scene_data and scene_data.get("soundscape"):
+        soundscape = str(scene_data["soundscape"]).strip()
+    elif scene_data and scene_data.get("overall_soundscape"):
+        soundscape = str(scene_data["overall_soundscape"]).strip()
+    if not soundscape:
+        soundscape = "Realistic ambient environment sounds, foley, and natural breathing. Strictly no music."
+
+    parts = []
+    if char_defs.strip():
+        parts.append(f"subject_definitions:\n{char_defs.strip()}")
+    parts.append(f"summary:\n{summary}")
+    parts.append(f"detailed_description:\n{detailed}")
+    parts.append(f"overall_soundscape:\n{soundscape}")
+    parts.append("non_diegetic_music:\nNone")
+
+    return "\n\n".join(parts)
+
+
 def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_scenes=None, wf_i2v=None, t2i_presets=None):
     """Concatenates all generated scene clips into the final movie using FFmpeg with embedded Civitai metadata."""
     list_path = os.path.join(scenes_dir, "ffmpeg_list.txt")
@@ -1856,7 +1916,7 @@ def main():
             scene.get("auto_prompt") is False or 
             scene.get("generate_prompt") is False
         )
-        existing_p = (scene.get("prompt") or "").strip()
+        existing_p = (scene.get("prompt") or scene.get("idea") or scene.get("idee") or "").strip()
         has_minimax_prompt = bool("summary:" in existing_p.lower() or "[shot 1]:" in existing_p.lower())
         if auto_prompt and not has_minimax_prompt:
             scenes_needing_llm.append(scene)
@@ -2012,7 +2072,7 @@ def main():
                 scene.get("generate_prompt") is False
             )
 
-            existing_p = (scene.get("prompt") or "").strip()
+            existing_p = (scene.get("prompt") or scene.get("idea") or scene.get("idee") or "").strip()
             has_minimax_prompt = bool("summary:" in existing_p.lower() or "[shot 1]:" in existing_p.lower())
             
             raw_scene_loras = scene.get("loras") or scene.get("lora") or []
@@ -2066,8 +2126,12 @@ def main():
                 final_scene_loras = existing_scene_loras if existing_scene_loras else selected_loras
 
             # Extract shot summary for the next shot's continuity context
-            m_sum = re.search(r'summary:\s*([^\n]+(?:\n[^\n]+)?)', minimax_prompt, re.IGNORECASE)
-            cur_summary = m_sum.group(1).strip() if m_sum else scene_idea
+            cur_summary = scene.get("summary")
+            if not cur_summary:
+                m_sum = re.search(r'summary:\s*([^\n]+(?:\n[^\n]+)?)', minimax_prompt, re.IGNORECASE)
+                cur_summary = m_sum.group(1).strip() if m_sum else scene_idea
+
+            cur_soundscape = scene.get("soundscape") or scene.get("overall_soundscape") or ""
 
             previous_shot_info = {
                 "id": scene_id,
@@ -2079,6 +2143,10 @@ def main():
             # Update scene dictionary in screenplay with generated prompt & duration & loras
             scene["prompt"] = minimax_prompt
             scene["dauer_sekunden"] = calculated_duration
+            if cur_summary and "summary" not in scene:
+                scene["summary"] = cur_summary
+            if cur_soundscape and "soundscape" not in scene:
+                scene["soundscape"] = cur_soundscape
             if final_scene_loras:
                 scene["loras"] = final_scene_loras
             if seq_name and "sequenz" not in scene and "sequence" not in scene:
@@ -2089,6 +2157,8 @@ def main():
             prepared_scenes.append({
                 "id": scene_id,
                 "prompt": minimax_prompt,
+                "summary": cur_summary,
+                "soundscape": cur_soundscape,
                 "dauer": calculated_duration,
                 "loras": final_scene_loras,
                 "characters": scene_chars,
@@ -2490,9 +2560,28 @@ def main():
         if applied_scene_loras:
             print(t("scene_loras_active", count=len(applied_scene_loras), loras=", ".join(applied_scene_loras)))
 
+        raw_scene_chars = scene_data.get("characters") or resolve_scene_characters(scene_data, characters_list)
+        resolved_scene_chars = []
+        if raw_scene_chars:
+            for sc in raw_scene_chars:
+                if isinstance(sc, dict):
+                    resolved_scene_chars.append(sc)
+                elif isinstance(sc, str):
+                    matched = char_lookup.get(sc.strip().lower()) or char_lookup.get(sc.strip())
+                    if matched:
+                        resolved_scene_chars.append(matched)
+                    else:
+                        resolved_scene_chars.append({"name": sc.strip()})
+                else:
+                    resolved_scene_chars.append(sc)
+
         final_scene_prompt = scene_data["prompt"]
         if extra_scene_triggers:
             final_scene_prompt = f"{final_scene_prompt}\n\n[Scene enhancements: {', '.join(extra_scene_triggers)}]"
+        
+        # Assemble full Minimax template (subject_definitions, summary, detailed_description, soundscape, non_diegetic_music)
+        chars_for_envelope = resolved_scene_chars if resolved_scene_chars else characters_list
+        final_scene_prompt = build_minimax_api_prompt(final_scene_prompt, characters=chars_for_envelope, scene_data=scene_data)
         wf_i2v["138"]["inputs"]["value"] = final_scene_prompt
         
         keys_to_remove = [k for k in wf_i2v["136"]["inputs"].keys() if k.startswith("ref_images.ref_image_") or k.startswith("ref_videos.")]
@@ -2508,21 +2597,6 @@ def main():
         # Clean up any leftover 900X character image loader nodes
         for k in [k for k in list(wf_i2v.keys()) if re.match(r"^900\d+$", k)]:
             del wf_i2v[k]
-
-        raw_scene_chars = scene_data.get("characters") or resolve_scene_characters(scene_data, characters_list)
-        resolved_scene_chars = []
-        if raw_scene_chars:
-            for sc in raw_scene_chars:
-                if isinstance(sc, dict):
-                    resolved_scene_chars.append(sc)
-                elif isinstance(sc, str):
-                    matched = char_lookup.get(sc.strip().lower()) or char_lookup.get(sc.strip())
-                    if matched:
-                        resolved_scene_chars.append(matched)
-                    else:
-                        resolved_scene_chars.append({"name": sc.strip()})
-                else:
-                    resolved_scene_chars.append(sc)
 
         if resolved_scene_chars:
             char_names_log = ", ".join(c.get("name", f"Actor_{c_idx+1}") for c_idx, c in enumerate(resolved_scene_chars) if isinstance(c, dict))
