@@ -185,57 +185,115 @@ def call_lm_studio(messages, temperature=0.7, max_tokens=5000):
         return content
 
 
-def clean_elaborated_prompt(text, fallback_idea, characters=None):
-    """Hardened sanitizer that guarantees NO thinking process or preamble leaks into the prompt."""
+def extract_elaborated_components(text, fallback_idea=""):
+    """Extracts clean modular components from an elaborated prompt or raw LLM output:
+    - detailed_description: Pure cinematic shot instructions starting with [Shot 1]: ...
+    - summary: 1-sentence action summary
+    - soundscape: Ambient environmental soundscape (excluding non_diegetic_music)
+    """
     if not text:
         text = ""
-    
-    # 1. If summary: or Summary: is present, discard EVERYTHING before it
-    for marker in ["summary:", "Summary:", "**summary:**", "**Summary:**"]:
-        if marker in text:
-            text = text[text.index(marker):]
-            text = "summary:" + text[len(marker):]
-            break
-            
-    # 2. If summary: is STILL missing (e.g. model output only thinking or cut off):
-    if "summary:" not in text.lower():
-        extracted_shot = ""
-        # Try to find [Shot 1] or Action/Framing in the thinking draft:
-        shot_match = re.search(r'\[Shot 1\]:?\s*([^\n]+(?:\n(?![0-9]+\.|\*)[^\n]+)*)', text, re.IGNORECASE)
+
+    # 1. Strip reasoning blocks like <think>...</think>
+    text = re.sub(r'<think>[\s\S]*?</think>', '', text, flags=re.IGNORECASE)
+
+    # 2. Strip outer markdown fences: ```markdown ... ```
+    text = re.sub(r'^```[a-zA-Z]*\s*', '', text.strip())
+    text = re.sub(r'\s*```$', '', text.strip())
+
+    # 3. Strip metadata tags
+    text = re.sub(r'(?:VARIABLES_UPDATE|VARIABLE_UPDATES|SCENE_VARIABLES):\s*(\{[\s\S]*?\}|[^\n]+)', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'DURATION:\s*[^\n]*', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'LORAS:\s*[^\n]*', '', text, flags=re.IGNORECASE)
+
+    # 4. Normalize section headers (strip markdown asterisks/bolding)
+    text = re.sub(r'(?i)\*\*(summary:?)\*\*', r'\1', text)
+    text = re.sub(r'(?i)\*\*(detailed_description:?)\*\*', r'\1', text)
+    text = re.sub(r'(?i)\*\*(overall_soundscape:?)\*\*', r'\1', text)
+    text = re.sub(r'(?i)\*\*(non_diegetic_music:?)\*\*', r'\1', text)
+    text = re.sub(r'(?i)\*\*(subject_definitions:?)\*\*', r'\1', text)
+
+    summary = ""
+    detailed = ""
+    soundscape = ""
+
+    # Extract summary
+    sum_match = re.search(r'\bsummary:\s*([^\n]+(?:\n(?!(?:detailed_description:|overall_soundscape:|non_diegetic_music:|\[Shot|\*\*))[^\n]+)*)', text, re.IGNORECASE)
+    if sum_match:
+        summary = sum_match.group(1).strip()
+        summary = re.sub(r'^\[reference generation\]\s*', '', summary, flags=re.IGNORECASE).strip()
+
+    # Extract soundscape
+    sound_match = re.search(r'\boverall_soundscape:\s*([^\n]+(?:\n(?!(?:non_diegetic_music:|\*\*))[^\n]+)*)', text, re.IGNORECASE)
+    if sound_match:
+        soundscape = sound_match.group(1).strip()
+        soundscape = re.sub(r'(?i)non_diegetic_music:.*', '', soundscape).strip()
+
+    # Extract detailed_description
+    det_match = re.search(r'\bdetailed_description:\s*([\s\S]*?)(?=\n\s*(?:overall_soundscape:|non_diegetic_music:|$))', text, re.IGNORECASE)
+    if det_match:
+        detailed = det_match.group(1).strip()
+    else:
+        # Check if [Shot 1]: exists directly
+        shot_match = re.search(r'(\[Shot 1\]:?[\s\S]*?)(?=\n\s*(?:overall_soundscape:|non_diegetic_music:|$))', text, re.IGNORECASE)
         if shot_match:
-            extracted_shot = shot_match.group(1).strip()
+            detailed = shot_match.group(1).strip()
+        elif "summary:" in text.lower() and sum_match:
+            after_sum = text[sum_match.end():]
+            after_sum = re.sub(r'(?i)(?:overall_soundscape:|non_diegetic_music:)[\s\S]*', '', after_sum).strip()
+            if after_sum:
+                detailed = after_sum
         else:
             action_match = re.search(r'(?:Action/Framing|Action):\*?\s*([^\n]+(?:\n(?![0-9]+\.|\*)[^\n]+)*)', text, re.IGNORECASE)
             if action_match:
-                extracted_shot = action_match.group(1).strip()
-                
-        if not extracted_shot or any(tr in extracted_shot.lower() for tr in ["analyze the request", "thinking process"]):
-            extracted_shot = fallback_idea
-            
-        extracted_shot = re.sub(r'^\*+\s*', '', extracted_shot).strip()
-        
-        summary_sentence = fallback_idea.split('.')[0].strip() if fallback_idea else "A cinematic sequence."
-        text = f"""summary: {summary_sentence}.
-detailed_description:
-[Shot 1]: {extracted_shot}
-overall_soundscape:
-Realistic ambient environment sounds, foley, and natural breathing. Strictly no music.
-non_diegetic_music:
-None
-DURATION: 6
-LORAS: None"""
+                detailed = action_match.group(1).strip()
+            else:
+                detailed = text.strip()
 
-    # 3. Clean any leftover markdown headers/thinking remnants
-    lines = text.splitlines()
+    # Clean detailed description: remove detailed_description header, markdown bullets, and [Shot 1]: tags
+    if detailed:
+        detailed = re.sub(r'(?i)^detailed_description:\s*', '', detailed).strip()
+        detailed = re.sub(r'^[\*\-\>\s]+', '', detailed).strip()
+        detailed = re.sub(r'(?i)^\[Shot \d+\]:?\s*', '', detailed).strip()
+    else:
+        fallback = fallback_idea or "A cinematic shot framing the scene."
+        detailed = re.sub(r'(?i)^\[Shot \d+\]:?\s*', '', fallback).strip()
+
+    # Strip any reasoning or prompt meta phrases from detailed
+    lines = detailed.splitlines()
     clean_lines = []
     for line in lines:
         l_strip = line.strip().lower()
         if any(tr in l_strip for tr in ["here's a thinking", "here is a thinking", "here's a plan", "thinking process"]):
             continue
+        if line.strip().startswith('```'):
+            continue
         clean_lines.append(line)
-        
-    cleaned = "\n".join(clean_lines).strip()
-    return cleaned
+    detailed = "\n".join(clean_lines).strip()
+    detailed = re.sub(r'(?i)^\[Shot \d+\]:?\s*', '', detailed).strip()
+
+    # If summary is still empty, derive from detailed or fallback
+    if not summary:
+        clean_d = re.sub(r'^\[Shot \d+\]:?\s*', '', detailed).strip()
+        sentences = [s.strip() for s in re.split(r'[.!?\n]', clean_d) if s.strip()]
+        summary = sentences[0] if sentences else (fallback_idea or clean_d[:100])
+
+    if not soundscape:
+        soundscape = "Realistic ambient environment sounds, foley, and natural breathing. Strictly no music."
+
+    return {
+        "detailed_description": detailed,
+        "summary": summary,
+        "soundscape": soundscape
+    }
+
+
+def clean_elaborated_prompt(text, fallback_idea, characters=None):
+    """Hardened sanitizer that guarantees ONLY the pure detailed shot description ([Shot 1]: ...)
+    remains for the prompt input field, with zero reasoning, no boilerplate headers (summary/soundscape),
+    and no non_diegetic_music clutter."""
+    comps = extract_elaborated_components(text, fallback_idea=fallback_idea)
+    return comps["detailed_description"]
 
 
 def load_screenplay_docs_knowledge():
@@ -276,7 +334,8 @@ def load_screenplay_docs_knowledge():
 
 
 def ai_elaborate_scene(payload):
-    """Translates and expands a scene idea into a cinematic Minimax video prompt with continuity."""
+    """Translates and expands a scene idea into a cinematic Minimax video prompt with continuity,
+    incorporating active cumulative variables and elaborating scene-specific wardrobe/prop updates."""
     scene_obj = payload.get("scene") if isinstance(payload.get("scene"), dict) else {}
     idea = payload.get("idea") or scene_obj.get("idea") or scene_obj.get("idee") or scene_obj.get("prompt") or ""
     idea = idea.strip()
@@ -285,7 +344,6 @@ def ai_elaborate_scene(payload):
 
     characters = payload.get("characters") or scene_obj.get("characters") or []
     continuity = payload.get("continuity") or scene_obj
-    variables = payload.get("variables") or {}
     sequence = payload.get("sequence") or scene_obj.get("sequence") or scene_obj.get("sequenz") or ""
     location = payload.get("location") or scene_obj.get("location") or scene_obj.get("ort") or ""
 
@@ -299,6 +357,30 @@ def ai_elaborate_scene(payload):
                 break
             preceding_scenes.append(s)
 
+    # 1. Resolve cumulative active variables entering this scene
+    active_vars = payload.get("active_variables")
+    if not isinstance(active_vars, dict) or not active_vars:
+        base_vars = payload.get("global_variables") or payload.get("variables") or {}
+        active_vars = dict(base_vars)
+        for ps in preceding_scenes:
+            ps_upd = (
+                ps.get("variables_update") or 
+                ps.get("variablen_update") or 
+                ps.get("set_variables") or 
+                {}
+            )
+            if isinstance(ps_upd, str) and ps_upd.strip():
+                try:
+                    ps_upd = json.loads(ps_upd)
+                except Exception:
+                    parts = ps_upd.split(":", 1)
+                    if len(parts) == 2:
+                        ps_upd = {parts[0].strip(): parts[1].strip()}
+                    else:
+                        ps_upd = {}
+            if isinstance(ps_upd, dict):
+                active_vars.update(ps_upd)
+
     preceding_blocks = []
     # Focus especially on scenes with the same sequence or location, or immediately preceding
     for ps in preceding_scenes[-4:]:
@@ -306,32 +388,47 @@ def ai_elaborate_scene(payload):
         ps_seq = ps.get("sequence", "")
         ps_loc = ps.get("location", "")
         ps_idea = (ps.get("idea", "") or "").strip()
+        ps_vars = ps.get("variables_update") or ps.get("variablen_update") or {}
+        var_note = ""
+        if isinstance(ps_vars, dict) and ps_vars:
+            var_note = f"\n  Variable updates in Shot #{ps_id}: {json.dumps(ps_vars)}"
+        elif isinstance(ps_vars, str) and ps_vars.strip():
+            var_note = f"\n  Variable updates in Shot #{ps_id}: {ps_vars.strip()}"
         if ps_idea:
-            # Check if same sequence / scene group
             is_same_group = (sequence and ps_seq and sequence.lower() == ps_seq.lower()) or \
                             (location and ps_loc and location.lower() == ps_loc.lower())
             tag = " [SAME SCENE/SEQUENCE]" if is_same_group else ""
-            preceding_blocks.append(f"- Shot #{ps_id}{tag} (Sequence: '{ps_seq}', Location: '{ps_loc}'):\n  {ps_idea}")
+            preceding_blocks.append(f"- Shot #{ps_id}{tag} (Sequence: '{ps_seq}', Location: '{ps_loc}'):\n  {ps_idea}{var_note}")
 
     preceding_text = "\n".join(preceding_blocks) if preceding_blocks else "None (this is the first shot)."
 
     char_defs = []
-    char_names_lower = []
+    char_names_clean = []
+    char_display_names = []
     for i, c in enumerate(characters):
         c_name = c if isinstance(c, str) else c.get("name", f"Character_{i+1}")
         char_defs.append(f"<Subject {i+1}> is the character in <Picture {i+1}> ({c_name}).")
-        char_names_lower.append(c_name.lower())
+        char_display_names.append(c_name)
+        char_names_clean.append(re.sub(r'[^a-zA-Z0-9]', '', c_name.lower()))
     char_definitions = "\n".join(char_defs)
 
-    # Filter variables: ONLY include variables that are directly in the idea or belong to the active characters!
-    var_lines = []
-    for k, v in variables.items():
-        k_lower = k.lower()
-        if f"{{{k}}}" in idea or f"{{{k_lower}}}" in idea.lower():
-            var_lines.append(f"- {{{k}}} = '{v}'")
-        elif any(cn in k_lower for cn in char_names_lower):
-            var_lines.append(f"- {{{k}}} = '{v}'")
-    var_text = "\n".join(var_lines) if var_lines else "None."
+    # Format all active variables at the start of this scene (character wardrobes & active story props)
+    char_var_lines = []
+    prop_var_lines = []
+    for k, v in active_vars.items():
+        k_clean = re.sub(r'[^a-zA-Z0-9]', '', k.lower())
+        matched_char = None
+        for i, c_clean in enumerate(char_names_clean):
+            if c_clean and c_clean in k_clean:
+                matched_char = char_display_names[i]
+                break
+        if matched_char:
+            char_var_lines.append(f"- {matched_char} ({k}): '{v}'")
+        else:
+            prop_var_lines.append(f"- {k}: '{v}'")
+
+    all_var_lines = char_var_lines + prop_var_lines
+    var_text = "\n".join(all_var_lines) if all_var_lines else "None (standard reference appearance, no active props modified)."
 
     presets = get_presets_data()
     lora_presets = presets.get("lora_presets", {})
@@ -352,8 +449,8 @@ def ai_elaborate_scene(payload):
         {
             "role": "system",
             "content": f"""You are an expert cinematic prompt engineer for MovieGenerator.
-When elaborating a single scene, output ONLY the final structured video prompt in English.
-Do NOT output JSON. Absolutely NO reasoning, planning, or commentary.
+When elaborating a single scene, output ONLY the final structured video prompt in English followed by metadata fields.
+Do NOT output any conversational text, thinking logs, or commentary.
 Your response MUST begin immediately with the word 'summary:'.
 
 Knowledge & Continuity Specifications (from docs/):
@@ -376,28 +473,59 @@ Preceding Shots in the Screenplay (Maintain seamless posture and action continui
 
 Character Bindings:
 {char_definitions if char_definitions else "<Subject 1> is the character in <Picture 1>."}
-Active Variables: {var_text}
+
+Current Active Story & Wardrobe Variables (Entering this Scene):
+{var_text}
+Characters and items ALREADY possess these exact states at the start of this shot. Reflect these states in the action and framing.
+
 Available Video LoRAs: {avail_loras_text}
 
 Task:
-Generate ONLY the cinematic Minimax prompt for this shot. If this is in the same scene/sequence as preceding shots, ensure characters maintain their established posture and positions!
-Output format MUST be exactly:
-summary: [one concise sentence describing the continuous scene action]
+1. Generate the cinematic Minimax prompt for this shot in English. If this is in the same scene/sequence as preceding shots, ensure characters maintain their established posture and physical proximity without re-initiating finished movements.
+2. Detect if the action in THIS SPECIFIC SCENE explicitly causes a character to change wardrobe, put on or remove gear (e.g. goggles pulled on / over eyes, jacket removed, dress torn, gloves put on), or alter the state of an active prop (e.g. scanner activated, weapon drawn).
+   - If wardrobe/props change in this shot, output the new state as a JSON dictionary under 'VARIABLES_UPDATE:', e.g.
+     VARIABLES_UPDATE: {{"goggles": "pulled up over eyes, glowing cyan readouts"}}
+   - If NO wardrobe or prop changes occur in this shot, write:
+     VARIABLES_UPDATE: {{}}
+   - STRICT: ONLY record changes that are EXPLICITLY happening in this shot. Do NOT invent props or clothing not mentioned in the text!
+
+Output format MUST be strictly structured as follows:
+summary: [one concise sentence describing the continuous scene action in English]
 detailed_description:
-[Shot 1]: [cinematic medium shot framing the action in 2-3 concise sentences using <Subject X> tags alongside character names]
-overall_soundscape: [realistic ambient sound, foley, and spoken dialogue. Strictly NO music.]
+[Shot 1]: [cinematic medium/close shot framing the action in 2-3 concise sentences using <Subject X> tags alongside character names. If live-action, specify 35mm cinematic film aesthetics.]
+overall_soundscape: [realistic ambient environment sounds, foley, and spoken dialogue. Strictly NO music.]
 non_diegetic_music: None
 DURATION: 6
-LORAS: None"""
+LORAS: None
+VARIABLES_UPDATE: {{}}"""
         }
     ]
 
     try:
         raw_out = call_lm_studio(messages, temperature=0.3, max_tokens=4000)
-        
-        # Run hardened cleaner to guarantee no thinking process or preamble leaks into prompt:
-        raw_out = clean_elaborated_prompt(raw_out, fallback_idea=idea, characters=characters)
 
+        # 1. Parse VARIABLES_UPDATE
+        var_updates = {}
+        var_match = re.search(r'(?:VARIABLES_UPDATE|VARIABLE_UPDATES|SCENE_VARIABLES):\s*(\{[\s\S]*?\}|[^\n]+)', raw_out, re.IGNORECASE)
+        if var_match:
+            raw_var_str = var_match.group(1).strip()
+            raw_out = raw_out[:var_match.start()] + raw_out[var_match.end():]
+            json_sub = re.search(r'\{[\s\S]*?\}', raw_var_str)
+            if json_sub:
+                try:
+                    parsed_vars = json.loads(json_sub.group(0))
+                    if isinstance(parsed_vars, dict):
+                        var_updates = {str(k).strip(): str(v).strip() for k, v in parsed_vars.items() if v}
+                except Exception:
+                    pass
+            elif ":" in raw_var_str and not any(raw_var_str.lower().startswith(x) for x in ["none", "n/a", "no", "{}"]):
+                parts = raw_var_str.split(":", 1)
+                k = parts[0].strip().strip("'\"`")
+                v = parts[1].strip().strip("'\"`")
+                if k and v:
+                    var_updates[k] = v
+
+        # 2. Parse DURATION
         duration = 6
         dur_match = re.search(r'DURATION:\s*(\d+)', raw_out, re.IGNORECASE)
         if dur_match:
@@ -405,29 +533,43 @@ LORAS: None"""
                 duration = max(3, min(15, int(dur_match.group(1))))
             except ValueError:
                 pass
-            raw_out = re.sub(r'DURATION:\s*\d+', '', raw_out, flags=re.IGNORECASE).strip()
+        raw_out = re.sub(r'DURATION:\s*[^\n]*', '', raw_out, flags=re.IGNORECASE)
 
+        # 3. Parse LORAS
         selected_loras = []
         lora_match = re.search(r'LORAS:\s*([^\n]+)', raw_out, re.IGNORECASE)
         if lora_match:
             cand_str = lora_match.group(1).strip()
-            raw_out = re.sub(r'LORAS:\s*[^\n]+', '', raw_out, flags=re.IGNORECASE).strip()
+            raw_out = re.sub(r'LORAS:\s*[^\n]*', '', raw_out, flags=re.IGNORECASE)
             if cand_str.lower() not in ["none", "n/a", "no", ""]:
                 for item in re.split(r'[,;\s]+', cand_str):
                     clean_item = item.strip().strip("'\"`")
                     if clean_item in lora_presets and clean_item not in selected_loras:
                         selected_loras.append(clean_item)
 
+        # 4. Extract modular components: Prompt field gets ONLY the detailed_description ([Shot 1]: ...)
+        comps = extract_elaborated_components(raw_out, fallback_idea=idea)
+        clean_prompt = comps["detailed_description"]
+        summary_text = comps["summary"]
+        soundscape_text = comps["soundscape"]
+
         return {
             "success": True,
             "scene": {
-                "idea": raw_out.strip(),
+                "idea": clean_prompt,
+                "prompt": clean_prompt,
+                "summary": summary_text,
+                "soundscape": soundscape_text,
                 "duration": duration,
-                "loras": selected_loras
+                "loras": selected_loras,
+                "variables_update": var_updates
             },
-            "elaborated_idea": raw_out.strip(),
+            "elaborated_idea": clean_prompt,
+            "summary": summary_text,
+            "soundscape": soundscape_text,
             "duration": duration,
-            "loras": selected_loras
+            "loras": selected_loras,
+            "variables_update": var_updates
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -603,6 +745,192 @@ GUIDELINES:
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+def normalize_screenplay_data(data, filename=""):
+    """Normalizes legacy screenplay JSON schemas (e.g. German keys 'charaktere', 'szenen',
+    'dauer_sekunden', 'idee', 'anschluss_an_vorherige_szene') into the current standard format."""
+    if not isinstance(data, dict):
+        data = {}
+
+    converted = False
+    if any(k in data for k in ["charaktere", "szenen", "titel", "beschreibung", "variablen", "charakter_prompt"]):
+        converted = True
+
+    norm = {}
+    default_title = os.path.splitext(os.path.basename(filename))[0].replace("_", " ").title() if filename else "Untitled Film"
+    norm["title"] = data.get("title") or data.get("titel") or default_title
+    norm["description"] = data.get("description") or data.get("beschreibung") or ""
+
+    # Variables
+    norm["variables"] = data.get("variables") or data.get("variablen") or {}
+    if not isinstance(norm["variables"], dict):
+        norm["variables"] = {}
+
+    # Characters
+    raw_chars = data.get("characters") or data.get("charaktere")
+    if not raw_chars and data.get("charakter_prompt"):
+        raw_chars = [{"id": 1, "name": "Hero", "prompt": data.get("charakter_prompt")}]
+        converted = True
+    elif not isinstance(raw_chars, list):
+        raw_chars = []
+
+    default_model = "anima_catpony"
+    try:
+        presets = get_presets_data()
+        default_model = presets.get("default", "anima_catpony")
+    except Exception:
+        pass
+
+    norm_chars = []
+    for idx, c in enumerate(raw_chars):
+        if not isinstance(c, dict):
+            c = {"name": str(c)}
+        c_id = c.get("id", idx + 1)
+        c_name = c.get("name") or c.get("charakter") or f"Actor_{idx+1}"
+        c_model = c.get("model") or c.get("modell") or c.get("preset") or default_model
+        raw_loras = c.get("loras") or c.get("lora") or []
+        if isinstance(raw_loras, str):
+            c_loras = [l.strip() for l in raw_loras.split(",") if l.strip()]
+        elif isinstance(raw_loras, list):
+            c_loras = list(raw_loras)
+        else:
+            c_loras = []
+
+        c_desc = c.get("description") or c.get("beschreibung") or c.get("prompt") or ""
+        c_prompt = c.get("prompt") or c.get("description") or ""
+
+        auto_prompt = c.get("auto_prompt")
+        if auto_prompt is None:
+            auto_prompt = c.get("ki_prompt_generieren")
+        if auto_prompt is None:
+            auto_prompt = not bool(c.get("prompt"))
+
+        char_entry = {
+            "id": c_id,
+            "name": c_name,
+            "model": c_model,
+            "loras": c_loras,
+            "description": c_desc,
+            "prompt": c_prompt,
+            "auto_prompt": bool(auto_prompt)
+        }
+        if "reference_id" in c:
+            char_entry["reference_id"] = c["reference_id"]
+        if "reference_character" in c:
+            char_entry["reference_character"] = c["reference_character"]
+        if "denoise" in c:
+            char_entry["denoise"] = c["denoise"]
+
+        norm_chars.append(char_entry)
+    norm["characters"] = norm_chars
+
+    # Scenes
+    raw_scenes = data.get("scenes") or data.get("szenen") or []
+    if not isinstance(raw_scenes, list):
+        raw_scenes = []
+
+    norm_scenes = []
+    for idx, s in enumerate(raw_scenes):
+        if not isinstance(s, dict):
+            s = {"idea": str(s)}
+        s_id = s.get("id", idx + 1)
+        s_seq = s.get("sequence") or s.get("sequenz") or s.get("scene_group") or s.get("group") or ""
+        s_loc = s.get("location") or s.get("ort") or s.get("setting") or ""
+        try:
+            s_dur = int(s.get("duration") or s.get("dauer_sekunden") or s.get("duration_seconds") or s.get("dauer") or 6)
+        except (ValueError, TypeError):
+            s_dur = 6
+        s_idea = s.get("idea") or s.get("idee") or s.get("prompt") or ""
+        s_prompt = s.get("prompt") or s_idea
+        s_summary = s.get("summary") or ""
+        s_soundscape = s.get("soundscape") or s.get("overall_soundscape") or ""
+
+        # If idea or prompt contains legacy multi-section Minimax boilerplate, clean it!
+        cand_text = s_prompt if ("detailed_description:" in s_prompt.lower() or "summary:" in s_prompt.lower()) else s_idea
+        if "detailed_description:" in cand_text.lower() or "summary:" in cand_text.lower():
+            comps = extract_elaborated_components(cand_text, fallback_idea=s_idea)
+            s_idea = comps["detailed_description"]
+            s_prompt = comps["detailed_description"]
+            if not s_summary:
+                s_summary = comps["summary"]
+            if not s_soundscape:
+                s_soundscape = comps["soundscape"]
+
+        s_idea = re.sub(r'(?i)^\[Shot \d+\]:?\s*', '', s_idea).strip()
+        s_prompt = re.sub(r'(?i)^\[Shot \d+\]:?\s*', '', s_prompt).strip()
+
+        s_match_cut = bool(s.get("match_cut") or s.get("direkter_anschluss") or s.get("direct_continuation"))
+        s_same_scene = bool(s.get("same_scene") or s.get("gleiche_szene") or s.get("angle_change"))
+        s_ref_prev = bool(
+            s.get("use_previous_scene") or 
+            s.get("nutze_vorherige_szene") or 
+            s.get("anschluss_an_vorherige_szene") or 
+            s.get("continuity_environment")
+        )
+
+        s_chars = s.get("characters") or s.get("charaktere")
+        if not s_chars and s.get("character"):
+            s_chars = [s.get("character")]
+        elif not s_chars and s.get("charakter"):
+            s_chars = [s.get("charakter")]
+        if not isinstance(s_chars, list):
+            s_chars = []
+
+        s_var_upd = (
+            s.get("variables_update") or 
+            s.get("variablen_update") or 
+            s.get("set_variables") or 
+            {}
+        )
+        if isinstance(s_var_upd, str) and s_var_upd.strip():
+            try:
+                s_var_upd = json.loads(s_var_upd)
+            except Exception:
+                parts = s_var_upd.split(":", 1)
+                if len(parts) == 2:
+                    s_var_upd = {parts[0].strip(): parts[1].strip()}
+                else:
+                    s_var_upd = {}
+        if not isinstance(s_var_upd, dict):
+            s_var_upd = {}
+
+        raw_s_loras = s.get("loras") or s.get("lora") or []
+        if isinstance(raw_s_loras, str):
+            s_loras = [l.strip() for l in raw_s_loras.split(",") if l.strip()]
+        elif isinstance(raw_s_loras, list):
+            s_loras = list(raw_s_loras)
+        else:
+            s_loras = []
+
+        scene_dict = {
+            "id": s_id,
+            "sequence": s_seq,
+            "location": s_loc,
+            "duration": s_dur,
+            "idea": s_idea,
+            "prompt": s_prompt
+        }
+        if s_chars:
+            scene_dict["characters"] = s_chars
+        if s_match_cut:
+            scene_dict["match_cut"] = True
+        if s_same_scene:
+            scene_dict["same_scene"] = True
+        if s_ref_prev:
+            scene_dict["use_previous_scene"] = True
+        if s_var_upd:
+            scene_dict["variables_update"] = s_var_upd
+        if s_loras:
+            scene_dict["loras"] = s_loras
+        if s_summary:
+            scene_dict["summary"] = s_summary
+        if s_soundscape:
+            scene_dict["soundscape"] = s_soundscape
+
+        norm_scenes.append(scene_dict)
+
+    norm["scenes"] = norm_scenes
+    return norm, converted
+
 
 class ScriptAgencyHandler(BaseHTTPRequestHandler):
     """HTTP Request Handler for Script Agency static assets and REST API."""
@@ -706,9 +1034,11 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
             try:
                 with open(target_path, "r", encoding="utf-8") as f:
                     content = json.load(f)
+                normalized, converted = normalize_screenplay_data(content, filename=safe_name)
                 self.send_json({
                     "file": safe_name,
-                    "data": content
+                    "data": normalized,
+                    "converted_legacy": converted
                 })
             except Exception as e:
                 self.send_error_json(f"Fehler beim Lesen der Datei: {e}", status=500)
