@@ -215,6 +215,8 @@
     "strengthLabel": "Stärke",
     "noLorasCatalog": "Keine LoRAs im Katalog registriert. Führe einen Katalog-Scan durch.",
     "noLorasFound": "Keine passenden LoRAs gefunden. Aktiviere \"Alle LoRAs anzeigen\" oder ändere die Suche.",
+    "loraPublishedDate": "Veröffentlicht:",
+    "videoBadge": "Video",
     "modalRenderTitle": "⚡ Film rendern & starten",
     "modalRenderDesc": "Um diesen Film mit dem MovieGenerator zu produzieren, kannst du entweder das Terminal-Kommando ausführen oder die Datei auswählen:",
     "modalRenderAlt": "Alternativ: Starte create_movie.bat und wähle die Datei aus dem Menü aus.",

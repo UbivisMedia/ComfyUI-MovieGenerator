@@ -66,24 +66,223 @@ def get_comfy_models_dir():
     return None
 
 
-def get_presets_data():
-    """Loads t2i_presets.json, with fallback to t2i_presets.example.json."""
+_LORA_COMPANION_CACHE = {}
+IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
+VIDEO_EXTS = (".mp4", ".webm")
+
+
+def _extract_published_date(meta_dict):
+    """Extracts YYYY-MM-DD from publishedAt or createdAt metadata."""
+    if not isinstance(meta_dict, dict):
+        return None
+    val = (
+        meta_dict.get("publishedAt") or
+        (meta_dict.get("civitai") or {}).get("publishedAt") or
+        (meta_dict.get("model") or {}).get("publishedAt") or
+        meta_dict.get("createdAt") or
+        (meta_dict.get("civitai") or {}).get("createdAt")
+    )
+    if isinstance(val, str):
+        m = re.search(r"(\d{4}-\d{2}-\d{2})", val)
+        if m:
+            return m.group(1)
+    return None
+
+
+def resolve_lora_path(lora_name):
+    """Resolves absolute path of a LoRA file inside models directory."""
+    models_dir = get_comfy_models_dir()
+    if not models_dir or not lora_name:
+        return None
+    norm_name = os.path.normpath(lora_name)
+    candidates = [
+        os.path.join(models_dir, "loras", norm_name),
+        os.path.join(models_dir, norm_name),
+    ]
+    for cand in candidates:
+        if os.path.exists(cand):
+            return cand
+    return None
+
+
+def find_companion_media_and_meta(lora_file):
+    """Finds preview media and metadata for a given LoRA safetensors file."""
+    if not lora_file or not os.path.exists(lora_file):
+        return None, None, None
+    folder = os.path.dirname(lora_file)
+    base = os.path.splitext(os.path.basename(lora_file))[0]
+
+    try:
+        files = os.listdir(folder)
+    except Exception:
+        return None, None, None
+
+    img_cands = []
+    vid_cands = []
+    meta_cands = []
+
+    for f in files:
+        f_low = f.lower()
+        if f.startswith(base):
+            if f_low.endswith(IMAGE_EXTS):
+                img_cands.append(f)
+            elif f_low.endswith(VIDEO_EXTS):
+                vid_cands.append(f)
+            elif f_low.endswith((".metadata.json", ".civitai.info", ".json")):
+                meta_cands.append(f)
+
+    def score_name(fname):
+        name_no_ext = os.path.splitext(fname)[0]
+        if name_no_ext == base:
+            return 0
+        if name_no_ext == f"{base}.preview":
+            return 1
+        return 2
+
+    chosen_media = None
+    media_type = None
+    if img_cands:
+        img_cands.sort(key=score_name)
+        chosen_media = os.path.join(folder, img_cands[0])
+        media_type = "image"
+    elif vid_cands:
+        vid_cands.sort(key=score_name)
+        chosen_media = os.path.join(folder, vid_cands[0])
+        media_type = "video"
+
+    pub_date = None
+    if meta_cands:
+        meta_cands.sort(key=score_name)
+        for mf in meta_cands:
+            meta_path = os.path.join(folder, mf)
+            try:
+                with open(meta_path, "r", encoding="utf-8", errors="ignore") as jf:
+                    data = json.load(jf)
+                    d = _extract_published_date(data)
+                    if d:
+                        pub_date = d
+                        break
+            except Exception:
+                pass
+
+    return chosen_media, media_type, pub_date
+
+
+def get_lora_companion_info(lora_key, lora_name):
+    """Returns companion info (media path, preview URL, media type, published date) with caching."""
+    cache_key = f"{lora_key}:{lora_name}"
+    if cache_key in _LORA_COMPANION_CACHE:
+        return _LORA_COMPANION_CACHE[cache_key]
+
+    lora_path = resolve_lora_path(lora_name)
+    media_f, m_type, p_date = find_companion_media_and_meta(lora_path)
+
+    preview_url = None
+    if media_f and m_type:
+        preview_url = f"/api/loras/media?name={urllib.parse.quote(lora_key)}"
+
+    info = {
+        "media_file": media_f,
+        "media_type": m_type,
+        "preview_url": preview_url,
+        "published_at": p_date,
+        "has_preview": bool(preview_url)
+    }
+    _LORA_COMPANION_CACHE[cache_key] = info
+    return info
+
+
+def serve_media_file(handler, file_path, content_type):
+    """Serves media file with byte-range and caching support."""
+    try:
+        file_size = os.path.getsize(file_path)
+        range_header = handler.headers.get("Range")
+
+        if range_header and range_header.startswith("bytes="):
+            range_val = range_header[6:].strip()
+            parts = range_val.split("-")
+            start = int(parts[0]) if parts[0] else 0
+            end = int(parts[1]) if len(parts) > 1 and parts[1] else file_size - 1
+            if start >= file_size:
+                handler.send_error(416, "Requested Range Not Satisfiable")
+                return
+            end = min(end, file_size - 1)
+            length = end - start + 1
+
+            handler.send_response(206)
+            handler.send_header("Content-Type", content_type)
+            handler.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
+            handler.send_header("Content-Length", str(length))
+            handler.send_header("Accept-Ranges", "bytes")
+            handler.send_header("Cache-Control", "public, max-age=86400")
+            handler.end_headers()
+
+            with open(file_path, "rb") as f:
+                f.seek(start)
+                remaining = length
+                buf_size = 64 * 1024
+                while remaining > 0:
+                    chunk = f.read(min(remaining, buf_size))
+                    if not chunk:
+                        break
+                    handler.wfile.write(chunk)
+                    remaining -= len(chunk)
+        else:
+            handler.send_response(200)
+            handler.send_header("Content-Type", content_type)
+            handler.send_header("Content-Length", str(file_size))
+            handler.send_header("Accept-Ranges", "bytes")
+            handler.send_header("Cache-Control", "public, max-age=86400")
+            handler.end_headers()
+
+            with open(file_path, "rb") as f:
+                buf_size = 64 * 1024
+                while True:
+                    chunk = f.read(buf_size)
+                    if not chunk:
+                        break
+                    handler.wfile.write(chunk)
+    except (ConnectionResetError, BrokenPipeError):
+        pass
+    except Exception as e:
+        try:
+            handler.send_error(500, f"Fehler beim Übertragen der Datei: {e}")
+        except Exception:
+            pass
+
+
+def get_presets_data(enrich=True):
+    """Loads t2i_presets.json, with fallback to t2i_presets.example.json.
+    Optionally enriches lora_presets with preview media and publishedAt metadata.
+    """
     primary = os.path.join(PRESETS_DIR, "t2i_presets.json")
     fallback = os.path.join(PRESETS_DIR, "t2i_presets.example.json")
     target = primary if os.path.exists(primary) else fallback
 
-    if os.path.exists(target):
-        try:
-            with open(target, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"⚠️ Error reading presets: {e}")
-
-    return {
+    data = {
         "default": "anima_catpony",
         "presets": {},
         "lora_presets": {}
     }
+
+    if os.path.exists(target):
+        try:
+            with open(target, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            print(f"⚠️ Error reading presets: {e}")
+
+    if enrich and "lora_presets" in data and isinstance(data["lora_presets"], dict):
+        for lkey, lval in data["lora_presets"].items():
+            if isinstance(lval, dict):
+                lname = lval.get("lora_name", "")
+                cinfo = get_lora_companion_info(lkey, lname)
+                lval["preview_url"] = cinfo.get("preview_url")
+                lval["media_type"] = cinfo.get("media_type")
+                lval["published_at"] = cinfo.get("published_at")
+                lval["has_preview"] = cinfo.get("has_preview", False)
+
+    return data
 
 
 def find_free_port(start_port=7860, max_tries=50):
@@ -1838,6 +2037,41 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
             return
 
         # -------------------------------------------------------------
+        # GET /api/loras/media (Serve LoRA preview image/video)
+        # -------------------------------------------------------------
+        if path == "/api/loras/media":
+            name_param = query.get("name", [""])[0].strip() or query.get("key", [""])[0].strip()
+            if not name_param:
+                self.send_error(400, "Parameter 'name' erforderlich")
+                return
+
+            presets = get_presets_data(enrich=False)
+            lora_presets = presets.get("lora_presets", {})
+            lval = lora_presets.get(name_param)
+            if not lval:
+                self.send_error(404, "LoRA im Preset-Katalog nicht gefunden")
+                return
+
+            cinfo = get_lora_companion_info(name_param, lval.get("lora_name", ""))
+            media_file = cinfo.get("media_file")
+            if not media_file or not os.path.exists(media_file):
+                self.send_error(404, "Vorschaumedium nicht gefunden")
+                return
+
+            ext = os.path.splitext(media_file)[1].lower()
+            mime_map = {
+                ".png": "image/png",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".webp": "image/webp",
+                ".mp4": "video/mp4",
+                ".webm": "video/webm"
+            }
+            content_type = mime_map.get(ext, "application/octet-stream")
+            serve_media_file(self, media_file, content_type)
+            return
+
+        # -------------------------------------------------------------
         # Static Asset Serving (HTML, CSS, JS)
         # -------------------------------------------------------------
         rel_path = path.lstrip("/")
@@ -2077,6 +2311,7 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
                 from catalog_builder import build_or_update_catalog
                 target_presets = os.path.join(PRESETS_DIR, "t2i_presets.json")
                 stats = build_or_update_catalog(models_dir, presets_path=target_presets)
+                _LORA_COMPANION_CACHE.clear()
                 self.send_json({
                     "success": True,
                     "stats": stats,

@@ -1370,7 +1370,7 @@
         continue;
       }
 
-      const searchHaystack = `${lKey} ${lora.beschreibung || ''} ${lora.trigger_words || ''} ${compatList.join(' ')}`.toLowerCase();
+      const searchHaystack = `${lKey} ${lora.beschreibung || ''} ${lora.trigger_words || ''} ${lora.published_at || ''} ${compatList.join(' ')}`.toLowerCase();
       if (query && !searchHaystack.includes(query)) {
         continue;
       }
@@ -1387,20 +1387,61 @@
         ? (isCompat ? escapeHtml(t('videoCompatBadge')) : escapeHtml(t('otherModelBadge')))
         : (isCompat ? escapeHtml(t('compatBadge')) : escapeHtml(t('otherModelBadge')));
 
+      let mediaHtml = '';
+      if (lora.preview_url) {
+        if (lora.media_type === 'video') {
+          mediaHtml = `
+            <div class="lora-card-media">
+              <video class="lora-media-thumb lora-media-video" src="${escapeHtml(lora.preview_url)}" muted loop playsinline preload="metadata"></video>
+              <span class="lora-video-badge">▶ ${escapeHtml(t('videoBadge') || 'Video')}</span>
+              ${lora.published_at ? `<span class="lora-date-badge" title="${escapeHtml(t('loraPublishedDate') || 'Published:')} ${escapeHtml(lora.published_at)}">📅 ${escapeHtml(lora.published_at)}</span>` : ''}
+            </div>
+          `;
+        } else {
+          mediaHtml = `
+            <div class="lora-card-media">
+              <img class="lora-media-thumb" src="${escapeHtml(lora.preview_url)}" alt="${escapeHtml(lKey)}" loading="lazy">
+              ${lora.published_at ? `<span class="lora-date-badge" title="${escapeHtml(t('loraPublishedDate') || 'Published:')} ${escapeHtml(lora.published_at)}">📅 ${escapeHtml(lora.published_at)}</span>` : ''}
+            </div>
+          `;
+        }
+      } else {
+        mediaHtml = `
+          <div class="lora-card-media lora-media-placeholder">
+            <span class="lora-placeholder-icon">${target.type === 'scene' ? '🎬' : '✨'}</span>
+            ${lora.published_at ? `<span class="lora-date-badge" title="${escapeHtml(t('loraPublishedDate') || 'Published:')} ${escapeHtml(lora.published_at)}">📅 ${escapeHtml(lora.published_at)}</span>` : ''}
+          </div>
+        `;
+      }
+
       card.innerHTML = `
-        <div class="lora-card-title">
-          <span>${target.type === 'scene' ? '🎬' : '✨'} ${escapeHtml(lKey)}</span>
-          <span style="font-size:11px;">${isAlreadyAssigned ? escapeHtml(t('activeBadge')) : '➕'}</span>
-        </div>
-        <div class="lora-card-desc">${escapeHtml(lora.beschreibung || '')}</div>
-        ${triggers}
-        <div class="lora-card-footer">
-          <span class="${isCompat ? 'lora-badge-compat' : ''}">
-            ${compatBadgeText}
-          </span>
-          <span>${escapeHtml(t('strengthLabel'))}: ${strengthModel}</span>
+        ${mediaHtml}
+        <div class="lora-card-body">
+          <div class="lora-card-title">
+            <span>${target.type === 'scene' ? '🎬' : '✨'} ${escapeHtml(lKey)}</span>
+            <span style="font-size:11px;">${isAlreadyAssigned ? escapeHtml(t('activeBadge')) : '➕'}</span>
+          </div>
+          <div class="lora-card-desc" title="${escapeHtml(lora.beschreibung || '')}">${escapeHtml(lora.beschreibung || '')}</div>
+          ${triggers}
+          <div class="lora-card-footer">
+            <span class="${isCompat ? 'lora-badge-compat' : ''}">
+              ${compatBadgeText}
+            </span>
+            <span>${escapeHtml(t('strengthLabel'))}: ${strengthModel}</span>
+          </div>
         </div>
       `;
+
+      const vidEl = card.querySelector('video');
+      if (vidEl) {
+        card.addEventListener('mouseenter', () => {
+          vidEl.play().catch(() => {});
+        });
+        card.addEventListener('mouseleave', () => {
+          vidEl.pause();
+          vidEl.currentTime = 0;
+        });
+      }
 
       card.addEventListener('click', () => {
         if (target.type === 'character') {

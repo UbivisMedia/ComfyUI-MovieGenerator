@@ -215,6 +215,8 @@
     "strengthLabel": "Strength",
     "noLorasCatalog": "No LoRAs registered in catalog. Run a catalog scan.",
     "noLorasFound": "No matching LoRAs found. Toggle \"Show all LoRAs\" or modify search.",
+    "loraPublishedDate": "Published:",
+    "videoBadge": "Video",
     "modalRenderTitle": "⚡ Render & Launch Film",
     "modalRenderDesc": "To produce this film with MovieGenerator, run the terminal command or select the file:",
     "modalRenderAlt": "Alternative: Launch create_movie.bat and select the file from the menu.",
