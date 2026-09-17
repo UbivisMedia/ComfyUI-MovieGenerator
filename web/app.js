@@ -26,7 +26,17 @@
     activeTab: 'characters',
     activeLoraCharIndex: null, // Index of character currently picking a LoRA
     focusedIdeaTextarea: null, // For quick variable chip insertion
-    lang: 'de' // 'de' or 'en'
+    lang: 'de', // 'de' or 'en'
+    pendingStoryGen: null, // Holds preview of generated batch scenes & new characters
+    wizard: {
+      premise: '',
+      maxDuration: 6,
+      maxTokens: 4000,
+      currentStepIndex: 1,
+      currentScene: null,
+      currentNewChars: [],
+      hooks: []
+    }
   };
 
   // --- Localization Engine (Centralized via /api/localization from localization/de.json & en.json) ---
@@ -117,7 +127,57 @@
     aiModalBody: document.getElementById('aiModalBody'),
     btnCloseAiModal: document.getElementById('btnCloseAiModal'),
     btnDiscardAiModal: document.getElementById('btnDiscardAiModal'),
-    btnApplyAiModal: document.getElementById('btnApplyAiModal')
+    btnApplyAiModal: document.getElementById('btnApplyAiModal'),
+
+    // Story Generator Elements
+    btnStoryGenerator: document.getElementById('btnStoryGenerator'),
+    storyGeneratorModal: document.getElementById('storyGeneratorModal'),
+    btnCloseStoryGenModal: document.getElementById('btnCloseStoryGenModal'),
+    storyGenPlot: document.getElementById('storyGenPlot'),
+    storyGenMaxDuration: document.getElementById('storyGenMaxDuration'),
+    storyGenMaxDurationVal: document.getElementById('storyGenMaxDurationVal'),
+    storyGenMaxTokens: document.getElementById('storyGenMaxTokens'),
+    storyGenMaxTokensVal: document.getElementById('storyGenMaxTokensVal'),
+    btnExecuteStoryGen: document.getElementById('btnExecuteStoryGen'),
+    storyGenPreviewContainer: document.getElementById('storyGenPreviewContainer'),
+    storyGenNewCharsBox: document.getElementById('storyGenNewCharsBox'),
+    storyGenSummaryBadge: document.getElementById('storyGenSummaryBadge'),
+    storyGenShotsList: document.getElementById('storyGenShotsList'),
+    storyGenFooter: document.getElementById('storyGenFooter'),
+    btnCancelStoryGen: document.getElementById('btnCancelStoryGen'),
+    btnApplyStoryGen: document.getElementById('btnApplyStoryGen'),
+
+    // Story Wizard Elements
+    btnStoryWizard: document.getElementById('btnStoryWizard'),
+    storyWizardModal: document.getElementById('storyWizardModal'),
+    btnCloseWizardModal: document.getElementById('btnCloseWizardModal'),
+    wizardStepBadge: document.getElementById('wizardStepBadge'),
+    wizardSetupView: document.getElementById('wizardSetupView'),
+    wizardPremiseInput: document.getElementById('wizardPremiseInput'),
+    wizardProducerInstructions: document.getElementById('wizardProducerInstructions'),
+    wizardProducerDetails: document.getElementById('wizardProducerDetails'),
+    wizardInteractiveProducerInstructions: document.getElementById('wizardInteractiveProducerInstructions'),
+    wizardMaxDuration: document.getElementById('wizardMaxDuration'),
+    wizardMaxDurationVal: document.getElementById('wizardMaxDurationVal'),
+    wizardMaxTokens: document.getElementById('wizardMaxTokens'),
+    wizardMaxTokensVal: document.getElementById('wizardMaxTokensVal'),
+    btnWizardStart: document.getElementById('btnWizardStart'),
+    wizardInteractiveView: document.getElementById('wizardInteractiveView'),
+    wizardTimeline: document.getElementById('wizardTimeline'),
+    wizardCurrentShotBox: document.getElementById('wizardCurrentShotBox'),
+    wizardNewCharAlert: document.getElementById('wizardNewCharAlert'),
+    wizardUserInstruction: document.getElementById('wizardUserInstruction'),
+    wizardHooksBox: document.getElementById('wizardHooksBox'),
+    wizardHooksList: document.getElementById('wizardHooksList'),
+    wizardFooter: document.getElementById('wizardFooter'),
+    btnWizardFinish: document.getElementById('btnWizardFinish'),
+    wizardInteractiveActions: document.getElementById('wizardInteractiveActions'),
+    btnWizardRegenerate: document.getElementById('btnWizardRegenerate'),
+    btnWizardApplyAndNext: document.getElementById('btnWizardApplyAndNext'),
+    btnWizardSaveEdits: document.getElementById('btnWizardSaveEdits'),
+    btnWizardRecreateScene: document.getElementById('btnWizardRecreateScene'),
+    btnWizardBackToNext: document.getElementById('btnWizardBackToNext'),
+    btnHarmonizeScript: document.getElementById('btnHarmonizeScript')
   };
 
   // --- Language Switching Engine ---
@@ -239,6 +299,37 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Fehler bei der KI-Generierung');
+      }
+      return data;
+    },
+
+    async uploadCharacterImage(project, name, imageBase64, removeBackground = true) {
+      const res = await fetch('/api/characters/upload_image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project,
+          name,
+          image_base64: imageBase64,
+          remove_background: removeBackground
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Hochladen des Charakterbildes');
+      }
+      return data;
+    },
+
+    async deleteCharacterImage(project, name) {
+      const res = await fetch('/api/characters/delete_image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project, name })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Löschen des Charakterbildes');
       }
       return data;
     }
@@ -395,6 +486,7 @@
     const defaultTitle = filename ? filename.replace(/\.json$/i, '').replace(/[_-]/g, ' ') : 'Untitled Movie';
     norm.title = data.title || data.titel || defaultTitle;
     norm.description = data.description || data.beschreibung || '';
+    norm.producer_instructions = data.producer_instructions || '';
 
     // Variables
     norm.variables = data.variables || data.variablen || {};
@@ -584,7 +676,9 @@
       title: state.lang === 'en' ? 'My New Movie' : 'Mein neuer Film',
       description: state.lang === 'en' ? 'A concise storyline description.' : 'Eine kurze Zusammenfassung der Handlung.',
       variables: {
-        outfit_hero: state.lang === 'en' ? 'dark leather jacket and jeans' : 'dunkle Lederjacke und Jeans',
+        hero_top: state.lang === 'en' ? 'dark worn leather jacket over grey shirt' : 'dunkle abgetragene Lederjacke über grauem T-Shirt',
+        hero_bottom: state.lang === 'en' ? 'rugged blue denim jeans' : 'robuste blaue Denim-Jeans',
+        hero_shoes: state.lang === 'en' ? 'black waterproof combat boots' : 'schwarze wetterfeste Lederstiefel',
         location_alley: state.lang === 'en' ? 'a rain-slicked neon illuminated alley' : 'eine belebte neonbeleuchtete Gasse'
       },
       characters: [
@@ -604,8 +698,8 @@
           duration: 6,
           characters: ['Hero'],
           idea: state.lang === 'en'
-            ? 'Hero (<Picture 1>) steps cautiously out of the shadows into {location_alley}, his {outfit_hero} reflecting wet puddles.'
-            : 'Hero (<Picture 1>) tritt langsam aus dem Schatten in {location_alley}, seine {outfit_hero} reflektiert das nasse Pflaster.'
+            ? '<Subject 1> (Hero) steps cautiously out of the shadows into {location_alley}, his {hero_top} and {hero_bottom} reflecting wet puddles.'
+            : '<Subject 1> (Hero) tritt langsam aus dem Schatten in {location_alley}, seine {hero_top} und {hero_bottom} reflektieren das nasse Pflaster.'
         }
       ]
     };
@@ -820,6 +914,53 @@
         </div>
       </div>
 
+      <!-- Charakter-Porträt & Referenzbild Sektion (Optionaler Upload mit Freistellen) -->
+      <div class="char-portrait-section">
+        <div class="char-portrait-header">
+          <label>📸 ${escapeHtml(t('charPortraitLabel'))}</label>
+          ${char.image ? `<span class="badge-char-ref-active">✔ ${escapeHtml(t('charImgActiveBadge'))}</span>` : ''}
+        </div>
+
+        <div class="char-portrait-content ${char.image ? 'has-image' : 'empty'}">
+          ${char.image ? `
+            <div class="char-portrait-preview-box" title="${escapeHtml(char.name)}">
+              <img src="${char.image_url || ('/api/characters/image?project=' + encodeURIComponent((el.movieFilename && el.movieFilename.value.trim()) ? el.movieFilename.value.trim() : 'film') + '&name=' + encodeURIComponent(char.name || '') + '&t=' + Date.now())}" alt="${escapeHtml(char.name)}" class="char-portrait-thumb">
+            </div>
+            <div class="char-portrait-info">
+              <span class="char-portrait-hint">${escapeHtml(t('charImgT2iSkipped'))}</span>
+              <div style="display:flex;gap:6px;align-items:center;margin-top:4px;">
+                <input type="file" class="char-img-file-input" accept="image/png, image/jpeg, image/webp" style="display:none;">
+                <button type="button" class="btn btn-secondary btn-xs btn-trigger-upload-img">
+                  🔄 ${escapeHtml(t('btnChangeCharImg'))}
+                </button>
+                <button type="button" class="btn btn-danger-outline btn-xs btn-remove-char-img" title="${escapeHtml(t('btnRemoveCharImg'))}">
+                  🗑️ ${escapeHtml(t('btnRemoveCharImg'))}
+                </button>
+              </div>
+            </div>
+          ` : `
+            <div class="char-portrait-upload-area">
+              <input type="file" class="char-img-file-input" accept="image/png, image/jpeg, image/webp" style="display:none;">
+              <div class="char-portrait-upload-controls">
+                <button type="button" class="btn btn-secondary btn-sm btn-trigger-upload-img">
+                  <span>📤</span> <span>${escapeHtml(t('btnUploadCharImg'))}</span>
+                </button>
+                <label class="char-removebg-chk-label" title="${escapeHtml(t('chkRemoveBgTitle'))}">
+                  <input type="checkbox" class="char-removebg-chk" checked>
+                  <span>✨ ${escapeHtml(t('chkRemoveBg'))}</span>
+                </label>
+              </div>
+              <span class="char-portrait-hint">${escapeHtml(t('charImgHint'))}</span>
+            </div>
+          `}
+        </div>
+
+        <div class="char-portrait-upload-status" style="display:none;">
+          <span class="ai-loading-spinner"></span>
+          <span class="char-upload-status-text">${escapeHtml(t('charImgUploading'))}</span>
+        </div>
+      </div>
+
       <!-- Basis Modell Auswahl -->
       <div class="char-model-group">
         <label for="charModel_${idx}">${escapeHtml(t('charModelLabel'))}</label>
@@ -1002,6 +1143,76 @@
         markDirty();
       }
     });
+
+    // Image Upload & Background Removal Handlers
+    const fileInput = card.querySelector('.char-img-file-input');
+    const uploadBtn = card.querySelector('.btn-trigger-upload-img');
+    const removeBtn = card.querySelector('.btn-remove-char-img');
+    const removeBgChk = card.querySelector('.char-removebg-chk');
+    const uploadStatus = card.querySelector('.char-portrait-upload-status');
+
+    if (uploadBtn && fileInput) {
+      uploadBtn.addEventListener('click', () => fileInput.click());
+
+      fileInput.addEventListener('change', async () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          const base64Data = event.target.result;
+          const projectName = (el.movieFilename && el.movieFilename.value.trim()) ? el.movieFilename.value.trim() : 'film';
+          const doRemoveBg = removeBgChk ? removeBgChk.checked : true;
+
+          try {
+            if (uploadStatus) {
+              uploadStatus.style.display = 'flex';
+            }
+            if (uploadBtn) uploadBtn.disabled = true;
+
+            const res = await API.uploadCharacterImage(projectName, char.name || `actor_${idx + 1}`, base64Data, doRemoveBg);
+            if (res && res.success) {
+              char.image = res.relative_path;
+              char.image_url = res.image_url;
+              char.auto_prompt = false;
+              char.ki_prompt_generieren = false;
+
+              renderCharacters();
+              markDirty();
+              showToast(t('charImgUploadSuccess').replace('{name}', char.name || ''), 'success');
+            }
+          } catch (err) {
+            console.error('Image upload failed:', err);
+            showToast(err.message || 'Fehler beim Hochladen des Charakterbildes', 'error');
+            if (uploadStatus) uploadStatus.style.display = 'none';
+            if (uploadBtn) uploadBtn.disabled = false;
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    if (removeBtn) {
+      removeBtn.addEventListener('click', async () => {
+        if (!confirm(t('confirmDeleteCharImg'))) return;
+        const projectName = (el.movieFilename && el.movieFilename.value.trim()) ? el.movieFilename.value.trim() : 'film';
+
+        try {
+          await API.deleteCharacterImage(projectName, char.name || `actor_${idx + 1}`);
+        } catch (e) {
+          console.warn('Could not delete image file on server:', e);
+        }
+
+        delete char.image;
+        delete char.image_url;
+        char.auto_prompt = true;
+        char.ki_prompt_generieren = true;
+
+        renderCharacters();
+        markDirty();
+        showToast(t('charImgRemoved'), 'info');
+      });
+    }
 
     return card;
   }
@@ -1915,6 +2126,851 @@
     showToast(t('aiSceneSuggested').replace('{id}', newScene.id), 'success');
   }
 
+  // =============================================================
+  // STORY GENERATOR (Batch)
+  // =============================================================
+
+  function openStoryGeneratorModal() {
+    if (!el.storyGeneratorModal) return;
+    if (el.storyGenPlot) {
+      el.storyGenPlot.value = state.screenplay.description || '';
+    }
+    if (el.storyGenMaxDuration) {
+      el.storyGenMaxDuration.value = 6;
+      if (el.storyGenMaxDurationVal) el.storyGenMaxDurationVal.textContent = '6s';
+    }
+    if (el.storyGenMaxTokens) {
+      el.storyGenMaxTokens.value = 6000;
+      if (el.storyGenMaxTokensVal) el.storyGenMaxTokensVal.textContent = '6.000';
+    }
+    if (el.storyGenPreviewContainer) el.storyGenPreviewContainer.style.display = 'none';
+    if (el.storyGenFooter) el.storyGenFooter.style.display = 'none';
+    state.pendingStoryGen = null;
+    el.storyGeneratorModal.classList.add('open');
+  }
+
+  function closeStoryGeneratorModal() {
+    if (el.storyGeneratorModal) {
+      el.storyGeneratorModal.classList.remove('open');
+    }
+    state.pendingStoryGen = null;
+  }
+
+  async function executeStoryGenerator() {
+    if (!el.btnExecuteStoryGen) return;
+    const plot = (el.storyGenPlot ? el.storyGenPlot.value : '').trim();
+    if (!plot) {
+      showToast(t('storylineInputPlaceholder'), 'warning');
+      return;
+    }
+
+    const maxDuration = el.storyGenMaxDuration ? parseInt(el.storyGenMaxDuration.value, 10) : 6;
+    const maxTokens = el.storyGenMaxTokens ? parseInt(el.storyGenMaxTokens.value, 10) : 6000;
+    const modeRadio = document.querySelector('input[name="storyGenMode"]:checked');
+    const mode = modeRadio ? modeRadio.value : 'append';
+
+    const btn = el.btnExecuteStoryGen;
+    try {
+      btn.disabled = true;
+      btn.innerHTML = `<span class="ai-loading-spinner"></span> <span>${escapeHtml(t('generatingShots'))}</span>`;
+
+      const res = await API.generateLlm('generate_story_scenes', {
+        storyline: plot,
+        max_shot_duration: maxDuration,
+        max_tokens: maxTokens,
+        mode: mode,
+        screenplay: state.screenplay
+      });
+
+      if (!res || !res.success || !Array.isArray(res.scenes) || res.scenes.length === 0) {
+        showToast(res && res.error ? res.error : 'Keine Szenen generiert', 'error');
+        return;
+      }
+
+      state.pendingStoryGen = {
+        scenes: res.scenes,
+        new_characters: res.new_characters || [],
+        mode: mode
+      };
+
+      renderStoryGenPreview();
+      if (el.storyGenPreviewContainer) el.storyGenPreviewContainer.style.display = 'block';
+      if (el.storyGenFooter) el.storyGenFooter.style.display = 'flex';
+      showToast(`${res.scenes.length} Shots generiert!`, 'success');
+    } catch (err) {
+      showToast(err.message || t('aiErrorOffline'), 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<span class="ai-sparkle">⚡</span> <span data-i18n="btnGenerateShots">${escapeHtml(t('btnGenerateShots'))}</span>`;
+    }
+  }
+
+  function renderStoryGenPreview() {
+    if (!state.pendingStoryGen) return;
+    const { scenes, new_characters, mode } = state.pendingStoryGen;
+
+    // Total duration
+    const totalSec = scenes.reduce((acc, s) => acc + (parseInt(s.duration, 10) || 0), 0);
+    if (el.storyGenSummaryBadge) {
+      el.storyGenSummaryBadge.textContent = `${scenes.length} Shots • ${totalSec}s`;
+    }
+
+    // New characters box
+    if (el.storyGenNewCharsBox) {
+      if (new_characters && new_characters.length > 0) {
+        let charsHtml = `
+          <div style="font-size:12px;font-weight:700;color:var(--accent-gold);margin-bottom:4px;">
+            🎭 ${escapeHtml(t('storyNewCharsDetected'))}
+          </div>
+          <div class="new-chars-list">
+        `;
+        new_characters.forEach(c => {
+          charsHtml += `
+            <div class="new-char-chip">
+              <div>
+                <strong>${escapeHtml(c.name)}</strong>
+                <span style="color:var(--text-muted);font-size:11px;margin-left:6px;">${escapeHtml(c.description || '')}</span>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center;">
+                <span style="font-size:11px;color:var(--accent-cyan);background:rgba(56,189,248,0.15);padding:2px 6px;border-radius:4px;">${escapeHtml(c.model || 'Default')}</span>
+                ${(c.loras && c.loras.length) ? `<span style="font-size:10px;color:var(--text-dim);">${escapeHtml(c.loras.join(', '))}</span>` : ''}
+              </div>
+            </div>
+          `;
+        });
+        charsHtml += `</div>`;
+        el.storyGenNewCharsBox.innerHTML = charsHtml;
+        el.storyGenNewCharsBox.style.display = 'block';
+      } else {
+        el.storyGenNewCharsBox.style.display = 'none';
+      }
+    }
+
+    // Shots list
+    if (el.storyGenShotsList) {
+      let shotsHtml = '';
+      const startId = (mode === 'replace' ? 1 : ((state.screenplay.scenes || []).length + 1));
+      scenes.forEach((s, idx) => {
+        const shotNum = startId + idx;
+        const charBadge = (s.characters && s.characters.length) ? `<span style="color:var(--accent-gold);">🎭 ${escapeHtml(s.characters.join(', '))}</span>` : '';
+        shotsHtml += `
+          <div class="preview-shot-item">
+            <div class="preview-shot-header">
+              <div class="preview-shot-title">
+                <span style="color:var(--accent-cyan);">#${shotNum}</span>
+                <span>${escapeHtml(s.sequence || 'Szene')}</span>
+                <span style="font-weight:normal;color:var(--text-muted);font-size:11px;">📍 ${escapeHtml(s.location || 'Set')}</span>
+              </div>
+              <div class="preview-shot-meta">
+                ${charBadge}
+                <span class="badge-value" style="color:var(--accent-cyan);background:rgba(0,0,0,0.3);">⏱️ ${s.duration}s</span>
+              </div>
+            </div>
+            <div class="preview-shot-idea">${escapeHtml(s.idea || '')}</div>
+          </div>
+        `;
+      });
+      el.storyGenShotsList.innerHTML = shotsHtml;
+    }
+  }
+
+  function applyStoryGeneratorResults() {
+    if (!state.pendingStoryGen) return;
+    const { scenes, new_characters, mode } = state.pendingStoryGen;
+
+    if (!state.screenplay.scenes) state.screenplay.scenes = [];
+    if (!state.screenplay.characters) state.screenplay.characters = [];
+
+    // 1. Add new characters if any
+    let addedCharsCount = 0;
+    if (new_characters && Array.isArray(new_characters)) {
+      new_characters.forEach(nc => {
+        const exists = state.screenplay.characters.some(c => (c.name || '').toLowerCase() === (nc.name || '').toLowerCase());
+        if (!exists) {
+          const nextCharId = state.screenplay.characters.reduce((max, c) => Math.max(max, c.id || 0), 0) + 1;
+          state.screenplay.characters.push({
+            id: nextCharId,
+            name: nc.name,
+            model: nc.model || 'anima_cyberrealistic',
+            loras: nc.loras || [],
+            description: nc.description || '',
+            charakter_prompt: nc.charakter_prompt || ''
+          });
+          addedCharsCount++;
+        }
+      });
+    }
+
+    // 2. Add or replace scenes
+    if (mode === 'replace') {
+      state.screenplay.scenes = [];
+    }
+
+    const startId = state.screenplay.scenes.length + 1;
+    scenes.forEach((s, idx) => {
+      state.screenplay.scenes.push({
+        id: startId + idx,
+        sequence: s.sequence || `Sequenz ${startId + idx}`,
+        location: s.location || 'Set',
+        duration: s.duration || 6,
+        characters: s.characters || [],
+        idea: s.idea || '',
+        same_scene: Boolean(s.same_scene),
+        match_cut: Boolean(s.match_cut),
+        variables_update: s.variables_update || {}
+      });
+    });
+
+    closeStoryGeneratorModal();
+    markDirty();
+    renderCharacters();
+    renderScenes();
+    updateStats();
+    renderJsonPreview();
+
+    const msg = t('shotsAppliedSuccess')
+      .replace('{count}', scenes.length)
+      .replace('{charCount}', addedCharsCount);
+    showToast(msg, 'success');
+
+    // Trigger subtle harmonization in background to ensure character tags and outfit variables are aligned
+    handleHarmonizeScreenplay(true);
+  }
+
+  // =============================================================
+  // STORY WIZARD (Interactive Step-by-Step)
+  // =============================================================
+
+  function openStoryWizardModal() {
+    if (!el.storyWizardModal) return;
+
+    state.wizard = {
+      premise: state.screenplay.description || '',
+      producerInstructions: state.screenplay.producer_instructions || '',
+      maxDuration: 6,
+      maxTokens: 4000,
+      currentStepIndex: (state.screenplay.scenes || []).length + 1,
+      currentScene: null,
+      currentNewChars: [],
+      hooks: [],
+      selectedSceneId: null
+    };
+
+    if (el.wizardPremiseInput) {
+      el.wizardPremiseInput.value = state.wizard.premise;
+    }
+    if (el.wizardProducerInstructions) {
+      el.wizardProducerInstructions.value = state.wizard.producerInstructions;
+    }
+    if (el.wizardInteractiveProducerInstructions) {
+      el.wizardInteractiveProducerInstructions.value = state.wizard.producerInstructions;
+    }
+    if (el.wizardMaxDuration) {
+      el.wizardMaxDuration.value = 6;
+      if (el.wizardMaxDurationVal) el.wizardMaxDurationVal.textContent = '6s';
+    }
+    if (el.wizardMaxTokens) {
+      el.wizardMaxTokens.value = 4000;
+      if (el.wizardMaxTokensVal) el.wizardMaxTokensVal.textContent = '4.000';
+    }
+
+    // Reset button display to drafting mode
+    if (el.btnWizardRegenerate) el.btnWizardRegenerate.style.display = 'inline-flex';
+    if (el.btnWizardApplyAndNext) el.btnWizardApplyAndNext.style.display = 'inline-flex';
+    if (el.btnWizardRecreateScene) el.btnWizardRecreateScene.style.display = 'none';
+    if (el.btnWizardSaveEdits) el.btnWizardSaveEdits.style.display = 'none';
+    if (el.btnWizardBackToNext) el.btnWizardBackToNext.style.display = 'none';
+
+    // Show setup view first if no premise or new start, or go direct to interactive if scenes exist
+    if ((state.screenplay.scenes || []).length > 0) {
+      if (el.wizardSetupView) el.wizardSetupView.style.display = 'none';
+      if (el.wizardInteractiveView) el.wizardInteractiveView.style.display = 'block';
+      if (el.wizardInteractiveActions) el.wizardInteractiveActions.style.display = 'flex';
+      generateNextWizardStep();
+    } else {
+      if (el.wizardSetupView) el.wizardSetupView.style.display = 'block';
+      if (el.wizardInteractiveView) el.wizardInteractiveView.style.display = 'none';
+      if (el.wizardInteractiveActions) el.wizardInteractiveActions.style.display = 'none';
+    }
+
+    el.storyWizardModal.classList.add('open');
+  }
+
+  function closeStoryWizardModal() {
+    if (el.storyWizardModal) {
+      el.storyWizardModal.classList.remove('open');
+    }
+    if (state.wizard) {
+      state.wizard.selectedSceneId = null;
+    }
+  }
+
+  function startStoryWizardFromSetup() {
+    const premise = (el.wizardPremiseInput ? el.wizardPremiseInput.value : '').trim();
+    if (!premise) {
+      showToast(t('wizardPremisePlaceholder'), 'warning');
+      return;
+    }
+    const prodInstructions = (el.wizardProducerInstructions ? el.wizardProducerInstructions.value : '').trim();
+    state.wizard.premise = premise;
+    state.wizard.producerInstructions = prodInstructions;
+    state.screenplay.producer_instructions = prodInstructions;
+    if (el.wizardInteractiveProducerInstructions) {
+      el.wizardInteractiveProducerInstructions.value = prodInstructions;
+    }
+
+    state.wizard.maxDuration = el.wizardMaxDuration ? parseInt(el.wizardMaxDuration.value, 10) : 6;
+    state.wizard.maxTokens = el.wizardMaxTokens ? parseInt(el.wizardMaxTokens.value, 10) : 4000;
+
+    // Update screenplay description if empty
+    if (!state.screenplay.description) {
+      state.screenplay.description = premise;
+      if (el.movieDescription) el.movieDescription.value = premise;
+    }
+    markDirty();
+
+    if (el.wizardSetupView) el.wizardSetupView.style.display = 'none';
+    if (el.wizardInteractiveView) el.wizardInteractiveView.style.display = 'block';
+    if (el.wizardInteractiveActions) el.wizardInteractiveActions.style.display = 'flex';
+
+    generateNextWizardStep();
+  }
+
+  async function generateNextWizardStep(customInstruction = '') {
+    const nextStepNum = (state.screenplay.scenes || []).length + 1;
+    state.wizard.currentStepIndex = nextStepNum;
+    state.wizard.selectedSceneId = null;
+
+    // Restore drafting buttons
+    if (el.btnWizardRegenerate) el.btnWizardRegenerate.style.display = 'inline-flex';
+    if (el.btnWizardApplyAndNext) el.btnWizardApplyAndNext.style.display = 'inline-flex';
+    if (el.btnWizardRecreateScene) el.btnWizardRecreateScene.style.display = 'none';
+    if (el.btnWizardSaveEdits) el.btnWizardSaveEdits.style.display = 'none';
+    if (el.btnWizardBackToNext) el.btnWizardBackToNext.style.display = 'none';
+
+    if (el.wizardStepBadge) {
+      el.wizardStepBadge.textContent = t('wizardStepBadge').replace('{step}', nextStepNum);
+    }
+
+    renderWizardTimeline();
+
+    if (el.wizardCurrentShotBox) {
+      el.wizardCurrentShotBox.innerHTML = `
+        <div style="text-align:center;padding:30px;color:var(--text-muted);">
+          <span class="ai-loading-spinner" style="width:28px;height:28px;display:inline-block;margin-bottom:10px;"></span>
+          <div style="font-size:13px;font-weight:600;color:var(--text-main);">${escapeHtml(t('aiThinking'))}</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">Brainstorme Shot #${nextStepNum}...</div>
+        </div>
+      `;
+    }
+    if (el.wizardNewCharAlert) el.wizardNewCharAlert.style.display = 'none';
+    if (el.wizardHooksBox) el.wizardHooksBox.style.display = 'none';
+
+    setWizardButtonsLoading(true);
+
+    try {
+      const res = await API.generateLlm('wizard_step_scene', {
+        premise: state.wizard.premise || state.screenplay.description,
+        producer_instructions: state.wizard.producerInstructions || state.screenplay.producer_instructions || '',
+        max_shot_duration: state.wizard.maxDuration,
+        max_tokens: state.wizard.maxTokens,
+        user_instruction: customInstruction,
+        screenplay: state.screenplay
+      });
+
+      if (!res || !res.success || !res.scene) {
+        showToast(res && res.error ? res.error : 'Fehler beim Abrufen des Szenenvorschlags', 'error');
+        return;
+      }
+
+      state.wizard.currentScene = res.scene;
+      state.wizard.currentNewChars = res.new_characters || [];
+      state.wizard.hooks = res.next_hooks || [];
+
+      renderWizardCurrentShot();
+      renderWizardNewCharsAlert();
+      renderWizardHooks();
+    } catch (err) {
+      showToast(err.message || t('aiErrorOffline'), 'error');
+    } finally {
+      setWizardButtonsLoading(false);
+    }
+  }
+
+  function setWizardButtonsLoading(loading) {
+    if (el.btnWizardRegenerate) el.btnWizardRegenerate.disabled = loading;
+    if (el.btnWizardApplyAndNext) {
+      el.btnWizardApplyAndNext.disabled = loading;
+      if (loading) {
+        el.btnWizardApplyAndNext.innerHTML = `<span class="ai-loading-spinner"></span> <span>${escapeHtml(t('aiThinking'))}</span>`;
+      } else {
+        el.btnWizardApplyAndNext.innerHTML = `<span data-i18n="btnWizardApplyAndNext">${escapeHtml(t('btnWizardApplyAndNext'))}</span>`;
+      }
+    }
+  }
+
+  function renderWizardTimeline() {
+    if (!el.wizardTimeline) return;
+    const scenes = state.screenplay.scenes || [];
+    if (scenes.length === 0) {
+      el.wizardTimeline.innerHTML = `<span style="font-size:11px;color:var(--text-dim);padding:2px 4px;">Start des Drehbuchs</span>`;
+      return;
+    }
+    let html = '';
+    scenes.forEach(s => {
+      const isSelected = state.wizard && state.wizard.selectedSceneId === s.id;
+      html += `
+        <div class="wizard-timeline-chip ${isSelected ? 'editing-selected' : ''}" data-scene-id="${s.id}" title="${escapeHtml(s.idea || '')}">
+          <strong style="color:var(--accent-cyan);">#${s.id}</strong>
+          <span>${escapeHtml(s.sequence || 'Szene')}</span>
+          <span style="color:var(--text-dim);">(${s.duration}s)</span>
+        </div>
+      `;
+    });
+    const isNextSelected = !state.wizard || !state.wizard.selectedSceneId;
+    html += `
+      <div class="wizard-timeline-chip current ${isNextSelected ? 'editing-selected' : ''}" data-next-step="true" title="${escapeHtml(t('wizardDraftingNextTitle'))}">
+        <span>➡️ #${state.wizard.currentStepIndex} (${escapeHtml(t('wizardCurrentShotTitle'))})</span>
+      </div>
+    `;
+    el.wizardTimeline.innerHTML = html;
+
+    // Attach click listeners to all chips
+    el.wizardTimeline.querySelectorAll('.wizard-timeline-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const scId = chip.getAttribute('data-scene-id');
+        if (scId) {
+          selectWizardScene(parseInt(scId, 10));
+        } else if (chip.getAttribute('data-next-step')) {
+          returnToDraftingNextScene();
+        }
+      });
+    });
+
+    if (!state.wizard.selectedSceneId) {
+      el.wizardTimeline.scrollLeft = el.wizardTimeline.scrollWidth;
+    }
+  }
+
+  function renderWizardCurrentShot() {
+    if (!el.wizardCurrentShotBox || !state.wizard.currentScene) return;
+    const sc = state.wizard.currentScene;
+    const shotNum = state.wizard.currentStepIndex;
+
+    const charsVal = Array.isArray(sc.characters) ? sc.characters.join(', ') : (sc.characters || '');
+
+    el.wizardCurrentShotBox.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:8px;">
+        <span style="font-size:13px;font-weight:700;color:var(--accent-gold);">🎬 Shot #${shotNum}</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <label style="font-size:11px;color:var(--text-dim);">Dauer:</label>
+          <input type="number" id="wizardInputDur" min="3" max="15" value="${sc.duration || 6}" style="width:60px;padding:3px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--accent-cyan);font-weight:700;font-size:12px;">
+          <span style="font-size:11px;color:var(--text-muted);">${escapeHtml(t('secondsUnit'))}</span>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;">Sequenz:</label>
+          <input type="text" id="wizardInputSeq" value="${escapeHtml(sc.sequence || '')}" class="form-control" style="font-size:12px;padding:6px 8px;margin-top:2px;">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;">Ort / Location:</label>
+          <input type="text" id="wizardInputLoc" value="${escapeHtml(sc.location || '')}" class="form-control" style="font-size:12px;padding:6px 8px;margin-top:2px;">
+        </div>
+      </div>
+
+      <div style="margin-top:8px;">
+        <label style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;">Charaktere im Shot:</label>
+        <input type="text" id="wizardInputChars" value="${escapeHtml(charsVal)}" class="form-control" style="font-size:12px;padding:6px 8px;margin-top:2px;" placeholder="z.B. Maya, Stone">
+      </div>
+
+      <div style="margin-top:8px;">
+        <label style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;">Handlungs- & Regieprompt:</label>
+        <textarea id="wizardInputIdea" class="form-control" rows="3" style="font-size:12px;padding:6px 8px;margin-top:2px;line-height:1.4;">${escapeHtml(sc.idea || '')}</textarea>
+      </div>
+    `;
+  }
+
+  function selectWizardScene(sceneId) {
+    const scenes = state.screenplay.scenes || [];
+    const sc = scenes.find(s => s.id === sceneId);
+    if (!sc) return;
+
+    state.wizard.selectedSceneId = sceneId;
+
+    if (el.wizardStepBadge) {
+      el.wizardStepBadge.textContent = t('wizardEditingSceneTitle').replace('{id}', sceneId);
+    }
+
+    renderWizardTimeline();
+    renderWizardSelectedScene(sc);
+
+    if (el.wizardNewCharAlert) el.wizardNewCharAlert.style.display = 'none';
+    if (el.wizardHooksBox) el.wizardHooksBox.style.display = 'none';
+
+    // Show editing actions, hide drafting actions
+    if (el.btnWizardRegenerate) el.btnWizardRegenerate.style.display = 'none';
+    if (el.btnWizardApplyAndNext) el.btnWizardApplyAndNext.style.display = 'none';
+    if (el.btnWizardRecreateScene) el.btnWizardRecreateScene.style.display = 'inline-flex';
+    if (el.btnWizardSaveEdits) el.btnWizardSaveEdits.style.display = 'inline-flex';
+    if (el.btnWizardBackToNext) el.btnWizardBackToNext.style.display = 'inline-flex';
+  }
+
+  function renderWizardSelectedScene(sc) {
+    if (!el.wizardCurrentShotBox || !sc) return;
+    const shotNum = sc.id;
+    const charsVal = Array.isArray(sc.characters) ? sc.characters.join(', ') : (sc.characters || '');
+
+    el.wizardCurrentShotBox.innerHTML = `
+      <div class="wizard-editing-badge">${escapeHtml(t('wizardEditingSceneTitle').replace('{id}', shotNum))}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:8px;margin-top:8px;">
+        <span style="font-size:13px;font-weight:700;color:var(--accent-gold);">🎬 Shot #${shotNum}</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <label style="font-size:11px;color:var(--text-dim);">Dauer:</label>
+          <input type="number" id="wizardInputDur" min="3" max="15" value="${sc.duration || 6}" style="width:60px;padding:3px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--accent-cyan);font-weight:700;font-size:12px;">
+          <span style="font-size:11px;color:var(--text-muted);">${escapeHtml(t('secondsUnit'))}</span>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;">Sequenz:</label>
+          <input type="text" id="wizardInputSeq" value="${escapeHtml(sc.sequence || '')}" class="form-control" style="font-size:12px;padding:6px 8px;margin-top:2px;">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;">Ort / Location:</label>
+          <input type="text" id="wizardInputLoc" value="${escapeHtml(sc.location || '')}" class="form-control" style="font-size:12px;padding:6px 8px;margin-top:2px;">
+        </div>
+      </div>
+
+      <div style="margin-top:8px;">
+        <label style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;">Charaktere im Shot:</label>
+        <input type="text" id="wizardInputChars" value="${escapeHtml(charsVal)}" class="form-control" style="font-size:12px;padding:6px 8px;margin-top:2px;" placeholder="z.B. Maya, Stone">
+      </div>
+
+      <div style="margin-top:8px;">
+        <label style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;">Handlungs- & Regieprompt:</label>
+        <textarea id="wizardInputIdea" class="form-control" rows="3" style="font-size:12px;padding:6px 8px;margin-top:2px;line-height:1.4;">${escapeHtml(sc.idea || '')}</textarea>
+      </div>
+    `;
+  }
+
+  function returnToDraftingNextScene() {
+    state.wizard.selectedSceneId = null;
+
+    if (el.wizardStepBadge) {
+      el.wizardStepBadge.textContent = t('wizardStepBadge').replace('{step}', state.wizard.currentStepIndex);
+    }
+
+    // Restore buttons
+    if (el.btnWizardRegenerate) el.btnWizardRegenerate.style.display = 'inline-flex';
+    if (el.btnWizardApplyAndNext) el.btnWizardApplyAndNext.style.display = 'inline-flex';
+    if (el.btnWizardRecreateScene) el.btnWizardRecreateScene.style.display = 'none';
+    if (el.btnWizardSaveEdits) el.btnWizardSaveEdits.style.display = 'none';
+    if (el.btnWizardBackToNext) el.btnWizardBackToNext.style.display = 'none';
+
+    renderWizardTimeline();
+    renderWizardCurrentShot();
+    renderWizardNewCharsAlert();
+    renderWizardHooks();
+  }
+
+  function saveCurrentWizardSceneEdits() {
+    if (!state.wizard.selectedSceneId) return;
+    const sceneId = state.wizard.selectedSceneId;
+    const sc = (state.screenplay.scenes || []).find(s => s.id === sceneId);
+    if (!sc) return;
+
+    const seqInput = document.getElementById('wizardInputSeq');
+    const locInput = document.getElementById('wizardInputLoc');
+    const durInput = document.getElementById('wizardInputDur');
+    const charsInput = document.getElementById('wizardInputChars');
+    const ideaInput = document.getElementById('wizardInputIdea');
+
+    if (seqInput) sc.sequence = seqInput.value.trim();
+    if (locInput) sc.location = locInput.value.trim();
+    if (durInput) sc.duration = parseInt(durInput.value, 10) || 6;
+    if (charsInput) sc.characters = charsInput.value.split(',').map(s => s.trim()).filter(Boolean);
+    if (ideaInput) sc.idea = ideaInput.value.trim();
+
+    markDirty();
+    renderScenes();
+    updateStats();
+    renderJsonPreview();
+    renderWizardTimeline();
+
+    showToast(t('wizardSceneSavedToast').replace('{id}', sceneId), 'success');
+  }
+
+  async function recreateCurrentWizardScene() {
+    if (!state.wizard.selectedSceneId) return;
+    const targetId = state.wizard.selectedSceneId;
+    const customInstruction = el.wizardUserInstruction ? el.wizardUserInstruction.value.trim() : '';
+
+    if (el.btnWizardRecreateScene) {
+      el.btnWizardRecreateScene.disabled = true;
+      el.btnWizardRecreateScene.innerHTML = `<span class="ai-loading-spinner"></span> <span>${escapeHtml(t('aiThinking'))}</span>`;
+    }
+    if (el.btnWizardSaveEdits) el.btnWizardSaveEdits.disabled = true;
+    if (el.btnWizardBackToNext) el.btnWizardBackToNext.disabled = true;
+
+    try {
+      const res = await API.generateLlm('wizard_step_scene', {
+        premise: state.wizard.premise || state.screenplay.description,
+        producer_instructions: state.wizard.producerInstructions || state.screenplay.producer_instructions || '',
+        max_shot_duration: state.wizard.maxDuration,
+        max_tokens: state.wizard.maxTokens,
+        user_instruction: customInstruction,
+        target_scene_id: targetId,
+        screenplay: state.screenplay
+      });
+
+      if (!res || !res.success || !res.scene) {
+        showToast(res && res.error ? res.error : 'Fehler beim Neugenerieren der Szene', 'error');
+        return;
+      }
+
+      const idx = (state.screenplay.scenes || []).findIndex(s => s.id === targetId);
+      if (idx !== -1) {
+        state.screenplay.scenes[idx] = {
+          ...state.screenplay.scenes[idx],
+          ...res.scene,
+          id: targetId
+        };
+      }
+
+      // Add new characters if discovered during recreation
+      const newChars = res.new_characters || [];
+      if (newChars.length > 0) {
+        if (!state.screenplay.characters) state.screenplay.characters = [];
+        newChars.forEach(nc => {
+          const exists = state.screenplay.characters.some(c => (c.name || '').toLowerCase() === (nc.name || '').toLowerCase());
+          if (!exists) {
+            const nextCharId = state.screenplay.characters.reduce((max, c) => Math.max(max, c.id || 0), 0) + 1;
+            state.screenplay.characters.push({
+              id: nextCharId,
+              name: nc.name,
+              model: nc.model || 'anima_cyberrealistic',
+              loras: nc.loras || [],
+              description: nc.description || '',
+              charakter_prompt: nc.charakter_prompt || ''
+            });
+          }
+        });
+        renderCharacters();
+      }
+
+      const updatedScene = state.screenplay.scenes[idx];
+      renderWizardSelectedScene(updatedScene);
+      renderWizardTimeline();
+      markDirty();
+      renderScenes();
+      updateStats();
+      renderJsonPreview();
+
+      if (el.wizardUserInstruction) el.wizardUserInstruction.value = '';
+      showToast(t('wizardSceneRecreatedToast').replace('{id}', targetId), 'success');
+    } catch (err) {
+      showToast(err.message || t('aiErrorOffline'), 'error');
+    } finally {
+      if (el.btnWizardRecreateScene) {
+        el.btnWizardRecreateScene.disabled = false;
+        el.btnWizardRecreateScene.innerHTML = `<span data-i18n="btnWizardRecreateScene">${escapeHtml(t('btnWizardRecreateScene'))}</span>`;
+      }
+      if (el.btnWizardSaveEdits) el.btnWizardSaveEdits.disabled = false;
+      if (el.btnWizardBackToNext) el.btnWizardBackToNext.disabled = false;
+    }
+  }
+
+  function renderWizardNewCharsAlert() {
+    if (!el.wizardNewCharAlert) return;
+    const newChars = state.wizard.currentNewChars || [];
+    if (newChars.length === 0) {
+      el.wizardNewCharAlert.style.display = 'none';
+      return;
+    }
+    let html = `
+      <div style="font-size:12px;font-weight:700;color:var(--accent-gold);margin-bottom:4px;">
+        ✨ ${escapeHtml(t('wizardNewCharsFound'))}
+      </div>
+      <div class="new-chars-list">
+    `;
+    newChars.forEach(c => {
+      html += `
+        <div class="new-char-chip">
+          <div>
+            <strong>${escapeHtml(c.name)}</strong>
+            <span style="color:var(--text-muted);font-size:11px;margin-left:6px;">${escapeHtml(c.description || '')}</span>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <span style="font-size:11px;color:var(--accent-cyan);background:rgba(56,189,248,0.15);padding:2px 6px;border-radius:4px;">${escapeHtml(c.model || 'Model')}</span>
+            ${(c.loras && c.loras.length) ? `<span style="font-size:10px;color:var(--text-dim);">${escapeHtml(c.loras.join(', '))}</span>` : ''}
+          </div>
+        </div>
+      `;
+    });
+    html += `</div>`;
+    el.wizardNewCharAlert.innerHTML = html;
+    el.wizardNewCharAlert.style.display = 'block';
+  }
+
+  function renderWizardHooks() {
+    if (!el.wizardHooksBox || !el.wizardHooksList) return;
+    const hooks = state.wizard.hooks || [];
+    if (hooks.length === 0) {
+      el.wizardHooksBox.style.display = 'none';
+      return;
+    }
+    let html = '';
+    hooks.forEach(h => {
+      html += `<span class="hook-chip" title="Klicken, um als Regie-Hinweis zu nutzen">💡 ${escapeHtml(h)}</span>`;
+    });
+    el.wizardHooksList.innerHTML = html;
+    el.wizardHooksBox.style.display = 'block';
+
+    // Click on hook chip fills it into wizardUserInstruction
+    el.wizardHooksList.querySelectorAll('.hook-chip').forEach((chip, i) => {
+      chip.addEventListener('click', () => {
+        if (el.wizardUserInstruction) {
+          el.wizardUserInstruction.value = hooks[i];
+          el.wizardUserInstruction.focus();
+        }
+      });
+    });
+  }
+
+  function applyWizardStepAndNext() {
+    if (!state.wizard.currentScene) return;
+
+    // Read modified values from inputs if user edited them
+    const seqInput = document.getElementById('wizardInputSeq');
+    const locInput = document.getElementById('wizardInputLoc');
+    const durInput = document.getElementById('wizardInputDur');
+    const charsInput = document.getElementById('wizardInputChars');
+    const ideaInput = document.getElementById('wizardInputIdea');
+
+    const sequence = seqInput ? seqInput.value.trim() : state.wizard.currentScene.sequence;
+    const location = locInput ? locInput.value.trim() : state.wizard.currentScene.location;
+    const duration = durInput ? parseInt(durInput.value, 10) : state.wizard.currentScene.duration;
+    const idea = ideaInput ? ideaInput.value.trim() : state.wizard.currentScene.idea;
+
+    let chars = state.wizard.currentScene.characters || [];
+    if (charsInput) {
+      chars = charsInput.value.split(',').map(s => s.trim()).filter(Boolean);
+    }
+
+    if (!state.screenplay.scenes) state.screenplay.scenes = [];
+    if (!state.screenplay.characters) state.screenplay.characters = [];
+
+    // Add new characters from this step if any
+    const newChars = state.wizard.currentNewChars || [];
+    newChars.forEach(nc => {
+      const exists = state.screenplay.characters.some(c => (c.name || '').toLowerCase() === (nc.name || '').toLowerCase());
+      if (!exists) {
+        const nextCharId = state.screenplay.characters.reduce((max, c) => Math.max(max, c.id || 0), 0) + 1;
+        state.screenplay.characters.push({
+          id: nextCharId,
+          name: nc.name,
+          model: nc.model || 'anima_cyberrealistic',
+          loras: nc.loras || [],
+          description: nc.description || '',
+          charakter_prompt: nc.charakter_prompt || ''
+        });
+      }
+    });
+
+    const newShotId = state.screenplay.scenes.length + 1;
+    state.screenplay.scenes.push({
+      id: newShotId,
+      sequence: sequence || `Sequenz ${newShotId}`,
+      location: location || 'Set',
+      duration: duration || 6,
+      characters: chars,
+      idea: idea,
+      same_scene: Boolean(state.wizard.currentScene.same_scene),
+      match_cut: Boolean(state.wizard.currentScene.match_cut),
+      variables_update: state.wizard.currentScene.variables_update || {}
+    });
+
+    markDirty();
+    renderCharacters();
+    renderScenes();
+    updateStats();
+    renderJsonPreview();
+
+    showToast(`Shot #${newShotId} angelegt!`, 'success');
+
+    // Proceed to next step: pass user instruction if typed
+    const nextInstruction = el.wizardUserInstruction ? el.wizardUserInstruction.value.trim() : '';
+    if (el.wizardUserInstruction) el.wizardUserInstruction.value = '';
+
+    generateNextWizardStep(nextInstruction);
+  }
+
+  async function finishStoryWizard() {
+    closeStoryWizardModal();
+    const count = (state.screenplay.scenes || []).length;
+    showToast(t('wizardFinishedToast').replace('{count}', count), 'success');
+    if (count > 0) {
+      showToast(t('wizardFinishingHarmonizing'), 'info');
+      await handleHarmonizeScreenplay(false);
+    }
+  }
+
+  // --- Holistic Screenplay Harmonizer ---
+  async function handleHarmonizeScreenplay(silent = false) {
+    const btn = el.btnHarmonizeScript;
+    if (!state.screenplay || !Array.isArray(state.screenplay.scenes) || state.screenplay.scenes.length === 0) {
+      if (!silent) showToast(t('noScenes'), 'info');
+      return;
+    }
+
+    try {
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="ai-loading-spinner"></span> <span>${escapeHtml(t('harmonizingScript'))}</span>`;
+      }
+      if (!silent) {
+        showToast(t('harmonizingScript'), 'info');
+      }
+
+      const res = await API.generateLlm('harmonize_screenplay', {
+        screenplay: state.screenplay
+      });
+
+      if (!res || !res.success || !res.harmonized_screenplay) {
+        throw new Error(res && res.error ? res.error : 'Harmonisierung fehlgeschlagen');
+      }
+
+      const harm = res.harmonized_screenplay;
+      if (harm.variables && typeof harm.variables === 'object') {
+        state.screenplay.variables = harm.variables;
+      }
+      if (Array.isArray(harm.scenes) && harm.scenes.length > 0) {
+        state.screenplay.scenes = harm.scenes;
+      }
+
+      renderVariables();
+      renderScenes();
+      updateStats();
+      renderJsonPreview();
+      markDirty();
+
+      showToast(t('scriptHarmonizedSuccess'), 'success');
+    } catch (err) {
+      console.error('Harmonize error:', err);
+      if (!silent) {
+        showToast(err.message || t('aiErrorOffline'), 'error');
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<span>✨</span> <span data-i18n="btnHarmonizeScript">${escapeHtml(t('btnHarmonizeScript'))}</span>`;
+      }
+    }
+  }
+
   // --- Setup Event Listeners ---
   function setupEventListeners() {
     // Project Select
@@ -2059,6 +3115,72 @@
     if (el.btnCloseAiModal) el.btnCloseAiModal.addEventListener('click', closeAiModal);
     if (el.btnDiscardAiModal) el.btnDiscardAiModal.addEventListener('click', closeAiModal);
     if (el.btnApplyAiModal) el.btnApplyAiModal.addEventListener('click', applyPendingAiScene);
+
+    // Story Generator Events
+    if (el.btnStoryGenerator) el.btnStoryGenerator.addEventListener('click', openStoryGeneratorModal);
+    if (el.btnCloseStoryGenModal) el.btnCloseStoryGenModal.addEventListener('click', closeStoryGeneratorModal);
+    if (el.btnCancelStoryGen) el.btnCancelStoryGen.addEventListener('click', closeStoryGeneratorModal);
+    if (el.btnExecuteStoryGen) el.btnExecuteStoryGen.addEventListener('click', executeStoryGenerator);
+    if (el.btnApplyStoryGen) el.btnApplyStoryGen.addEventListener('click', applyStoryGeneratorResults);
+    if (el.storyGenMaxDuration) {
+      el.storyGenMaxDuration.addEventListener('input', () => {
+        if (el.storyGenMaxDurationVal) el.storyGenMaxDurationVal.textContent = `${el.storyGenMaxDuration.value}s`;
+      });
+    }
+    if (el.storyGenMaxTokens) {
+      el.storyGenMaxTokens.addEventListener('input', () => {
+        const val = parseInt(el.storyGenMaxTokens.value, 10).toLocaleString();
+        if (el.storyGenMaxTokensVal) el.storyGenMaxTokensVal.textContent = val;
+      });
+    }
+
+    // Story Wizard Events
+    if (el.btnStoryWizard) el.btnStoryWizard.addEventListener('click', openStoryWizardModal);
+    if (el.btnCloseWizardModal) el.btnCloseWizardModal.addEventListener('click', closeStoryWizardModal);
+    if (el.btnWizardFinish) el.btnWizardFinish.addEventListener('click', finishStoryWizard);
+    if (el.btnWizardStart) el.btnWizardStart.addEventListener('click', startStoryWizardFromSetup);
+    if (el.btnWizardRegenerate) el.btnWizardRegenerate.addEventListener('click', () => {
+      const instr = el.wizardUserInstruction ? el.wizardUserInstruction.value.trim() : '';
+      generateNextWizardStep(instr);
+    });
+    if (el.btnWizardApplyAndNext) el.btnWizardApplyAndNext.addEventListener('click', applyWizardStepAndNext);
+    if (el.btnWizardSaveEdits) el.btnWizardSaveEdits.addEventListener('click', saveCurrentWizardSceneEdits);
+    if (el.btnWizardRecreateScene) el.btnWizardRecreateScene.addEventListener('click', recreateCurrentWizardScene);
+    if (el.btnWizardBackToNext) el.btnWizardBackToNext.addEventListener('click', returnToDraftingNextScene);
+    if (el.wizardInteractiveProducerInstructions) {
+      el.wizardInteractiveProducerInstructions.addEventListener('input', () => {
+        const val = el.wizardInteractiveProducerInstructions.value.trim();
+        state.wizard.producerInstructions = val;
+        state.screenplay.producer_instructions = val;
+        if (el.wizardProducerInstructions) el.wizardProducerInstructions.value = val;
+        markDirty();
+      });
+    }
+    if (el.wizardProducerInstructions) {
+      el.wizardProducerInstructions.addEventListener('input', () => {
+        const val = el.wizardProducerInstructions.value.trim();
+        state.wizard.producerInstructions = val;
+        state.screenplay.producer_instructions = val;
+        if (el.wizardInteractiveProducerInstructions) el.wizardInteractiveProducerInstructions.value = val;
+        markDirty();
+      });
+    }
+    if (el.wizardMaxDuration) {
+      el.wizardMaxDuration.addEventListener('input', () => {
+        if (el.wizardMaxDurationVal) el.wizardMaxDurationVal.textContent = `${el.wizardMaxDuration.value}s`;
+      });
+    }
+    if (el.wizardMaxTokens) {
+      el.wizardMaxTokens.addEventListener('input', () => {
+        const val = parseInt(el.wizardMaxTokens.value, 10).toLocaleString();
+        if (el.wizardMaxTokensVal) el.wizardMaxTokensVal.textContent = val;
+      });
+    }
+
+    // Harmonize Screenplay Button
+    if (el.btnHarmonizeScript) {
+      el.btnHarmonizeScript.addEventListener('click', () => handleHarmonizeScreenplay(false));
+    }
 
     // Keyboard Shortcuts (Ctrl+S to save)
     window.addEventListener('keydown', (e) => {

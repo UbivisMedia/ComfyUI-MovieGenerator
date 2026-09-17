@@ -13,6 +13,8 @@ import urllib.request
 import webbrowser
 import threading
 import re
+import base64
+import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # Set terminal UTF-8 encoding on Windows
@@ -145,7 +147,7 @@ def check_lm_studio_status():
         }
 
 
-def call_lm_studio(messages, temperature=0.7, max_tokens=5000):
+def call_lm_studio(messages, temperature=0.7, max_tokens=5000, timeout=None):
     """Sends a chat completion request to the LM Studio Local Server."""
     cfg = get_lm_studio_config()
 
@@ -169,7 +171,10 @@ def call_lm_studio(messages, temperature=0.7, max_tokens=5000):
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"}
     )
-    with urllib.request.urlopen(req, timeout=180) as resp:
+    if timeout is None:
+        timeout = max(180, int(max_tokens * 0.05))
+
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         res = json.loads(resp.read().decode("utf-8"))
         msg = res["choices"][0]["message"]
         content = (msg.get("content") or "").strip()
@@ -294,6 +299,22 @@ def clean_elaborated_prompt(text, fallback_idea, characters=None):
     and no non_diegetic_music clutter."""
     comps = extract_elaborated_components(text, fallback_idea=fallback_idea)
     return comps["detailed_description"]
+
+
+def get_llm_wisdom():
+    """Loads the consolidated, token-optimized LLM wisdom and screenwriting rules from prompts/llm_wisdom.md."""
+    wisdom_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prompts", "llm_wisdom.md")
+    if os.path.exists(wisdom_path):
+        try:
+            with open(wisdom_path, "r", encoding="utf-8") as f:
+                return f.read().strip()
+        except Exception as e:
+            logger.warning(f"Failed to read prompts/llm_wisdom.md: {e}")
+    return """# MOVIEGENERATOR RULES:
+1. VARIABLES: Root 'variables' are permanent and persistent. On scenes, 'variables_update' is strictly a DELTA (changes only). If no change occurs, 'variables_update': {} must be EMPTY!
+2. GRANULAR WARDROBE: Use <char>_top, <char>_bottom, <char>_shoes, <char>_accessory.
+3. MINIMAX TAGGING: Always use '<Subject X> (Name)' in 'idea'.
+4. WHITELIST: Use only installed models and LoRAs."""
 
 
 def load_screenplay_docs_knowledge():
@@ -672,14 +693,17 @@ Key Scenes:
 Existing Variables: {json.dumps(existing_vars)}
 
 Task:
-Extract up to 3 truly essential recurring props, iconic character outfits, or primary locations repeatedly mentioned in the story above.
+Extract up to 3 truly essential recurring props or granular character wardrobe variables (<char>_top, <char>_bottom, <char>_shoes) mentioned in the story above.
 STRICT RULES:
 1. ONLY extract items EXPLICITLY mentioned in the scenes or storyline above.
-2. Do NOT invent hypothetical items, sci-fi gadgets, or accessories not found in the text.
-3. If no recurring props or outfits exist, return an empty JSON object: {{}}
-4. Return ONLY valid JSON mapping variable_name to description, e.g.:
+2. For character clothing, use granular body parts: '<name>_top', '<name>_bottom', '<name>_shoes'.
+3. Do NOT invent hypothetical items, sci-fi gadgets, or accessories not found in the text.
+4. If no recurring props or outfits exist, return an empty JSON object: {{}}
+5. Return ONLY valid JSON mapping variable_name to description, e.g.:
 {{
-  "outfit_hero": "worn dark leather jacket"
+  "hero_top": "worn dark leather jacket",
+  "hero_bottom": "rugged blue denim jeans",
+  "hero_shoes": "black combat boots"
 }}"""
 
     try:
@@ -745,6 +769,717 @@ GUIDELINES:
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+
+def get_t2i_catalog_summary():
+    """Returns available image models and top LoRA presets for LLM prompt context."""
+    presets_data = get_presets_data()
+    presets_dict = presets_data.get("presets", {})
+    loras_dict = presets_data.get("lora_presets", {})
+
+    models = []
+    valid_model_keys = list(presets_dict.keys())
+    for k, v in presets_dict.items():
+        desc = v.get("beschreibung", "") or k
+        models.append(f"- '{k}': {desc}")
+
+    loras = []
+    valid_lora_keys = list(loras_dict.keys())
+
+    # Categorize top LoRAs for clarity
+    detail_loras = ["realskin", "anima_detailer", "il_detailer", "anima_masterpiece", "anima_eop_realism", "anima_semi_realistic"]
+    style_loras = ["portrait_myth", "dark_lines", "anima_smooth_lines", "anima_background_art", "krea_cinematic", "krea_vintage"]
+    motion_loras = ["mmh3_combat_v2", "mmh3_poly_perfect", "mmh3_nafasp_natural", "mmh3_cinematic_movie", "mmh3_digicam_realism"]
+
+    curated_keys = []
+    for group in [detail_loras, style_loras, motion_loras]:
+        for k in group:
+            if k in loras_dict and k not in curated_keys:
+                curated_keys.append(k)
+
+    # Add other top LoRAs up to 25
+    for k in valid_lora_keys:
+        if k not in curated_keys and len(curated_keys) < 28:
+            curated_keys.append(k)
+
+    for k in curated_keys:
+        desc = loras_dict.get(k, {}).get("beschreibung", "") or k
+        loras.append(f"- '{k}': {desc}")
+
+    default_model = presets_data.get("default", "anima_cyberrealistic")
+    if default_model not in valid_model_keys and valid_model_keys:
+        default_model = valid_model_keys[0]
+
+    return "\n".join(models), valid_model_keys, "\n".join(loras), valid_lora_keys, default_model
+
+
+def format_character_bindings(characters):
+    """Formats character list with exact <Subject X> IDs according to SCREENPLAY_SPEC.md.
+    Returns char_bindings_text, char_names, id_map, dominant_model."""
+    lines = []
+    names = []
+    id_map = {}
+    dominant_model = None
+
+    for idx, c in enumerate(characters):
+        if not isinstance(c, dict):
+            c = {"name": str(c), "id": idx + 1}
+        c_id = c.get("id") or (idx + 1)
+        c_name = c.get("name") or f"Character_{c_id}"
+        c_desc = c.get("description") or c.get("beschreibung") or ""
+        c_model = c.get("model") or c.get("modell") or ""
+        c_loras = c.get("loras") or []
+        if c_model and not dominant_model:
+            dominant_model = c_model
+
+        lora_str = f", LoRAs: {c_loras}" if c_loras else ""
+        lines.append(f"- <Subject {c_id}> ({c_name}): ID {c_id}, Model: '{c_model or 'default'}'{lora_str}. Notes: {c_desc}")
+        names.append(c_name)
+        id_map[c_name.lower()] = c_id
+
+    char_text = "\n".join(lines) if lines else "None (cast is currently empty)."
+    return char_text, names, id_map, dominant_model
+
+
+def sanitize_character_definition(c, valid_model_keys, valid_lora_keys, fallback_model):
+    """Strictly validates and sanitizes a newly generated character against local presets."""
+    name = str(c.get("name") or "").strip()
+    desc = str(c.get("description") or "").strip()
+
+    # Model: Strictly enforce valid model key
+    raw_model = str(c.get("model") or "").strip().lower()
+    chosen_model = fallback_model
+    for vm in valid_model_keys:
+        if raw_model == vm.lower() or vm.lower() in raw_model:
+            chosen_model = vm
+            break
+
+    # LoRAs: Strictly filter out any non-existent LoRA
+    raw_loras = c.get("loras") if isinstance(c.get("loras"), list) else []
+    cleaned_loras = []
+    for l in raw_loras:
+        l_str = str(l if isinstance(l, str) else l.get("name", "")).strip()
+        for vl in valid_lora_keys:
+            if l_str.lower() == vl.lower():
+                if vl not in cleaned_loras:
+                    cleaned_loras.append(vl)
+                break
+
+    # Prompt: Ensure clean neutral portrait prompt
+    prompt = str(c.get("charakter_prompt") or c.get("prompt") or "").strip()
+    if not prompt:
+        prompt = f"masterpiece, best quality, photographic portrait of {name}, solo, full body shot, looking at viewer, simple background, soft studio lighting"
+
+    return {
+        "name": name,
+        "description": desc,
+        "model": chosen_model,
+        "loras": cleaned_loras,
+        "charakter_prompt": prompt
+    }
+
+
+def extract_json_object(raw_text):
+    """Helper to cleanly extract a JSON dict or array from LLM responses even with markdown noise."""
+    if not raw_text:
+        return None
+    raw_clean = re.sub(r'^```[a-zA-Z]*\n?', '', raw_text.strip())
+    raw_clean = re.sub(r'\n?```$', '', raw_clean.strip())
+    try:
+        parsed = json.loads(raw_clean)
+        if isinstance(parsed, list):
+            return {"scenes": parsed}
+        return parsed
+    except Exception:
+        pass
+
+    json_match = re.search(r'(\{[\s\S]*\})', raw_clean)
+    if json_match:
+        try:
+            return json.loads(json_match.group(1))
+        except Exception:
+            pass
+
+    array_match = re.search(r'(\[[\s\S]*\])', raw_clean)
+    if array_match:
+        try:
+            arr = json.loads(array_match.group(1))
+            return {"scenes": arr}
+        except Exception:
+            pass
+    return None
+
+
+def ai_generate_story_scenes(payload):
+    """Decomposes a detailed storyline into a sequence of cinematic shots respecting max_shot_duration.
+    Enforces Minimax <Subject X> tags, auto-casts new characters using ONLY installed presets,
+    and initializes/interpolates variables and variables_update."""
+    storyline = (payload.get("storyline") or payload.get("description") or "").strip()
+    if not storyline:
+        return {"success": False, "error": "Keine Storyline angegeben. Bitte gib eine Handlung ein."}
+
+    sp = payload.get("screenplay") or {}
+    title = sp.get("title") or payload.get("title") or "Film"
+    try:
+        max_shot_duration = int(payload.get("max_shot_duration") or 6)
+    except (ValueError, TypeError):
+        max_shot_duration = 6
+    max_shot_duration = max(3, min(20, max_shot_duration))
+
+    try:
+        max_tokens = int(payload.get("max_tokens") or 6000)
+    except (ValueError, TypeError):
+        max_tokens = 6000
+    max_tokens = max(1000, min(32000, max_tokens))
+
+    try:
+        temperature = float(payload.get("temperature") or 0.7)
+    except (ValueError, TypeError):
+        temperature = 0.7
+
+    mode = payload.get("mode") or "append"
+
+    existing_chars = sp.get("characters") or payload.get("characters") or []
+    existing_scenes = sp.get("scenes") or payload.get("scenes") or []
+    existing_vars = sp.get("variables") or payload.get("variables") or {}
+
+    # Format character bindings (<Subject X>)
+    chars_text, char_names, char_id_map, dominant_model = format_character_bindings(existing_chars)
+
+    preceding_lines = []
+    if mode == "append":
+        for idx, s in enumerate(existing_scenes[-6:]):
+            s_id = s.get("id", idx + 1)
+            s_seq = s.get("sequence", "")
+            s_loc = s.get("location", "")
+            s_idea = (s.get("idea", "") or "")[:120]
+            preceding_lines.append(f"Shot #{s_id} [{s_seq} - {s_loc}]: {s_idea}")
+    preceding_text = "\n".join(preceding_lines) if preceding_lines else "None (starting fresh)."
+
+    models_summary, valid_models, loras_summary, valid_loras, default_model = get_t2i_catalog_summary()
+    preferred_model = dominant_model or default_model
+    wisdom_rules = get_llm_wisdom()
+
+    prompt = f"""You are an expert movie director and prompt engineer for AI film generation (Minimax / ComfyUI).
+Convert the provided storyline into a continuous sequence of cinematic shots following MovieGenerator rules.
+
+{wisdom_rules}
+
+AVAILABLE T2I MODELS (USE ONLY THESE):
+{models_summary}
+
+AVAILABLE TOP LORAS (USE ONLY THESE):
+{loras_summary}
+
+Movie Title: {title}
+Storyline:
+\"\"\"{storyline}\"\"\"
+
+Existing Cast (<Subject X> Bindings):
+{chars_text}
+
+Preceding Shots:
+{preceding_text}
+
+Existing Variables:
+{json.dumps(existing_vars)}
+
+REQUIRED JSON STRUCTURE:
+{{
+  "initial_variables": {{
+    "hero_top": "worn dark leather jacket over grey shirt",
+    "hero_bottom": "rugged blue denim jeans",
+    "hero_shoes": "black combat boots"
+  }},
+  "new_characters": [
+    {{
+      "name": "Character Name",
+      "description": "Visual details and role",
+      "model": "{preferred_model}",
+      "loras": ["realskin"],
+      "charakter_prompt": "masterpiece, best quality, 1man/1girl, age, solo, simple background..."
+    }}
+  ],
+  "scenes": [
+    {{
+      "sequence": "Sequence Name",
+      "location": "Location setting",
+      "duration": {min(6, max_shot_duration)},
+      "characters": ["Name of character in shot"],
+      "idea": "<Subject 1> (CharacterName) in {{hero_top}} and {{hero_bottom}} performs cinematic action...",
+      "same_scene": false,
+      "variables_update": {{}}
+    }}
+  ]
+}}"""
+
+    try:
+        raw_out = call_lm_studio([{"role": "user", "content": prompt}], temperature=temperature, max_tokens=max_tokens)
+        parsed = extract_json_object(raw_out)
+        if not parsed or not isinstance(parsed, dict):
+            return {"success": False, "error": "Story-Generator konnte kein gültiges JSON erzeugen.", "raw": raw_out[:1000]}
+
+        new_vars = parsed.get("initial_variables") or {}
+        cleaned_chars = []
+        for c in parsed.get("new_characters", []):
+            if not isinstance(c, dict) or not c.get("name"):
+                continue
+            cleaned_chars.append(sanitize_character_definition(c, valid_models, valid_loras, preferred_model))
+
+        # Build full character ID map (existing + new)
+        full_id_map = dict(char_id_map)
+        start_char_id = len(existing_chars) + 1
+        for idx, nc in enumerate(cleaned_chars):
+            full_id_map[nc["name"].lower()] = start_char_id + idx
+
+        # Cumulative running variables for delta tracking
+        running_vars = dict(new_vars) if isinstance(new_vars, dict) else {}
+        for k, v in existing_vars.items():
+            if k not in running_vars:
+                running_vars[k] = v
+
+        raw_scenes = parsed.get("scenes", [])
+        # Normalize and validate scenes, enforcing <Subject X> tags
+        cleaned_scenes = []
+        for s in raw_scenes:
+            if not isinstance(s, dict):
+                continue
+            dur = s.get("duration") or s.get("dauer") or 6
+            try:
+                dur_int = int(dur)
+            except Exception:
+                dur_int = 6
+            dur_int = max(3, min(max_shot_duration, dur_int))
+
+            chars = s.get("characters") or []
+            if isinstance(chars, str):
+                chars = [chars] if chars.strip() else []
+
+            raw_idea = str(s.get("idea") or s.get("idee") or s.get("prompt") or "").strip()
+
+            # Ensure <Subject X> tags are present in idea for referenced characters
+            for c_name_raw in chars:
+                c_key = c_name_raw.strip().lower()
+                if c_key in full_id_map:
+                    cid = full_id_map[c_key]
+                    subj_tag = f"<Subject {cid}>"
+                    # If subject tag not in idea, replace character name with '<Subject X> (Name)'
+                    if subj_tag not in raw_idea:
+                        raw_idea = re.sub(rf'\b{re.escape(c_name_raw)}\b', f"{subj_tag} ({c_name_raw})", raw_idea, count=1, flags=re.IGNORECASE)
+
+            # Delta-only variables_update: remove any keys that merely repeat existing running values
+            raw_upd = s.get("variables_update") if isinstance(s.get("variables_update"), dict) else {}
+            clean_upd = {}
+            for uk, uv in raw_upd.items():
+                if str(running_vars.get(uk, "")).strip() != str(uv).strip():
+                    clean_upd[uk] = uv
+                    running_vars[uk] = uv
+
+            cleaned_scenes.append({
+                "sequence": str(s.get("sequence") or s.get("sequenz") or "Sequenz").strip(),
+                "location": str(s.get("location") or s.get("ort") or "Set").strip(),
+                "duration": dur_int,
+                "characters": chars,
+                "idea": raw_idea,
+                "same_scene": bool(s.get("same_scene")),
+                "match_cut": bool(s.get("match_cut")),
+                "variables_update": clean_upd
+            })
+
+        return {
+            "success": True,
+            "scenes": cleaned_scenes,
+            "new_characters": cleaned_chars,
+            "new_variables": new_vars if isinstance(new_vars, dict) else {},
+            "count": len(cleaned_scenes)
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def ai_wizard_step_scene(payload):
+    """Proposes the next logical scene in an interactive wizard session, or recreates an existing
+    intermediate scene with full bi-directional continuity (bridging preceding and following shots).
+    Enforces Minimax <Subject X> tags, producer instructions/style, and strict local model/LoRA presets."""
+    premise = (payload.get("premise") or payload.get("storyline") or payload.get("description") or "").strip()
+    if not premise:
+        return {"success": False, "error": "Keine Grundidee / Prämisse angegeben."}
+
+    sp = payload.get("screenplay") or {}
+    title = sp.get("title") or payload.get("title") or "Film"
+    producer_instructions = (payload.get("producer_instructions") or sp.get("producer_instructions") or "").strip()
+
+    try:
+        max_shot_duration = int(payload.get("max_shot_duration") or 6)
+    except (ValueError, TypeError):
+        max_shot_duration = 6
+    max_shot_duration = max(3, min(20, max_shot_duration))
+
+    try:
+        max_tokens = int(payload.get("max_tokens") or 4000)
+    except (ValueError, TypeError):
+        max_tokens = 4000
+
+    user_instruction = (payload.get("user_instruction") or "").strip()
+
+    existing_chars = sp.get("characters") or payload.get("characters") or []
+    existing_scenes = sp.get("scenes") or payload.get("scenes") or []
+    existing_vars = sp.get("variables") or payload.get("variables") or {}
+
+    # Check if we are recreating a specific existing scene or appending a new one
+    target_scene_id = payload.get("target_scene_id")
+    target_idx = None
+    if target_scene_id is not None:
+        try:
+            t_id_int = int(target_scene_id)
+            for idx, s in enumerate(existing_scenes):
+                if int(s.get("id", idx + 1)) == t_id_int:
+                    target_idx = idx
+                    break
+        except (ValueError, TypeError):
+            pass
+
+    is_rewriting = (target_idx is not None)
+    target_shot_number = int(existing_scenes[target_idx].get("id", target_idx + 1)) if is_rewriting else (len(existing_scenes) + 1)
+
+    # Format character bindings (<Subject X>)
+    chars_text, char_names, char_id_map, dominant_model = format_character_bindings(existing_chars)
+
+    # 1. Resolve cumulative active variables entering this shot
+    active_vars = dict(existing_vars)
+    prior_scenes = existing_scenes[:target_idx] if is_rewriting else existing_scenes
+    for ps in prior_scenes:
+        ps_upd = ps.get("variables_update") or ps.get("variablen_update") or {}
+        if isinstance(ps_upd, str) and ps_upd.strip():
+            try:
+                ps_upd = json.loads(ps_upd)
+            except Exception:
+                pass
+        if isinstance(ps_upd, dict):
+            active_vars.update(ps_upd)
+
+    # Build Preceding and Following Scene Context with state change history
+    if is_rewriting:
+        preceding = []
+        for s in existing_scenes[max(0, target_idx - 5):target_idx]:
+            s_id = s.get("id", "")
+            s_seq = s.get("sequence", "")
+            s_loc = s.get("location", "")
+            s_idea = (s.get("idea", "") or "").strip()
+            s_upd = s.get("variables_update") or s.get("variablen_update") or {}
+            upd_note = f" [State Changes: {json.dumps(s_upd)}]" if (isinstance(s_upd, dict) and s_upd) else ""
+            preceding.append(f"Shot #{s_id} [{s_seq} - {s_loc}]: {s_idea}{upd_note}")
+        preceding_str = "\n".join(preceding) if preceding else "None (this is the first shot of the film)."
+
+        following = []
+        for s in existing_scenes[target_idx + 1:target_idx + 6]:
+            s_id = s.get("id", "")
+            s_seq = s.get("sequence", "")
+            s_loc = s.get("location", "")
+            s_idea = (s.get("idea", "") or "").strip()
+            s_upd = s.get("variables_update") or s.get("variablen_update") or {}
+            upd_note = f" [State Changes: {json.dumps(s_upd)}]" if (isinstance(s_upd, dict) and s_upd) else ""
+            following.append(f"Shot #{s_id} [{s_seq} - {s_loc}]: {s_idea}{upd_note}")
+        following_str = "\n".join(following) if following else "None (this was the last shot in the current screenplay)."
+
+        task_title = f"REWRITE / RECREATE SHOT #{target_shot_number}"
+        continuity_section = f"""CRITICAL BI-DIRECTIONAL CONTINUITY RULES:
+You are REWRITING Shot #{target_shot_number}.
+This shot MUST logically and stylistically connect the preceding shots to the already existing following shots!
+Do NOT break continuity with what happens afterwards in the following shots.
+
+Preceding Shots (Leading up to this shot):
+{preceding_str}
+
+Following Shots (What happens AFTER this shot in the film):
+{following_str}"""
+    else:
+        preceding = []
+        for idx, s in enumerate(existing_scenes[-6:]):
+            s_id = s.get("id", idx + 1)
+            s_seq = s.get("sequence", "")
+            s_loc = s.get("location", "")
+            s_idea = (s.get("idea", "") or "").strip()
+            s_upd = s.get("variables_update") or s.get("variablen_update") or {}
+            upd_note = f" [State Changes: {json.dumps(s_upd)}]" if (isinstance(s_upd, dict) and s_upd) else ""
+            preceding.append(f"Shot #{s_id} [{s_seq} - {s_loc}]: {s_idea}{upd_note}")
+        preceding_str = "\n".join(preceding) if preceding else "Opening shot of the film."
+
+        task_title = f"PROPOSE NEXT SHOT (SHOT #{target_shot_number})"
+        continuity_section = f"""Story So Far (Preceding Shots):
+{preceding_str}"""
+
+    models_summary, valid_models, loras_summary, valid_loras, default_model = get_t2i_catalog_summary()
+    preferred_model = dominant_model or default_model
+    wisdom_rules = get_llm_wisdom()
+
+    producer_block = f"""\nPRODUCER INSTRUCTIONS & FILM STYLE (GENRE, LOOK, TONE, PACING):
+\"{producer_instructions}\"
+You MUST strictly follow these producer instructions regarding genre, visual aesthetic, atmosphere, lighting, camera framing, and pace!\n""" if producer_instructions else ""
+
+    user_note = f"\nUser's Specific Direction / Note for this Step:\n\"{user_instruction}\"" if user_instruction else ""
+
+    prompt = f"""You are an interactive AI movie director and screenwriter for MovieGenerator (Minimax / ComfyUI).
+Task: {task_title} in this interactive Story Wizard.
+
+{wisdom_rules}
+
+AVAILABLE T2I MODELS (USE ONLY THESE):
+{models_summary}
+
+AVAILABLE TOP LORAS (USE ONLY THESE):
+{loras_summary}
+
+Movie Title: {title}
+Core Premise: \"{premise}\"{producer_block}
+
+Existing Cast (<Subject X> Bindings):
+{chars_text}
+
+Current Active State of Characters & Props entering this Shot (Cumulative):
+{json.dumps(active_vars, indent=2, ensure_ascii=False)}
+(CRITICAL: If an outfit item was removed/undressed in prior shots, respect the active state above! NEVER describe characters wearing clothes they already took off!)
+
+{continuity_section}
+{user_note}
+
+REQUIRED JSON STRUCTURE:
+{{
+  "scene": {{
+    "sequence": "Sequence Title",
+    "location": "Location Setting",
+    "duration": {min(6, max_shot_duration)},
+    "characters": ["{char_names[0] if char_names else 'Hero'}"],
+    "idea": "Cinematic shot description with varied opening. DO NOT robotically start with '<Subject 1> in her outfit' if already undressed or continuous.",
+    "same_scene": false,
+    "variables_update": {{}}
+  }},
+  "new_characters": [],
+  "next_hooks": [
+    "Option 1 for next step",
+    "Option 2 for next step"
+  ]
+}}"""
+
+    try:
+        raw_out = call_lm_studio([{"role": "user", "content": prompt}], temperature=0.7, max_tokens=max_tokens)
+        parsed = extract_json_object(raw_out)
+        if not parsed or not isinstance(parsed, dict):
+            return {
+                "success": False,
+                "error": "Wizard-Antwort konnte nicht als gültiges JSON verarbeitet werden.",
+                "raw": raw_out[:1000]
+            }
+
+        sc = parsed.get("scene") or parsed
+        dur = sc.get("duration") or sc.get("dauer") or 6
+        try:
+            dur_int = int(dur)
+        except Exception:
+            dur_int = 6
+        dur_int = max(3, min(max_shot_duration, dur_int))
+
+        chars = sc.get("characters") or []
+        if isinstance(chars, str):
+            chars = [chars] if chars.strip() else []
+
+        # Sanitize new characters against strict whitelist
+        cleaned_chars = []
+        for c in parsed.get("new_characters", []):
+            if not isinstance(c, dict) or not c.get("name"):
+                continue
+            cleaned_chars.append(sanitize_character_definition(c, valid_models, valid_loras, preferred_model))
+
+        # Build full character ID map
+        full_id_map = dict(char_id_map)
+        start_char_id = len(existing_chars) + 1
+        for idx, nc in enumerate(cleaned_chars):
+            full_id_map[nc["name"].lower()] = start_char_id + idx
+
+        raw_idea = str(sc.get("idea") or sc.get("idee") or sc.get("prompt") or "").strip()
+
+        # Enforce <Subject X> tags in idea
+        for c_name_raw in chars:
+            c_key = c_name_raw.strip().lower()
+            if c_key in full_id_map:
+                cid = full_id_map[c_key]
+                subj_tag = f"<Subject {cid}>"
+                if subj_tag not in raw_idea:
+                    raw_idea = re.sub(rf'\b{re.escape(c_name_raw)}\b', f"{subj_tag} ({c_name_raw})", raw_idea, count=1, flags=re.IGNORECASE)
+
+        default_seq = existing_scenes[target_idx].get("sequence") if is_rewriting else f"Sequenz #{target_shot_number}"
+        default_loc = existing_scenes[target_idx].get("location") if is_rewriting else "Set"
+
+        # Delta-only variables_update: eliminate any repeated unchanged variables against cumulative active_vars
+        raw_var_upd = sc.get("variables_update") if isinstance(sc.get("variables_update"), dict) else {}
+        clean_var_upd = {}
+        for vk, vv in raw_var_upd.items():
+            if str(active_vars.get(vk, "")).strip() != str(vv).strip():
+                clean_var_upd[vk] = vv
+
+        cleaned_scene = {
+            "id": target_shot_number,
+            "sequence": str(sc.get("sequence") or sc.get("sequenz") or default_seq).strip(),
+            "location": str(sc.get("location") or sc.get("ort") or default_loc).strip(),
+            "duration": dur_int,
+            "characters": chars,
+            "idea": raw_idea,
+            "same_scene": bool(sc.get("same_scene")),
+            "match_cut": bool(sc.get("match_cut")),
+            "variables_update": clean_var_upd
+        }
+
+        hooks = parsed.get("next_hooks", [])
+        if not isinstance(hooks, list):
+            hooks = []
+
+        return {
+            "success": True,
+            "scene": cleaned_scene,
+            "new_characters": cleaned_chars,
+            "next_hooks": [str(h) for h in hooks if h],
+            "step_index": target_shot_number,
+            "is_recreated": is_rewriting
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def ai_harmonize_screenplay(payload):
+    """Holistic screenplay harmonizer:
+    1. Ensures baseline variables exist for each character's outfit ('outfit_<name>') and central story props.
+    2. Enforces <Subject X> (CharacterName) tags across all scenes.
+    3. Replaces static wardrobe descriptions with {outfit_<name>} placeholders.
+    4. Analyzes scenes where outfits or items change state and inserts correct 'variables_update' entries."""
+    sp = payload.get("screenplay") or payload
+    title = sp.get("title") or payload.get("title") or "Film"
+    description = sp.get("description") or payload.get("description") or ""
+    characters = sp.get("characters") or []
+    scenes = sp.get("scenes") or []
+    existing_vars = sp.get("variables") or {}
+
+    if not scenes and not characters:
+        return {"success": False, "error": "Keine Szenen oder Charaktere zum Harmonisieren vorhanden."}
+
+    chars_text, char_names, char_id_map, _ = format_character_bindings(characters)
+
+    scenes_dump = []
+    for s in scenes:
+        scenes_dump.append({
+            "id": s.get("id"),
+            "sequence": s.get("sequence", ""),
+            "location": s.get("location", ""),
+            "duration": s.get("duration", 6),
+            "characters": s.get("characters", []),
+            "idea": s.get("idea", ""),
+            "variables_update": s.get("variables_update", {})
+        })
+
+    wisdom_rules = get_llm_wisdom()
+
+    prompt = f"""You are a master screenplay continuity editor and technical supervisor for MovieGenerator (Minimax / ComfyUI).
+Your task is to harmonize and polish this complete screenplay to achieve 100% compliance with MovieGenerator guidelines.
+
+{wisdom_rules}
+
+TASKS:
+1. GRANULAR CHARACTER WARDROBE BASELINES (Root 'variables'):
+   For EVERY character in the cast, decompose their wardrobe into granular body-part variables:
+   - '<char>_top': Upper body (jacket, shirt, coat, armor)
+   - '<char>_bottom': Lower body (pants, cargo trousers, jeans, skirt)
+   - '<char>_shoes': Footwear (combat boots, sneakers, shoes)
+   - Optional '<char>_accessory': Notable distinct accessories (sunglasses, hat, gloves, holster)
+   If legacy 'outfit_<char>' exists, decompose it into these clean body-region variables!
+   Preserve essential story props (e.g. 'briefcase_status', 'data_chip').
+   DO NOT create variables for general scenery, weather, or generic room lighting!
+2. MINIMAX SUBJECT TAGGING:
+   In EVERY scene 'idea', ensure characters are referred to using '<Subject X> (CharacterName)' based on their character ID!
+   Example: '<Subject 1> (Maya) enters the corridor in her {{maya_top}} and {{maya_bottom}}...'
+3. DYNAMIC VARIABLE PLACEHOLDERS:
+   Use '{{variable_name}}' (e.g. '{{maya_top}}', '{{maya_bottom}}', '{{scanner}}') in the scene descriptions instead of hardcoding static clothing.
+4. STRICT DELTA TRACKING (VARIABLES_UPDATE):
+   - Whenever a character explicitly changes a specific piece of clothing, undresses, gets injured, or an item changes state:
+     Output ONLY the modified variable in 'variables_update' on THAT specific scene!
+     Example: If Maya takes off her jacket in Scene 3, output: "variables_update": {{"maya_top": "dark grey shirt (jacket removed)"}}.
+     Do NOT re-list her unchanged pants or boots!
+   - If NO clothing or item change occurs in a scene: "variables_update": {{}} MUST be an EMPTY object!
+   - NEVER repeat unchanged variables across scenes!
+
+Existing Cast (<Subject X> IDs):
+{chars_text}
+
+Current Variables:
+{json.dumps(existing_vars)}
+
+Current Scenes:
+{json.dumps(scenes_dump, indent=2, ensure_ascii=False)}
+
+Return ONLY a single valid JSON object in this exact format:
+{{
+  "variables": {{
+    "maya_top": "dark tactical vest over black combat shirt",
+    "maya_bottom": "black cargo utility pants",
+    "maya_shoes": "heavy combat boots",
+    "goggles": "resting around neck"
+  }},
+  "scenes": [
+    {{
+      "id": 1,
+      "sequence": "Sequence Name",
+      "location": "Location",
+      "duration": 6,
+      "characters": ["Maya"],
+      "idea": "<Subject 1> (Maya) steps through the door in her {{maya_top}} and {{maya_bottom}}...",
+      "same_scene": false,
+      "variables_update": {{}}
+    }}
+  ]
+}}"""
+
+    try:
+        raw_out = call_lm_studio([{"role": "user", "content": prompt}], temperature=0.4, max_tokens=8000)
+        parsed = extract_json_object(raw_out)
+        if not parsed or not isinstance(parsed, dict):
+            return {"success": False, "error": "Harmonisierung fehlgeschlagen: Kein gültiges JSON erhalten."}
+
+        res_vars = parsed.get("variables")
+        if not isinstance(res_vars, dict):
+            res_vars = dict(existing_vars)
+
+        res_scenes = parsed.get("scenes")
+        if not isinstance(res_scenes, list) or len(res_scenes) == 0:
+            res_scenes = scenes
+
+        # Re-merge with original scene metadata & clean redundant variables_update
+        running_vars = dict(res_vars)
+        updated_scenes = []
+        for idx, orig in enumerate(scenes):
+            upd = res_scenes[idx] if idx < len(res_scenes) and isinstance(res_scenes[idx], dict) else orig
+            merged = dict(orig)
+            merged["idea"] = upd.get("idea") or orig.get("idea", "")
+            if "sequence" in upd and upd["sequence"]:
+                merged["sequence"] = upd["sequence"]
+            if "location" in upd and upd["location"]:
+                merged["location"] = upd["location"]
+
+            raw_upd = upd.get("variables_update") if isinstance(upd.get("variables_update"), dict) else {}
+            clean_upd = {}
+            for k, v in raw_upd.items():
+                if str(running_vars.get(k, "")).strip() != str(v).strip():
+                    clean_upd[k] = v
+                    running_vars[k] = v
+            merged["variables_update"] = clean_upd
+            updated_scenes.append(merged)
+
+        return {
+            "success": True,
+            "variables": res_vars,
+            "scenes": updated_scenes,
+            "message": "Drehbuch erfolgreich mit Variablen und Minimax-Tags harmonisiert."
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 def normalize_screenplay_data(data, filename=""):
     """Normalizes legacy screenplay JSON schemas (e.g. German keys 'charaktere', 'szenen',
     'dauer_sekunden', 'idee', 'anschluss_an_vorherige_szene') into the current standard format."""
@@ -759,6 +1494,7 @@ def normalize_screenplay_data(data, filename=""):
     default_title = os.path.splitext(os.path.basename(filename))[0].replace("_", " ").title() if filename else "Untitled Film"
     norm["title"] = data.get("title") or data.get("titel") or default_title
     norm["description"] = data.get("description") or data.get("beschreibung") or ""
+    norm["producer_instructions"] = data.get("producer_instructions") or data.get("produzenten_anweisung") or data.get("film_style") or ""
 
     # Variables
     norm["variables"] = data.get("variables") or data.get("variablen") or {}
@@ -819,6 +1555,14 @@ def normalize_screenplay_data(data, filename=""):
             char_entry["reference_character"] = c["reference_character"]
         if "denoise" in c:
             char_entry["denoise"] = c["denoise"]
+        if "image" in c:
+            char_entry["image"] = c["image"]
+        elif "bild" in c:
+            char_entry["image"] = c["bild"]
+        elif "reference_image" in c:
+            char_entry["image"] = c["reference_image"]
+        if "image_url" in c:
+            char_entry["image_url"] = c["image_url"]
 
         norm_chars.append(char_entry)
     norm["characters"] = norm_chars
@@ -1035,6 +1779,19 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
                 with open(target_path, "r", encoding="utf-8") as f:
                     content = json.load(f)
                 normalized, converted = normalize_screenplay_data(content, filename=safe_name)
+
+                # Check if character images exist on disk in Projects/<safe_project>/Characters/<char_safe>.png
+                proj_base = os.path.splitext(safe_name)[0]
+                chars_dir = os.path.join(PROJECTS_DIR, proj_base, "Characters")
+                for c in normalized.get("characters", []):
+                    c_name = c.get("name", "")
+                    if c_name:
+                        c_safe = re.sub(r'[\\/*?:"<>| ]', '_', c_name)
+                        c_png = os.path.join(chars_dir, f"{c_safe}.png")
+                        if os.path.exists(c_png):
+                            c["image"] = f"Characters/{c_safe}.png"
+                            c["image_url"] = f"/api/characters/image?project={urllib.parse.quote(proj_base)}&name={urllib.parse.quote(c_safe)}&t={int(os.path.getmtime(c_png))}"
+
                 self.send_json({
                     "file": safe_name,
                     "data": normalized,
@@ -1042,6 +1799,42 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
                 })
             except Exception as e:
                 self.send_error_json(f"Fehler beim Lesen der Datei: {e}", status=500)
+            return
+
+        # -------------------------------------------------------------
+        # GET /api/characters/image (Serve character reference portrait)
+        # -------------------------------------------------------------
+        if path == "/api/characters/image":
+            project_param = query.get("project", [""])[0].strip()
+            name_param = query.get("name", [""])[0].strip()
+            if not project_param or not name_param:
+                self.send_error(400, "Parameter 'project' und 'name' erforderlich")
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            safe_name = re.sub(r'[\\/*?:"<>| ]', '_', os.path.basename(name_param))
+            if not safe_name.lower().endswith(".png"):
+                safe_name += ".png"
+
+            img_path = os.path.join(PROJECTS_DIR, safe_project, "Characters", safe_name)
+            if not os.path.exists(img_path):
+                img_path = os.path.join(PROJECTS_DIR, "Characters", safe_name)
+
+            if not os.path.exists(img_path):
+                self.send_error(404, "Charakterbild nicht gefunden")
+                return
+
+            try:
+                with open(img_path, "rb") as f:
+                    content = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png")
+                self.send_header("Content-Length", str(len(content)))
+                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                self.end_headers()
+                self.wfile.write(content)
+            except Exception as e:
+                self.send_error(500, f"Fehler beim Laden des Bildes: {e}")
             return
 
         # -------------------------------------------------------------
@@ -1168,9 +1961,108 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
                 res = ai_optimize_character_prompt(payload)
                 self.send_json(res, status=200)
                 return
+            elif task == "generate_story_scenes":
+                res = ai_generate_story_scenes(payload)
+                self.send_json(res, status=200)
+                return
+            elif task == "wizard_step_scene":
+                res = ai_wizard_step_scene(payload)
+                self.send_json(res, status=200)
+                return
+            elif task == "harmonize_screenplay":
+                res = ai_harmonize_screenplay(payload)
+                self.send_json(res, status=200)
+                return
             else:
                 self.send_error_json(f"Unbekannte KI-Aufgabe '{task}'")
                 return
+
+        # -------------------------------------------------------------
+        # POST /api/characters/upload_image (Upload & Remove BG)
+        # -------------------------------------------------------------
+        if path == "/api/characters/upload_image":
+            project_param = payload.get("project", "").strip()
+            char_name = payload.get("name", "").strip()
+            image_b64 = payload.get("image_base64", "").strip()
+            remove_bg = bool(payload.get("remove_background", True))
+
+            if not project_param or not char_name or not image_b64:
+                self.send_error_json("Parameter 'project', 'name' und 'image_base64' erforderlich", status=400)
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            safe_char = re.sub(r'[\\/*?:"<>| ]', '_', char_name)
+
+            if "," in image_b64:
+                image_b64 = image_b64.split(",", 1)[1]
+
+            try:
+                img_bytes = base64.b64decode(image_b64)
+            except Exception as e:
+                self.send_error_json(f"Ungültige Base64-Bilddaten: {e}", status=400)
+                return
+
+            # Perform background removal if requested
+            if remove_bg:
+                try:
+                    from rembg import remove
+                    print(f"✂️ [RemBG] Entferne Hintergrund für Charakter '{char_name}'...")
+                    img_bytes = remove(img_bytes)
+                    print("✅ [RemBG] Hintergrund erfolgreich entfernt!")
+                except Exception as re_err:
+                    print(f"⚠️ [RemBG] Warnung: Hintergrundentfernung fehlgeschlagen ({re_err}), verwende Originalbild.")
+
+            target_dir = os.path.join(PROJECTS_DIR, safe_project, "Characters")
+            os.makedirs(target_dir, exist_ok=True)
+
+            target_filename = f"{safe_char}.png"
+            target_file = os.path.join(target_dir, target_filename)
+
+            try:
+                with open(target_file, "wb") as f:
+                    f.write(img_bytes)
+
+                timestamp = int(time.time())
+                image_url = f"/api/characters/image?project={urllib.parse.quote(safe_project)}&name={urllib.parse.quote(safe_char)}&t={timestamp}"
+                rel_path = f"Characters/{target_filename}"
+
+                self.send_json({
+                    "success": True,
+                    "filename": target_filename,
+                    "relative_path": rel_path,
+                    "image_url": image_url,
+                    "message": f"Referenzbild für '{char_name}' erfolgreich gespeichert."
+                })
+            except Exception as e:
+                self.send_error_json(f"Fehler beim Speichern des Bildes: {e}", status=500)
+            return
+
+        # -------------------------------------------------------------
+        # POST /api/characters/delete_image
+        # -------------------------------------------------------------
+        if path == "/api/characters/delete_image":
+            project_param = payload.get("project", "").strip()
+            char_name = payload.get("name", "").strip()
+            if not project_param or not char_name:
+                self.send_error_json("Parameter 'project' und 'name' erforderlich", status=400)
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            safe_char = re.sub(r'[\\/*?:"<>| ]', '_', char_name)
+            target_file = os.path.join(PROJECTS_DIR, safe_project, "Characters", f"{safe_char}.png")
+
+            if os.path.exists(target_file):
+                try:
+                    os.remove(target_file)
+                except Exception as e:
+                    self.send_error_json(f"Fehler beim Löschen des Bildes: {e}", status=500)
+                    return
+
+            self.send_json({
+                "success": True,
+                "message": f"Referenzbild für '{char_name}' gelöscht."
+            })
+            return
 
         # -------------------------------------------------------------
         # POST /api/rescan_catalog (Re-scan models & LoRAs)

@@ -95,7 +95,10 @@
       <section class="sidebar-section">
         <div class="section-header">
           <h2 class="section-title" data-i18n="sectionVariables">🏷️ Globale Variablen</h2>
-          <div style="display:flex;gap:4px;">
+          <div style="display:flex;gap:4px;flex-wrap:wrap;">
+            <button id="btnHarmonizeScript" class="btn btn-secondary btn-xs" data-i18n-title="btnHarmonizeScriptTitle" title="Outfits, Requisiten und Minimax-Tags für das gesamte Drehbuch automatisch abstimmen">
+              <span>✨</span> <span data-i18n="btnHarmonizeScript">Harmonisieren</span>
+            </button>
             <button id="btnAiExtractVars" class="btn btn-ai-magic btn-xs" data-i18n-title="btnAiExtractVarsTitle" title="Requisiten & Outfits mit KI aus der Storyline extrahieren">
               <span class="ai-sparkle">🪄</span> <span data-i18n="btnAiExtractVars">Extrahieren</span>
             </button>
@@ -175,10 +178,16 @@
             <span class="tab-subheading" data-i18n="subheadingScenes">Gestalte die filmische Reihenfolge, Kameraanschlüsse und Handlungen.</span>
           </div>
           <div class="tab-actions-right" style="display:flex;gap:8px;">
-            <button id="btnAiSuggestScene" class="btn btn-ai-magic" data-i18n-title="btnAiSuggestSceneTitle" title="Nächste Szene mit KI brainstormen">
+            <button id="btnStoryWizard" class="btn btn-secondary btn-sm" data-i18n-title="btnStoryWizardTitle" title="Schritt für Schritt interaktiv die Story entwickeln">
+              <span>🧙‍♂️</span> <span data-i18n="btnStoryWizard">Story-Wizard</span>
+            </button>
+            <button id="btnStoryGenerator" class="btn btn-ai-magic btn-sm" data-i18n-title="btnStoryGeneratorTitle" title="Komplette Szenensequenz aus einer Storyline generieren">
+              <span class="ai-sparkle">📖</span> <span data-i18n="btnStoryGenerator">Story-Generator</span>
+            </button>
+            <button id="btnAiSuggestScene" class="btn btn-ghost btn-sm" data-i18n-title="btnAiSuggestSceneTitle" title="Nächste Szene mit KI brainstormen">
               <span class="ai-sparkle">🪄</span> <span data-i18n="btnAiSuggestScene">Szene vorschlagen</span>
             </button>
-            <button id="btnAddScene" class="btn btn-primary">
+            <button id="btnAddScene" class="btn btn-primary btn-sm">
               <span>➕</span> <span data-i18n="btnAddScene">Szene hinzufügen</span>
             </button>
           </div>
@@ -275,6 +284,175 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" id="btnDiscardAiModal" data-i18n="btnDiscard">Verwerfen</button>
         <button class="btn btn-primary" id="btnApplyAiModal" data-i18n="btnApplySuggestion">Ins Storyboard übernehmen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Story Generator Modal -->
+  <div id="storyGeneratorModal" class="modal-backdrop">
+    <div class="modal-dialog modal-dialog-lg">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" data-i18n="storyGeneratorModalTitle">📖 KI-Story-Generator</h3>
+          <p class="modal-subtitle" data-i18n="storyGeneratorSubtitle" style="font-size:12px;color:var(--text-muted);margin-top:2px;">Zerlege eine Storyline automatisch in filmische Einzelszenen mit definierter Shot-Länge & Auto-Casting.</p>
+        </div>
+        <button class="modal-close" id="btnCloseStoryGenModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="storyGenPlot" data-i18n="storylineInputLabel">Storyline & Handlung</label>
+          <textarea id="storyGenPlot" class="form-control" rows="4" data-i18n-placeholder="storylineInputPlaceholder" placeholder="Beschreibe die Handlung, die in Szenen und Shots zerlegt werden soll..."></textarea>
+        </div>
+
+        <div class="generator-controls-grid">
+          <div class="form-group">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <label for="storyGenMaxDuration" data-i18n="maxShotDurationLabel">Maximale Shot-Länge:</label>
+              <span id="storyGenMaxDurationVal" class="badge-value">6s</span>
+            </div>
+            <input type="range" id="storyGenMaxDuration" min="3" max="15" step="1" value="6" class="range-slider">
+          </div>
+
+          <div class="form-group">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <label for="storyGenMaxTokens" data-i18n="maxTokensLabel">Max. Tokens (Budget):</label>
+              <span id="storyGenMaxTokensVal" class="badge-value">6.000</span>
+            </div>
+            <input type="range" id="storyGenMaxTokens" min="2000" max="16000" step="1000" value="6000" class="range-slider">
+          </div>
+
+          <div class="form-group">
+            <label data-i18n="generatorModeLabel">Modus:</label>
+            <div class="radio-toggle-group">
+              <label class="radio-label">
+                <input type="radio" name="storyGenMode" value="append" checked>
+                <span data-i18n="modeAppend">Anhängen</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="storyGenMode" value="replace">
+                <span data-i18n="modeReplace">Ersetzen</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;display:flex;justify-content:flex-end;">
+          <button id="btnExecuteStoryGen" class="btn btn-ai-magic">
+            <span class="ai-sparkle">⚡</span> <span data-i18n="btnGenerateShots">Szenen & Shots generieren</span>
+          </button>
+        </div>
+
+        <!-- Generated Preview Container -->
+        <div id="storyGenPreviewContainer" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
+          <!-- New Characters Alert/Badge Box if any -->
+          <div id="storyGenNewCharsBox" style="display:none;margin-bottom:12px;" class="new-chars-alert-box"></div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <h4 style="font-size:13px;font-weight:600;color:var(--text);" data-i18n="storyShotsPreviewTitle">Generierte Shots:</h4>
+            <span id="storyGenSummaryBadge" class="summary-pill">0 Shots • 0s</span>
+          </div>
+          <div id="storyGenShotsList" class="story-preview-shots-list"></div>
+        </div>
+      </div>
+      <div class="modal-footer" id="storyGenFooter" style="display:none;">
+        <button class="btn btn-secondary" id="btnCancelStoryGen" data-i18n="btnDiscard">Verwerfen</button>
+        <button class="btn btn-primary" id="btnApplyStoryGen" data-i18n="btnApplyStoryShots">In Drehbuch übernehmen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Story Wizard Modal -->
+  <div id="storyWizardModal" class="modal-backdrop">
+    <div class="modal-dialog modal-dialog-lg">
+      <div class="modal-header">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <h3 class="modal-title" data-i18n="storyWizardModalTitle">🧙‍♂️ Interaktiver Story-Wizard</h3>
+          <span id="wizardStepBadge" class="wizard-step-pill">Schritt 1</span>
+        </div>
+        <button class="modal-close" id="btnCloseWizardModal">✕</button>
+      </div>
+      <div class="modal-body" id="wizardModalBody">
+        <!-- Setup Screen (Initial Step) -->
+        <div id="wizardSetupView">
+          <div class="form-group">
+            <label for="wizardPremiseInput" data-i18n="wizardPremiseLabel">Grundidee des Films:</label>
+            <textarea id="wizardPremiseInput" class="form-control" rows="3" data-i18n-placeholder="wizardPremisePlaceholder" placeholder="Worum geht es in deinem Film? Gib eine Ausgangsidee vor..."></textarea>
+          </div>
+          <div class="form-group" style="margin-top:10px;">
+            <label for="wizardProducerInstructions" data-i18n="wizardProducerInstructionsLabel">Produzenten-Anweisung & Filmstil (Genre, Look, Tempo):</label>
+            <textarea id="wizardProducerInstructions" class="form-control" rows="2" data-i18n-placeholder="wizardProducerInstructionsPlaceholder" placeholder="z.B. 'Cyberpunk Neo-Noir, düstere Gassen mit Neon-Reflexionen im Regen, langsamer Spannungsaufbau, Blade Runner 2049 Ästhetik'..."></textarea>
+          </div>
+          <div class="generator-controls-grid" style="margin-top:10px;">
+            <div class="form-group">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <label for="wizardMaxDuration" data-i18n="maxShotDurationLabel">Maximale Shot-Länge:</label>
+                <span id="wizardMaxDurationVal" class="badge-value">6s</span>
+              </div>
+              <input type="range" id="wizardMaxDuration" min="3" max="15" step="1" value="6" class="range-slider">
+            </div>
+            <div class="form-group">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <label for="wizardMaxTokens" data-i18n="maxTokensLabel">Max. Tokens:</label>
+                <span id="wizardMaxTokensVal" class="badge-value">4.000</span>
+              </div>
+              <input type="range" id="wizardMaxTokens" min="2000" max="8000" step="1000" value="4000" class="range-slider">
+            </div>
+          </div>
+          <div style="margin-top:16px;display:flex;justify-content:flex-end;">
+            <button id="btnWizardStart" class="btn btn-primary">
+              <span>🚀</span> <span>Erste Szene brainstormen</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Step-by-step Interactive View -->
+        <div id="wizardInteractiveView" style="display:none;">
+          <!-- Collapsible Producer Instructions Bar -->
+          <details class="wizard-producer-details" id="wizardProducerDetails">
+            <summary style="font-size:11px;font-weight:700;color:var(--accent-gold);cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;">
+              <span data-i18n="wizardProducerToggleLabel">🎬 Produzenten-Anweisung & Filmstil anpassen</span>
+            </summary>
+            <textarea id="wizardInteractiveProducerInstructions" class="form-control" rows="2" style="font-size:12px;margin-top:6px;line-height:1.4;" data-i18n-placeholder="wizardProducerInstructionsPlaceholder" placeholder="z.B. 'Cyberpunk Neo-Noir, düstere Gassen mit Neon-Reflexionen im Regen, langsamer Spannungsaufbau'..."></textarea>
+          </details>
+
+          <!-- Compact Story Timeline of existing scenes with hint -->
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;margin-bottom:4px;">
+            <span style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;" data-i18n="wizardHistoryLabel">Bisherige Szenen (Verlauf):</span>
+            <span style="font-size:10px;color:var(--text-muted);" data-i18n="wizardTimelineEditHint">Klicke auf eine Szene zum Bearbeiten</span>
+          </div>
+          <div class="wizard-timeline-container" id="wizardTimeline"></div>
+
+          <!-- Current Proposed Shot Card -->
+          <div class="wizard-shot-card" id="wizardCurrentShotBox">
+            <!-- Dynamically rendered proposed scene form -->
+          </div>
+
+          <!-- New Character Discovered in this step (if any) -->
+          <div id="wizardNewCharAlert" style="display:none;margin-top:10px;" class="new-chars-alert-box"></div>
+
+          <!-- Direction & Prompt Guidance for this step -->
+          <div class="form-group" style="margin-top:12px;">
+            <label for="wizardUserInstruction" data-i18n="wizardUserPromptLabel">Regie-Hinweis für diesen Shot (optional):</label>
+            <input type="text" id="wizardUserInstruction" class="form-control" data-i18n-placeholder="wizardUserPromptPlaceholder" placeholder="z.B. 'Lass die beiden in einen Hinterhalt geraten'...">
+          </div>
+
+          <!-- Suggested next story hooks -->
+          <div id="wizardHooksBox" style="margin-top:10px;display:none;">
+            <label style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;" data-i18n="wizardHooksLabel">Mögliche Fortsetzungen:</label>
+            <div id="wizardHooksList" class="wizard-hooks-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" id="wizardFooter">
+        <button class="btn btn-danger-outline" id="btnWizardFinish" data-i18n="btnWizardFinish">Wizard beenden 🏁</button>
+        <div style="display:flex;gap:8px;" id="wizardInteractiveActions">
+          <button class="btn btn-secondary" id="btnWizardRegenerate" data-i18n="btnWizardRegenerate">Neu generieren 🔄</button>
+          <button class="btn btn-primary" id="btnWizardApplyAndNext" data-i18n="btnWizardApplyAndNext">Szene anlegen & Weiter ➡️</button>
+          <button class="btn btn-secondary" id="btnWizardRecreateScene" style="display:none;" data-i18n="btnWizardRecreateScene">Szene mit KI neu generieren 🔄</button>
+          <button class="btn btn-primary" id="btnWizardSaveEdits" style="display:none;" data-i18n="btnWizardSaveEdits">Änderungen speichern 💾</button>
+          <button class="btn btn-ghost" id="btnWizardBackToNext" style="display:none;" data-i18n="btnWizardBackToNext">Weiter am Ende ➡️</button>
+        </div>
       </div>
     </div>
   </div>
