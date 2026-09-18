@@ -16,6 +16,7 @@ import re
 import base64
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from version import __version__
 
 # Set terminal UTF-8 encoding on Windows
 if sys.platform == "win32":
@@ -2737,7 +2738,7 @@ def run_script_agency(port=None, host="127.0.0.1", open_browser=True, blocking=T
 
     url = f"http://{host}:{port}/"
     print("\n" + "=" * 60)
-    print("🎬 SCRIPT AGENCY • MovieGenerator Visual Screenplay Studio")
+    print(f"🎬 SCRIPT AGENCY v{__version__} • MovieGenerator Visual Screenplay Studio")
     print(f"👉 Web-Editor läuft unter: {url}")
     print("   [Tipp] Drücke Strg+C im Terminal oder klicke '✕' im Web, um zu beenden.")
     print("=" * 60 + "\n")

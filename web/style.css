@@ -103,6 +103,20 @@ body {
   line-height: 1.2;
 }
 
+.version-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--accent-gold);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  margin-left: 6px;
+  vertical-align: middle;
+  letter-spacing: 0.5px;
+  -webkit-text-fill-color: var(--accent-gold);
+}
+
 .brand-subtitle {
   font-size: 10px;
   color: var(--text-muted);

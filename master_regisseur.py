@@ -20,6 +20,7 @@ if sys.platform == "win32":
 
 from localization import t, init_localization, set_language, get_current_language
 from catalog_builder import build_or_update_catalog
+from version import __version__
 
 # Base directories
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -1675,6 +1676,7 @@ def main():
         screenplay_input = sys.argv[1]
     else:
         # Interactive menu selection or fallback
+        print(f"\n🎬 MovieGenerator v{__version__} • Master Regisseur")
         while True:
             available = [f for f in os.listdir(PROJECTS_DIR) if f.endswith(".json")]
             if available:
