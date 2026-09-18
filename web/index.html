@@ -16,7 +16,7 @@
       <div class="brand">
         <span class="brand-icon">🎬</span>
         <div class="brand-text">
-          <span class="brand-title">SCRIPT AGENCY</span>
+          <span class="brand-title">SCRIPT AGENCY <span class="version-tag">v1.0.0</span></span>
           <span class="brand-subtitle" data-i18n="brandSubtitle">MovieGenerator Visual Screenplay Studio</span>
         </div>
       </div>
@@ -243,6 +243,39 @@
 
         <div id="loraCardsList" class="lora-cards-grid">
           <!-- Dynamically populated LoRA cards -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Base Model Picker Modal -->
+  <div id="modelModal" class="modal-backdrop">
+    <div class="modal-dialog modal-dialog-xl">
+      <div class="modal-header">
+        <h3 class="modal-title" data-i18n="modalModelTitle">🎨 Basis-Modell für Charakter auswählen</h3>
+        <button class="modal-close" id="btnCloseModelModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-search-bar" style="flex-direction:column;align-items:stretch;gap:10px;">
+          <input type="text" id="modelSearchInput" class="form-control" data-i18n-placeholder="placeholderModelSearch" placeholder="Modell suchen (Name, Typ, Stil, Beschreibung)...">
+          <div class="model-filter-tabs" id="modelFilterTabs">
+            <button type="button" class="btn-filter-pill active" data-filter="all" data-i18n="filterAll">Alle</button>
+            <button type="button" class="btn-filter-pill" data-filter="anima">Anima</button>
+            <button type="button" class="btn-filter-pill" data-filter="krea">Krea</button>
+            <button type="button" class="btn-filter-pill" data-filter="sdxl">SDXL</button>
+            <button type="button" class="btn-filter-pill" data-filter="zimage">Z-Image</button>
+            <button type="button" class="btn-filter-pill" data-filter="other" data-i18n="filterOther">Andere</button>
+          </div>
+        </div>
+
+        <div class="model-context-badge">
+          <span data-i18n="charLabel">Charakter:</span> <strong id="modalActiveCharName">-</strong>
+          <span style="margin: 0 8px; opacity: 0.4;">|</span>
+          <span data-i18n="modalCurrentModel">Aktuell gewählt:</span> <strong id="modalCurrentModelKey">-</strong>
+        </div>
+
+        <div id="modelCardsList" class="model-cards-grid">
+          <!-- Dynamically populated Model cards -->
         </div>
       </div>
     </div>

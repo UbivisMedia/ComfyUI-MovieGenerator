@@ -20,6 +20,7 @@ if sys.platform == "win32":
 
 from localization import t, init_localization, set_language, get_current_language
 from catalog_builder import build_or_update_catalog
+from version import __version__
 
 # Base directories
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -887,10 +888,33 @@ def get_workflow_sampling_params(wf):
 
     return steps, sampler, scheduler, cfg, seed
 
-def ask_lm_studio_character(char, screenplay, preset_name, preset):
+def interpolate_variables(text, variables):
+    """Replaces {variable_name} in text with its current value from variables dictionary (whitespace & case tolerant)."""
+    if not text or not variables:
+        return text
+    result = text
+    # Exact replacement
+    for key, val in variables.items():
+        result = result.replace(f"{{{key}}}", str(val))
+    # Case-insensitive & whitespace-tolerant replacement (e.g. { celina_top })
+    for key, val in variables.items():
+        pattern = re.compile(rf"\{{\s*{re.escape(key)}\s*\}}", re.IGNORECASE)
+        result = pattern.sub(str(val), result)
+    return result
+
+
+def ask_lm_studio_character(char, screenplay, preset_name, preset, active_variables=None):
     """Invokes LM Studio to generate the optimal T2I character casting prompt."""
     char_name = char.get("name", "Character")
     existing_prompt = char.get("prompt") or char.get("beschreibung") or char.get("rolle") or char.get("idee") or char.get("description") or ""
+
+    # Interpolate active variables (e.g. {celina_top}) in character prompt / description
+    if active_variables:
+        existing_prompt = interpolate_variables(existing_prompt, active_variables)
+    elif screenplay:
+        root_vars = screenplay.get("variablen") or screenplay.get("variables") or {}
+        if root_vars:
+            existing_prompt = interpolate_variables(existing_prompt, root_vars)
 
     # Check for optional reference character link (bilingual support)
     ref_char_val = (
@@ -973,14 +997,6 @@ GUIDELINES:
         print(t("char_prompt_error", error=e))
         return existing_prompt
 
-def interpolate_variables(text, variables):
-    """Replaces {variable_name} in text with its current value from variables dictionary."""
-    if not text or not variables:
-        return text
-    result = text
-    for key, val in variables.items():
-        result = result.replace(f"{{{key}}}", str(val))
-    return result
 
 def format_state_instruction(characters, active_variables=None, character_states=None):
     """Formats active character wardrobe and environment variables into instructions for the LLM."""
@@ -1660,6 +1676,7 @@ def main():
         screenplay_input = sys.argv[1]
     else:
         # Interactive menu selection or fallback
+        print(f"\n🎬 MovieGenerator v{__version__} • Master Regisseur")
         while True:
             available = [f for f in os.listdir(PROJECTS_DIR) if f.endswith(".json")]
             if available:
@@ -1960,11 +1977,16 @@ def main():
                 if not auto_prompt:
                     print(t("char_keep_manual_prompt", name=char_name))
                     continue
-                if char.get("prompt"):
+                dummy_defaults = [
+                    "a brave protagonist with a determined expression",
+                    "ein mutiger protagonist mit entschlossenem blick"
+                ]
+                existing_p = (char.get("prompt") or "").strip().lower().rstrip(".! ")
+                if existing_p and existing_p not in dummy_defaults:
                     continue
 
                 print(t("char_optimizing_prompt", name=char_name, preset=preset_name))
-                ki_char_prompt = ask_lm_studio_character(char, screenplay, preset_name, preset)
+                ki_char_prompt = ask_lm_studio_character(char, screenplay, preset_name, preset, active_variables=active_variables)
                 char["prompt"] = ki_char_prompt
                 print(t("char_new_prompt", name=char_name, prompt=ki_char_prompt[:90]))
 
@@ -2376,7 +2398,15 @@ def main():
 
                 compatible = l_cfg.get("kompatible_modelle")
                 if compatible and preset_name not in compatible:
-                    print(t("lora_compat_notice", lora=l_name, models=', '.join(compatible), chosen=preset_name))
+                    is_fam_compat = any(
+                        (c.startswith("anima") and preset_name.startswith("anima")) or
+                        (c.startswith("krea") and preset_name.startswith("krea")) or
+                        (c.startswith("sdxl") and (preset_name.startswith("anima") or preset_name.startswith("sdxl"))) or
+                        (c.startswith("zimage") and preset_name.startswith("zimage"))
+                        for c in compatible
+                    )
+                    if not is_fam_compat:
+                        print(t("lora_compat_notice", lora=l_name, models=', '.join(compatible), chosen=preset_name))
             else:
                 real_file = l_name
                 s_model = custom_strength if custom_strength is not None else 1.0
@@ -2405,7 +2435,8 @@ def main():
         wf_t2i["11"]["inputs"]["clip"] = current_clip
         wf_t2i["12"]["inputs"]["clip"] = current_clip
 
-        full_prompt = char["prompt"]
+        raw_char_prompt = char.get("prompt") or char.get("description") or char.get("beschreibung") or ""
+        full_prompt = interpolate_variables(raw_char_prompt, active_variables)
         if extra_trigger_words:
             new_triggers = [tw for tw in extra_trigger_words if tw.lower() not in full_prompt.lower()]
             if new_triggers:

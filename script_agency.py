@@ -16,6 +16,7 @@ import re
 import base64
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from version import __version__
 
 # Set terminal UTF-8 encoding on Windows
 if sys.platform == "win32":
@@ -192,6 +193,59 @@ def get_lora_companion_info(lora_key, lora_name):
     return info
 
 
+_MODEL_COMPANION_CACHE = {}
+
+
+def resolve_model_path(unet_or_ckpt):
+    """Resolves absolute path of a base/diffusion model inside models directory."""
+    models_dir = get_comfy_models_dir()
+    if not models_dir or not unet_or_ckpt:
+        return None
+    norm_name = os.path.normpath(unet_or_ckpt)
+    candidates = [
+        os.path.join(models_dir, "diffusion_models", norm_name),
+        os.path.join(models_dir, "checkpoints", norm_name),
+        os.path.join(models_dir, "unet", norm_name),
+        os.path.join(models_dir, norm_name),
+    ]
+    for cand in candidates:
+        if os.path.exists(cand):
+            return cand
+    # Fallback search inside subdirectories
+    for subdir in ["diffusion_models", "checkpoints", "unet"]:
+        target_dir = os.path.join(models_dir, subdir)
+        if os.path.exists(target_dir):
+            base_fname = os.path.basename(norm_name)
+            for root, _, files in os.walk(target_dir):
+                if base_fname in files:
+                    return os.path.join(root, base_fname)
+    return None
+
+
+def get_model_companion_info(model_key, unet_name):
+    """Returns companion info (media path, preview URL, media type, published date) for a model."""
+    cache_key = f"{model_key}:{unet_name}"
+    if cache_key in _MODEL_COMPANION_CACHE:
+        return _MODEL_COMPANION_CACHE[cache_key]
+
+    m_path = resolve_model_path(unet_name)
+    media_f, m_type, p_date = find_companion_media_and_meta(m_path)
+
+    preview_url = None
+    if media_f and m_type:
+        preview_url = f"/api/models/media?name={urllib.parse.quote(model_key)}"
+
+    info = {
+        "media_file": media_f,
+        "media_type": m_type,
+        "preview_url": preview_url,
+        "published_at": p_date,
+        "has_preview": bool(preview_url)
+    }
+    _MODEL_COMPANION_CACHE[cache_key] = info
+    return info
+
+
 def serve_media_file(handler, file_path, content_type):
     """Serves media file with byte-range and caching support."""
     try:
@@ -271,6 +325,16 @@ def get_presets_data(enrich=True):
                 data = json.load(f)
         except Exception as e:
             print(f"⚠️ Error reading presets: {e}")
+
+    if enrich and "presets" in data and isinstance(data["presets"], dict):
+        for mkey, mval in data["presets"].items():
+            if isinstance(mval, dict):
+                munet = mval.get("unet_name") or mval.get("checkpoint") or ""
+                cinfo = get_model_companion_info(mkey, munet)
+                mval["preview_url"] = cinfo.get("preview_url")
+                mval["media_type"] = cinfo.get("media_type")
+                mval["published_at"] = cinfo.get("published_at")
+                mval["has_preview"] = cinfo.get("has_preview", False)
 
     if enrich and "lora_presets" in data and isinstance(data["lora_presets"], dict):
         for lkey, lval in data["lora_presets"].items():
@@ -923,17 +987,34 @@ STRICT RULES:
         return {"success": False, "error": str(e)}
 
 
+def interpolate_variables(text, variables):
+    """Replaces {variable_name} in text with its current value from variables dictionary (whitespace & case tolerant)."""
+    if not text or not variables:
+        return text
+    result = text
+    # Exact replacement
+    for key, val in variables.items():
+        result = result.replace(f"{{{key}}}", str(val))
+    # Case-insensitive & whitespace-tolerant replacement (e.g. { celina_top })
+    for key, val in variables.items():
+        pattern = re.compile(rf"\{{\s*{re.escape(key)}\s*\}}", re.IGNORECASE)
+        result = pattern.sub(str(val), result)
+    return result
+
+
 def ai_optimize_character_prompt(payload):
     """Optimizes a character description into model-tailored ComfyUI tags."""
     char = payload.get("character", {})
+    variables = payload.get("variables") or {}
     preset_name = payload.get("preset", "anima_catpony")
     title = payload.get("title", "")
     story_desc = payload.get("description", "")
 
     char_name = char.get("name", "Character")
-    char_desc = char.get("description", "")
+    raw_desc = char.get("description") or char.get("beschreibung") or char.get("prompt") or ""
+    char_desc = interpolate_variables(raw_desc, variables)
 
-    presets = get_presets_data()
+    presets = get_presets_data(enrich=False)
     preset_info = presets.get("presets", {}).get(preset_name, {})
     model_desc = preset_info.get("beschreibung", preset_name)
 
@@ -967,6 +1048,255 @@ GUIDELINES:
         return {"success": True, "prompt": clean_prompt}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+def generate_character_portrait_comfy(project_name, char, variables=None, remove_bg=True):
+    """Generates a character casting image using ComfyUI and active model/LoRA presets.
+    Interpolates variables ({celina_top}, etc.) into the character prompt.
+    """
+    settings = load_settings()
+    server_address = settings.get("comfyui", {}).get("server_address", "127.0.0.1:8188")
+
+    # Check ComfyUI server status
+    try:
+        urllib.request.urlopen(f"http://{server_address}/system_stats", timeout=3)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"ComfyUI ist nicht erreichbar ({server_address}). Bitte stelle sicher, dass ComfyUI gestartet ist."
+        }
+
+    # Load workflow_t2i.json
+    wf_path = os.path.join(BASE_DIR, "Workflows", "workflow_t2i.json")
+    if not os.path.exists(wf_path):
+        return {"success": False, "error": "Workflow-Datei 'workflow_t2i.json' nicht gefunden."}
+
+    try:
+        with open(wf_path, "r", encoding="utf-8") as f:
+            wf_t2i = json.load(f)
+    except Exception as e:
+        return {"success": False, "error": f"Fehler beim Laden von workflow_t2i.json: {e}"}
+
+    # Load presets
+    t2i_presets = get_presets_data(enrich=False)
+    preset_name = char.get("model") or char.get("modell") or char.get("preset") or t2i_presets.get("default", "anima_catpony")
+    presets_dict = t2i_presets.get("presets", {})
+    preset = presets_dict.get(preset_name, {})
+
+    if not preset and presets_dict:
+        default_key = t2i_presets.get("default", list(presets_dict.keys())[0])
+        preset_name = default_key
+        preset = presets_dict.get(default_key, {})
+
+    if preset:
+        if "unet_name" in preset and "44" in wf_t2i:
+            wf_t2i["44"]["inputs"]["unet_name"] = preset["unet_name"]
+        if "clip_name" in preset and "45" in wf_t2i:
+            wf_t2i["45"]["inputs"]["clip_name"] = preset["clip_name"]
+        if "clip_type" in preset and "45" in wf_t2i:
+            wf_t2i["45"]["inputs"]["type"] = preset["clip_type"]
+        if "vae_name" in preset and "15" in wf_t2i:
+            wf_t2i["15"]["inputs"]["vae_name"] = preset["vae_name"]
+        if "steps" in preset and "19" in wf_t2i:
+            wf_t2i["19"]["inputs"]["steps"] = preset["steps"]
+        if "cfg" in preset and "19" in wf_t2i:
+            wf_t2i["19"]["inputs"]["cfg"] = preset["cfg"]
+        if "sampler_name" in preset and "19" in wf_t2i:
+            wf_t2i["19"]["inputs"]["sampler_name"] = preset["sampler_name"]
+        if "scheduler" in preset and "19" in wf_t2i:
+            wf_t2i["19"]["inputs"]["scheduler"] = preset["scheduler"]
+        if "aspect_ratio" in preset and "54" in wf_t2i:
+            wf_t2i["54"]["inputs"]["aspect_ratio"] = preset["aspect_ratio"]
+        if "megapixels" in preset and "54" in wf_t2i:
+            wf_t2i["54"]["inputs"]["megapixels"] = preset["megapixels"]
+
+        neg_prompt = char.get("negative_prompt") or preset.get("negative_prompt")
+        if neg_prompt is not None and "12" in wf_t2i:
+            wf_t2i["12"]["inputs"]["text"] = neg_prompt
+
+    # LoRAs
+    char_loras = char.get("loras") or char.get("lora") or []
+    if isinstance(char_loras, (str, dict)):
+        char_loras = [char_loras]
+
+    keys_to_clean = [k for k in list(wf_t2i.keys()) if k.startswith("800")]
+    for k in keys_to_clean:
+        del wf_t2i[k]
+
+    current_model = ["44", 0]
+    current_clip = ["45", 0]
+    extra_trigger_words = []
+    lora_presets_dict = t2i_presets.get("lora_presets", {})
+
+    for l_idx, lora_item in enumerate(char_loras):
+        if isinstance(lora_item, str):
+            l_name = lora_item
+            custom_strength = None
+        elif isinstance(lora_item, dict):
+            l_name = lora_item.get("name") or lora_item.get("lora")
+            custom_strength = lora_item.get("strength")
+        else:
+            continue
+
+        if not l_name:
+            continue
+
+        if l_name in lora_presets_dict:
+            l_cfg = lora_presets_dict[l_name]
+            real_file = l_cfg.get("lora_name", l_name)
+            s_model = custom_strength if custom_strength is not None else l_cfg.get("strength_model", 1.0)
+            s_clip = custom_strength if custom_strength is not None else l_cfg.get("strength_clip", s_model)
+            triggers = l_cfg.get("trigger_words", "")
+        else:
+            real_file = l_name
+            s_model = custom_strength if custom_strength is not None else 1.0
+            s_clip = s_model
+            triggers = ""
+
+        if triggers:
+            extra_trigger_words.append(triggers)
+
+        node_id = f"800{l_idx}"
+        wf_t2i[node_id] = {
+            "inputs": {
+                "model": current_model,
+                "clip": current_clip,
+                "lora_name": real_file,
+                "strength_model": s_model,
+                "strength_clip": s_clip
+            },
+            "class_type": "LoraLoader"
+        }
+        current_model = [node_id, 0]
+        current_clip = [node_id, 1]
+
+    wf_t2i["19"]["inputs"]["model"] = current_model
+    wf_t2i["11"]["inputs"]["clip"] = current_clip
+    wf_t2i["12"]["inputs"]["clip"] = current_clip
+
+    # Determine prompt to use:
+    # If auto_prompt is enabled, use LM Studio to optimize description, or fallback to description.
+    # Never let default placeholder prompts ("A brave protagonist...") override the user's description.
+    is_auto_prompt = char.get("auto_prompt") is not False and char.get("ki_prompt_generieren") is not False
+    desc_text = (char.get("description") or char.get("beschreibung") or "").strip()
+    fixed_prompt = (char.get("prompt") or "").strip()
+    dummy_defaults = [
+        "a brave protagonist with a determined expression",
+        "ein mutiger protagonist mit entschlossenem blick"
+    ]
+    is_dummy_prompt = any(fixed_prompt.lower().rstrip(".! ") == d for d in dummy_defaults)
+
+    final_raw_prompt = ""
+    if is_auto_prompt and desc_text:
+        try:
+            opt_res = ai_optimize_character_prompt({
+                "character": char,
+                "preset": preset_name,
+                "variables": variables or {}
+            })
+            if opt_res and opt_res.get("success") and opt_res.get("prompt"):
+                final_raw_prompt = opt_res["prompt"]
+                char["prompt"] = final_raw_prompt
+        except Exception:
+            pass
+        if not final_raw_prompt:
+            final_raw_prompt = desc_text
+    elif fixed_prompt and not is_dummy_prompt:
+        final_raw_prompt = fixed_prompt
+    elif desc_text:
+        final_raw_prompt = desc_text
+    else:
+        final_raw_prompt = fixed_prompt or "high quality portrait of a character"
+
+    full_prompt = interpolate_variables(final_raw_prompt, variables or {})
+    if extra_trigger_words:
+        new_triggers = [tw for tw in extra_trigger_words if tw.lower() not in full_prompt.lower()]
+        if new_triggers:
+            full_prompt = full_prompt.rstrip(", ") + ", " + ", ".join(new_triggers)
+
+    wf_t2i["11"]["inputs"]["text"] = full_prompt
+    import random
+    wf_t2i["19"]["inputs"]["seed"] = random.randint(1, 999999999999999)
+
+    # Queue to ComfyUI
+    p_data = json.dumps({"prompt": wf_t2i, "client_id": "script_agency"}).encode("utf-8")
+    req = urllib.request.Request(f"http://{server_address}/prompt", data=p_data)
+    try:
+        resp = json.loads(urllib.request.urlopen(req, timeout=10).read())
+        prompt_id = resp["prompt_id"]
+    except Exception as e:
+        return {"success": False, "error": f"Fehler beim Übermitteln an ComfyUI: {e}"}
+
+    # Poll history until finished
+    start_time = time.time()
+    img_data = None
+    while time.time() - start_time < 180:
+        time.sleep(1.0)
+        try:
+            h_req = urllib.request.Request(f"http://{server_address}/history/{prompt_id}")
+            h_data = json.loads(urllib.request.urlopen(h_req, timeout=5).read())
+            if prompt_id in h_data:
+                p_info = h_data[prompt_id]
+                status_info = p_info.get("status", {})
+                if status_info.get("status_str") == "error":
+                    err_msg = "ComfyUI Ausführungsfehler"
+                    for msg in status_info.get("messages", []):
+                        if msg[0] == "execution_error":
+                            err_msg = msg[1].get("exception_message", str(msg[1]))
+                    return {"success": False, "error": err_msg}
+
+                outputs = p_info.get("outputs", {})
+                for nid in outputs:
+                    if "images" in outputs[nid] and outputs[nid]["images"]:
+                        img_info = outputs[nid]["images"][0]
+                        v_url = f"http://{server_address}/view?filename={urllib.parse.quote(img_info['filename'])}&subfolder={urllib.parse.quote(img_info.get('subfolder', ''))}&type={urllib.parse.quote(img_info.get('type', 'output'))}"
+                        img_data = urllib.request.urlopen(urllib.request.Request(v_url), timeout=15).read()
+                        break
+                if img_data:
+                    break
+        except Exception:
+            pass
+
+    if not img_data:
+        return {"success": False, "error": "Zeitüberschreitung beim Warten auf die Bildgenerierung in ComfyUI."}
+
+    # Optional background removal via rembg
+    final_img_bytes = img_data
+    if remove_bg:
+        try:
+            from rembg import remove as rembg_remove
+            from PIL import Image
+            import io
+            pil_img = Image.open(io.BytesIO(img_data)).convert("RGBA")
+            bg_removed = rembg_remove(pil_img)
+            out_buf = io.BytesIO()
+            bg_removed.save(out_buf, format="PNG")
+            final_img_bytes = out_buf.getvalue()
+        except Exception as bg_err:
+            print(f"⚠️ Hintergrund konnte nicht entfernt werden: {bg_err}")
+
+    # Save to project characters dir
+    safe_project = os.path.splitext(os.path.basename(project_name))[0]
+    char_name = char.get("name", "character").strip() or "character"
+    safe_char = re.sub(r'[\\/*?:"<>| ]', '_', char_name)
+
+    proj_chars_dir = os.path.join(PROJECTS_DIR, safe_project, "Characters")
+    os.makedirs(proj_chars_dir, exist_ok=True)
+    target_png = os.path.join(proj_chars_dir, f"{safe_char}.png")
+
+    with open(target_png, "wb") as f:
+        f.write(final_img_bytes)
+
+    timestamp = int(time.time())
+    img_url = f"/api/characters/image?project={urllib.parse.quote(safe_project)}&name={urllib.parse.quote(safe_char)}&t={timestamp}"
+
+    return {
+        "success": True,
+        "image": f"Characters/{safe_char}.png",
+        "image_url": img_url,
+        "prompt_used": full_prompt,
+        "generated_prompt": char.get("prompt") or full_prompt
+    }
 
 
 def get_t2i_catalog_summary():
@@ -2072,6 +2402,42 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
             return
 
         # -------------------------------------------------------------
+        # GET /api/models/media (Serve Base Model preview image/video)
+        # -------------------------------------------------------------
+        if path == "/api/models/media":
+            name_param = query.get("name", [""])[0].strip() or query.get("key", [""])[0].strip()
+            if not name_param:
+                self.send_error(400, "Parameter 'name' erforderlich")
+                return
+
+            presets = get_presets_data(enrich=False)
+            model_presets = presets.get("presets", {})
+            mval = model_presets.get(name_param)
+            if not mval:
+                self.send_error(404, "Modell im Preset-Katalog nicht gefunden")
+                return
+
+            munet = mval.get("unet_name") or mval.get("checkpoint") or ""
+            cinfo = get_model_companion_info(name_param, munet)
+            media_file = cinfo.get("media_file")
+            if not media_file or not os.path.exists(media_file):
+                self.send_error(404, "Vorschaumedium nicht gefunden")
+                return
+
+            ext = os.path.splitext(media_file)[1].lower()
+            mime_map = {
+                ".png": "image/png",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".webp": "image/webp",
+                ".mp4": "video/mp4",
+                ".webm": "video/webm"
+            }
+            content_type = mime_map.get(ext, "application/octet-stream")
+            serve_media_file(self, media_file, content_type)
+            return
+
+        # -------------------------------------------------------------
         # Static Asset Serving (HTML, CSS, JS)
         # -------------------------------------------------------------
         rel_path = path.lstrip("/")
@@ -2299,6 +2665,26 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
             return
 
         # -------------------------------------------------------------
+        # POST /api/characters/generate_image (Generate portrait in ComfyUI)
+        # -------------------------------------------------------------
+        if path == "/api/characters/generate_image":
+            project_param = payload.get("project", "").strip()
+            char_data = payload.get("character", {})
+            variables = payload.get("variables", {})
+            remove_bg = bool(payload.get("remove_background", True))
+
+            if not project_param or not char_data:
+                self.send_error_json("Parameter 'project' und 'character' erforderlich", status=400)
+                return
+
+            res = generate_character_portrait_comfy(project_param, char_data, variables=variables, remove_bg=remove_bg)
+            if res.get("success"):
+                self.send_json(res, status=200)
+            else:
+                self.send_error_json(res.get("error", "Fehler bei der Bildgenerierung"), status=500)
+            return
+
+        # -------------------------------------------------------------
         # POST /api/rescan_catalog (Re-scan models & LoRAs)
         # -------------------------------------------------------------
         if path == "/api/rescan_catalog":
@@ -2352,7 +2738,7 @@ def run_script_agency(port=None, host="127.0.0.1", open_browser=True, blocking=T
 
     url = f"http://{host}:{port}/"
     print("\n" + "=" * 60)
-    print("🎬 SCRIPT AGENCY • MovieGenerator Visual Screenplay Studio")
+    print(f"🎬 SCRIPT AGENCY v{__version__} • MovieGenerator Visual Screenplay Studio")
     print(f"👉 Web-Editor läuft unter: {url}")
     print("   [Tipp] Drücke Strg+C im Terminal oder klicke '✕' im Web, um zu beenden.")
     print("=" * 60 + "\n")

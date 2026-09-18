@@ -27,6 +27,8 @@
     activeLoraCharIndex: null, // Index of character currently picking a LoRA
     focusedIdeaTextarea: null, // For quick variable chip insertion
     lang: 'de', // 'de' or 'en'
+    activeModelTargetCharIndex: null,
+    modelFilterCategory: 'all',
     pendingStoryGen: null, // Holds preview of generated batch scenes & new characters
     wizard: {
       premise: '',
@@ -104,6 +106,15 @@
     chkShowAllLoras: document.getElementById('chkShowAllLoras'),
     modalActiveModelName: document.getElementById('modalActiveModelName'),
     loraCardsList: document.getElementById('loraCardsList'),
+
+    // Model Modal
+    modelModal: document.getElementById('modelModal'),
+    btnCloseModelModal: document.getElementById('btnCloseModelModal'),
+    modelSearchInput: document.getElementById('modelSearchInput'),
+    modelFilterTabs: document.getElementById('modelFilterTabs'),
+    modalActiveCharName: document.getElementById('modalActiveCharName'),
+    modalCurrentModelKey: document.getElementById('modalCurrentModelKey'),
+    modelCardsList: document.getElementById('modelCardsList'),
 
     // Render Modal
     renderModal: document.getElementById('renderModal'),
@@ -332,6 +343,24 @@
         throw new Error(data.error || 'Fehler beim Löschen des Charakterbildes');
       }
       return data;
+    },
+
+    async generateCharacterPortrait(project, character, variables, removeBackground = true) {
+      const res = await fetch('/api/characters/generate_image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project,
+          character,
+          variables,
+          remove_background: removeBackground
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Generieren des Charakterbildes');
+      }
+      return data;
     }
   };
 
@@ -527,6 +556,15 @@
         prompt: cPrompt,
         auto_prompt: autoPrompt
       };
+      if (c.image) charObj.image = c.image;
+      if (c.image_url) charObj.image_url = c.image_url;
+      if (c.bild) charObj.image = c.bild;
+      if (c.reference_image) charObj.image = c.reference_image;
+      if (charObj.image && !charObj.image_url) {
+        const projName = (el.movieFilename && el.movieFilename.value.trim()) || (filename ? filename.replace('.json', '') : 'film');
+        const cleanName = cName.replace(/[\\/*?:"<>| ]/g, '_');
+        charObj.image_url = `/api/characters/image?project=${encodeURIComponent(projName)}&name=${encodeURIComponent(cleanName)}&t=${Date.now()}`;
+      }
       if (c.reference_id !== undefined) charObj.reference_id = c.reference_id;
       if (c.reference_character !== undefined) charObj.reference_character = c.reference_character;
       if (c.denoise !== undefined) charObj.denoise = c.denoise;
@@ -880,7 +918,8 @@
     let modelOptionsHtml = '';
     for (const [mKey, mVal] of Object.entries(presets)) {
       const isSel = mKey === selectedModel ? 'selected' : '';
-      const label = mVal.beschreibung ? `${mKey} — ${mVal.beschreibung.substring(0, 45)}...` : mKey;
+      const descPart = mVal.beschreibung ? ` — ${mVal.beschreibung.substring(0, 65)}${mVal.beschreibung.length > 65 ? '...' : ''}` : '';
+      const label = `${mKey}${descPart}`;
       modelOptionsHtml += `<option value="${mKey}" ${isSel}>${escapeHtml(label)}</option>`;
     }
 
@@ -928,7 +967,10 @@
             </div>
             <div class="char-portrait-info">
               <span class="char-portrait-hint">${escapeHtml(t('charImgT2iSkipped'))}</span>
-              <div style="display:flex;gap:6px;align-items:center;margin-top:4px;">
+              <div style="display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap;">
+                <button type="button" class="btn btn-primary-outline btn-xs btn-trigger-generate-portrait" title="Mit aktuellen Einstellungen neu in ComfyUI generieren">
+                  🎨 ${escapeHtml(t('btnRegenerateCharPortrait'))}
+                </button>
                 <input type="file" class="char-img-file-input" accept="image/png, image/jpeg, image/webp" style="display:none;">
                 <button type="button" class="btn btn-secondary btn-xs btn-trigger-upload-img">
                   🔄 ${escapeHtml(t('btnChangeCharImg'))}
@@ -941,7 +983,10 @@
           ` : `
             <div class="char-portrait-upload-area">
               <input type="file" class="char-img-file-input" accept="image/png, image/jpeg, image/webp" style="display:none;">
-              <div class="char-portrait-upload-controls">
+              <div class="char-portrait-upload-controls" style="flex-wrap:wrap;">
+                <button type="button" class="btn btn-primary btn-sm btn-trigger-generate-portrait" title="Porträt jetzt direkt in ComfyUI generieren">
+                  <span>🎨</span> <span>${escapeHtml(t('btnGenerateCharPortrait'))}</span>
+                </button>
                 <button type="button" class="btn btn-secondary btn-sm btn-trigger-upload-img">
                   <span>📤</span> <span>${escapeHtml(t('btnUploadCharImg'))}</span>
                 </button>
@@ -963,11 +1008,37 @@
 
       <!-- Basis Modell Auswahl -->
       <div class="char-model-group">
-        <label for="charModel_${idx}">${escapeHtml(t('charModelLabel'))}</label>
-        <select id="charModel_${idx}" class="form-control char-model-select">
-          ${modelOptionsHtml}
-        </select>
-        <div class="char-model-desc">${escapeHtml(modelDesc)}</div>
+        <div class="char-model-header">
+          <label>${escapeHtml(t('charModelLabel'))}</label>
+          <button type="button" class="btn btn-secondary btn-xs btn-pick-model" title="${escapeHtml(t('btnPickModelTitle') || 'Modell auswählen')}">
+            <span>🎨</span> <span>${escapeHtml(t('btnPickModel') || 'Modell wählen')}</span>
+          </button>
+        </div>
+        <div class="char-selected-model-card" title="${escapeHtml(t('btnPickModelTitle') || 'Klicken, um Modell zu wechseln')}">
+          ${currentModelInfo.preview_url ? `
+            <div class="char-selected-model-thumb-box">
+              ${currentModelInfo.media_type === 'video' ? `
+                <video src="${escapeHtml(currentModelInfo.preview_url)}" class="char-selected-model-thumb" muted loop playsinline autoplay></video>
+              ` : `
+                <img src="${escapeHtml(currentModelInfo.preview_url)}" class="char-selected-model-thumb" alt="${escapeHtml(selectedModel)}">
+              `}
+            </div>
+          ` : `
+            <div class="char-selected-model-thumb-placeholder">🎨</div>
+          `}
+          <div class="char-selected-model-details">
+            <div class="char-selected-model-top">
+              <span class="char-selected-model-title">${escapeHtml(selectedModel)}</span>
+              <span class="badge-base-family">${escapeHtml(extractModelFamily(selectedModel, currentModelInfo))}</span>
+            </div>
+            <div class="char-model-desc">${escapeHtml(modelDesc)}</div>
+            <div class="char-model-specs">
+              <span class="spec-tag">⚡ ${currentModelInfo.steps || 30} Steps</span>
+              <span class="spec-tag">🎯 CFG ${currentModelInfo.cfg || 4.0}</span>
+              <span class="spec-tag">📐 ${escapeHtml(currentModelInfo.aspect_ratio || '3:4')}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- LoRA Auswahl Sektion -->
@@ -1028,13 +1099,16 @@
       markDirty();
     });
 
-    const modelSelect = card.querySelector('.char-model-select');
-    const modelDescDiv = card.querySelector('.char-model-desc');
-    modelSelect.addEventListener('change', () => {
-      char.model = modelSelect.value;
-      const mInfo = presets[char.model] || {};
-      modelDescDiv.textContent = mInfo.beschreibung || t('charModelDefaultDesc');
-      markDirty();
+    // Pick Model Button & Card click
+    const pickModelBtn = card.querySelector('.btn-pick-model');
+    const selectedModelCard = card.querySelector('.char-selected-model-card');
+    const onOpenModelPicker = () => {
+      openModelPickerModal(idx, char.model || selectedModel);
+    };
+    if (pickModelBtn) pickModelBtn.addEventListener('click', onOpenModelPicker);
+    if (selectedModelCard) selectedModelCard.addEventListener('click', (e) => {
+      if (e.target.closest('.btn-pick-model')) return;
+      onOpenModelPicker();
     });
 
     // Pick LoRA Button
@@ -1112,7 +1186,8 @@
             character: char,
             preset: char.model || selectedModel,
             title: state.screenplay.title,
-            description: state.screenplay.description
+            description: state.screenplay.description,
+            variables: state.screenplay.variables || state.screenplay.variablen || {}
           });
           if (res && res.prompt) {
             char.prompt = res.prompt;
@@ -1213,6 +1288,43 @@
         showToast(t('charImgRemoved'), 'info');
       });
     }
+
+    // Generate Character Portrait in ComfyUI Button Handler
+    const generatePortraitBtns = card.querySelectorAll('.btn-trigger-generate-portrait');
+    generatePortraitBtns.forEach(gBtn => {
+      gBtn.addEventListener('click', async () => {
+        const projectName = (el.movieFilename && el.movieFilename.value.trim()) ? el.movieFilename.value.trim() : 'film';
+        const doRemoveBg = removeBgChk ? removeBgChk.checked : true;
+        const vars = state.screenplay.variables || state.screenplay.variablen || {};
+
+        try {
+          if (uploadStatus) {
+            uploadStatus.style.display = 'flex';
+            const statusText = uploadStatus.querySelector('.char-upload-status-text');
+            if (statusText) statusText.textContent = t('charGenerating') || 'Generiere Charakter-Porträt in ComfyUI...';
+          }
+          gBtn.disabled = true;
+
+          const res = await API.generateCharacterPortrait(projectName, char, vars, doRemoveBg);
+          if (res && res.success) {
+            char.image = res.image;
+            char.image_url = res.image_url;
+            if (res.generated_prompt) {
+              char.prompt = res.generated_prompt;
+            }
+            renderCharacters();
+            markDirty();
+            showToast((t('charGeneratedSuccess') || "Porträt für '{name}' erfolgreich in ComfyUI generiert!").replace('{name}', char.name || ''), 'success');
+          }
+        } catch (err) {
+          console.error('Character generation failed:', err);
+          showToast(err.message || 'Fehler beim Generieren des Charakterbildes', 'error');
+        } finally {
+          if (uploadStatus) uploadStatus.style.display = 'none';
+          gBtn.disabled = false;
+        }
+      });
+    });
 
     return card;
   }
@@ -1353,7 +1465,18 @@
 
       let isCompat = false;
       if (target.type === 'character') {
-        isCompat = compatList.length === 0 || compatList.includes(target.model);
+        const tModel = (target.model || '').toLowerCase();
+        isCompat = compatList.length === 0 ||
+          compatList.includes(target.model) ||
+          compatList.some(m => {
+            const mLow = m.toLowerCase();
+            if (mLow === 'all' || mLow === '*' || mLow === tModel) return true;
+            if (mLow.startsWith('anima') && tModel.startsWith('anima')) return true;
+            if (mLow.startsWith('krea') && tModel.startsWith('krea')) return true;
+            if (mLow.startsWith('sdxl') && (tModel.startsWith('anima') || tModel.startsWith('sdxl'))) return true;
+            if (mLow.startsWith('zimage') && tModel.startsWith('zimage')) return true;
+            return false;
+          });
       } else if (target.type === 'scene') {
         if (turboExcludes.includes(lKeyLower) && !showAll) {
           continue;
@@ -1485,6 +1608,178 @@
 
     if (countShown === 0) {
       el.loraCardsList.innerHTML = `<div style="color:var(--text-dim);font-style:italic;">${escapeHtml(t('noLorasFound'))}</div>`;
+    }
+  }
+
+  // --- Model Picker Modal ---
+  function extractModelFamily(key, info) {
+    const k = (key || '').toLowerCase();
+    if (k.includes('anima')) return 'Anima';
+    if (k.includes('krea')) return 'Krea';
+    if (k.includes('sdxl')) return 'SDXL';
+    if (k.includes('zimage') || k.includes('zit') || k.includes('z-image')) return 'Z-Image';
+    if (k.includes('flux')) return 'Flux';
+    if (k.includes('wan') || k.includes('i2v')) return 'Video';
+    if (k.includes('minimax') || k.includes('mmh3')) return 'Minimax';
+    if (info && info.clip_type) return info.clip_type;
+    return 'Base';
+  }
+
+  function openModelPickerModal(charIndex, activeModelKey) {
+    state.activeModelTargetCharIndex = charIndex;
+    state.modelFilterCategory = 'all';
+
+    const char = state.screenplay.characters[charIndex];
+    const charName = char ? (char.name || `#${charIndex + 1}`) : '';
+    const modalTitleElem = el.modelModal.querySelector('.modal-title');
+    if (modalTitleElem) {
+      modalTitleElem.textContent = t('modalModelTitle') + (charName ? ` (${charName})` : '');
+    }
+    if (el.modalActiveCharName) {
+      el.modalActiveCharName.textContent = charName || '-';
+    }
+    if (el.modalCurrentModelKey) {
+      el.modalCurrentModelKey.textContent = activeModelKey || '-';
+    }
+    if (el.modelSearchInput) {
+      el.modelSearchInput.value = '';
+    }
+
+    // Reset filter tabs
+    if (el.modelFilterTabs) {
+      el.modelFilterTabs.querySelectorAll('.btn-filter-pill').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.filter === 'all');
+      });
+    }
+
+    renderModelModalCards();
+    el.modelModal.classList.add('open');
+  }
+
+  function closeModelPickerModal() {
+    if (el.modelModal) el.modelModal.classList.remove('open');
+    state.activeModelTargetCharIndex = null;
+  }
+
+  function renderModelModalCards() {
+    if (state.activeModelTargetCharIndex === null) return;
+    const charIndex = state.activeModelTargetCharIndex;
+    const char = state.screenplay.characters[charIndex];
+    if (!char) return;
+
+    const currentModel = char.model || state.presetsData.default || 'anima_catpony';
+    el.modelCardsList.innerHTML = '';
+    const presets = state.presetsData.presets || {};
+    const query = el.modelSearchInput ? el.modelSearchInput.value.toLowerCase().trim() : '';
+    const category = state.modelFilterCategory || 'all';
+
+    const keys = Object.keys(presets);
+    if (keys.length === 0) {
+      el.modelCardsList.innerHTML = `<div style="color:var(--text-dim);font-style:italic;">${escapeHtml(t('noModelsFound'))}</div>`;
+      return;
+    }
+
+    let countShown = 0;
+
+    for (const mKey of keys) {
+      const mVal = presets[mKey] || {};
+      const family = extractModelFamily(mKey, mVal);
+      const mKeyLower = mKey.toLowerCase();
+      const descLower = (mVal.beschreibung || '').toLowerCase();
+      const unetLower = (mVal.unet_name || '').toLowerCase();
+
+      // Category filter
+      if (category !== 'all') {
+        const famLower = family.toLowerCase();
+        if (category === 'anima' && !famLower.includes('anima') && !mKeyLower.includes('anima')) continue;
+        if (category === 'krea' && !famLower.includes('krea') && !mKeyLower.includes('krea')) continue;
+        if (category === 'sdxl' && !famLower.includes('sdxl') && !mKeyLower.includes('sdxl')) continue;
+        if (category === 'zimage' && !famLower.includes('zimage') && !mKeyLower.includes('zimage') && !mKeyLower.includes('zit')) continue;
+        if (category === 'other') {
+          if (mKeyLower.includes('anima') || mKeyLower.includes('krea') || mKeyLower.includes('sdxl') || mKeyLower.includes('zimage') || mKeyLower.includes('zit')) {
+            continue;
+          }
+        }
+      }
+
+      // Search query filter
+      if (query) {
+        const searchHaystack = `${mKeyLower} ${descLower} ${unetLower} ${family.toLowerCase()} ${mVal.sampler_name || ''} ${mVal.scheduler || ''}`;
+        if (!searchHaystack.includes(query)) continue;
+      }
+
+      countShown++;
+      const isSelected = mKey === currentModel;
+      const card = document.createElement('div');
+      card.className = `model-card-item ${isSelected ? 'selected' : ''}`;
+
+      let mediaHtml = '';
+      if (mVal.preview_url) {
+        if (mVal.media_type === 'video') {
+          mediaHtml = `
+            <div class="model-card-media">
+              <video class="model-media-thumb" src="${escapeHtml(mVal.preview_url)}" muted loop playsinline preload="metadata"></video>
+              <span class="model-video-badge">▶ ${escapeHtml(t('videoBadge') || 'Video')}</span>
+              ${mVal.published_at ? `<span class="model-date-badge">📅 ${escapeHtml(mVal.published_at)}</span>` : ''}
+            </div>
+          `;
+        } else {
+          mediaHtml = `
+            <div class="model-card-media">
+              <img class="model-media-thumb" src="${escapeHtml(mVal.preview_url)}" alt="${escapeHtml(mKey)}" loading="lazy">
+              ${mVal.published_at ? `<span class="model-date-badge">📅 ${escapeHtml(mVal.published_at)}</span>` : ''}
+            </div>
+          `;
+        }
+      } else {
+        mediaHtml = `
+          <div class="model-card-media model-media-placeholder">
+            <span class="model-placeholder-icon">🎨</span>
+            ${mVal.published_at ? `<span class="model-date-badge">📅 ${escapeHtml(mVal.published_at)}</span>` : ''}
+          </div>
+        `;
+      }
+
+      card.innerHTML = `
+        ${mediaHtml}
+        <div class="model-card-body">
+          <div class="model-card-title">
+            <span>🎨 ${escapeHtml(mKey)}</span>
+            ${isSelected ? `<span class="model-badge-selected">✔ ${escapeHtml(t('modelSelectedBadge') || 'Aktiv')}</span>` : `<span class="badge-base-family">${escapeHtml(family)}</span>`}
+          </div>
+          <div class="model-card-desc" title="${escapeHtml(mVal.beschreibung || '')}">${escapeHtml(mVal.beschreibung || '')}</div>
+          <div class="model-card-footer">
+            <span>⚡ ${mVal.steps || 30} Steps | CFG ${mVal.cfg || 4.0}</span>
+            <span>📐 ${escapeHtml(mVal.aspect_ratio || '3:4')}</span>
+          </div>
+        </div>
+      `;
+
+      const vidEl = card.querySelector('video');
+      if (vidEl) {
+        card.addEventListener('mouseenter', () => {
+          vidEl.play().catch(() => {});
+        });
+        card.addEventListener('mouseleave', () => {
+          vidEl.pause();
+          vidEl.currentTime = 0;
+        });
+      }
+
+      // Single Choice Click Handler: select this model, update character and close modal
+      card.addEventListener('click', () => {
+        char.model = mKey;
+        renderCharacters();
+        markDirty();
+        closeModelPickerModal();
+        showToast(t('modelSelected').replace('{name}', mKey).replace('{char}', char.name || `#${charIndex + 1}`), 'success');
+      });
+
+      el.modelCardsList.appendChild(card);
+    }
+
+    if (countShown === 0) {
+      el.modelCardsList.innerHTML = `<div style="color:var(--text-dim);font-style:italic;padding:12px;">${escapeHtml(t('noModelsFound'))}</div>`;
     }
   }
 
@@ -3149,6 +3444,24 @@
       renderLoraModalCards();
     });
 
+    // Model Modal Events
+    if (el.btnCloseModelModal) el.btnCloseModelModal.addEventListener('click', closeModelPickerModal);
+    if (el.modelSearchInput) {
+      el.modelSearchInput.addEventListener('input', () => {
+        renderModelModalCards();
+      });
+    }
+    if (el.modelFilterTabs) {
+      el.modelFilterTabs.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-filter-pill');
+        if (!btn) return;
+        el.modelFilterTabs.querySelectorAll('.btn-filter-pill').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.modelFilterCategory = btn.dataset.filter || 'all';
+        renderModelModalCards();
+      });
+    }
+
     // LM Studio AI & Modals
     if (el.llmStatusPill) el.llmStatusPill.addEventListener('click', refreshLlmStatus);
     if (el.btnAiSuggestScene) el.btnAiSuggestScene.addEventListener('click', handleAiSuggestScene);
@@ -3223,11 +3536,26 @@
       el.btnHarmonizeScript.addEventListener('click', () => handleHarmonizeScreenplay(false));
     }
 
-    // Keyboard Shortcuts (Ctrl+S to save)
+    // Backdrop click close for modals
+    if (el.loraModal) {
+      el.loraModal.addEventListener('click', (e) => {
+        if (e.target === el.loraModal) closeLoraPickerModal();
+      });
+    }
+    if (el.modelModal) {
+      el.modelModal.addEventListener('click', (e) => {
+        if (e.target === el.modelModal) closeModelPickerModal();
+      });
+    }
+
+    // Keyboard Shortcuts (Ctrl+S to save, Escape to close modals)
     window.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         saveCurrentProject();
+      } else if (e.key === 'Escape') {
+        closeModelPickerModal();
+        closeLoraPickerModal();
       }
     });
   }
