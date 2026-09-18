@@ -332,6 +332,24 @@
         throw new Error(data.error || 'Fehler beim Löschen des Charakterbildes');
       }
       return data;
+    },
+
+    async generateCharacterPortrait(project, character, variables, removeBackground = true) {
+      const res = await fetch('/api/characters/generate_image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project,
+          character,
+          variables,
+          remove_background: removeBackground
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Generieren des Charakterbildes');
+      }
+      return data;
     }
   };
 
@@ -928,7 +946,10 @@
             </div>
             <div class="char-portrait-info">
               <span class="char-portrait-hint">${escapeHtml(t('charImgT2iSkipped'))}</span>
-              <div style="display:flex;gap:6px;align-items:center;margin-top:4px;">
+              <div style="display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap;">
+                <button type="button" class="btn btn-primary-outline btn-xs btn-trigger-generate-portrait" title="Mit aktuellen Einstellungen neu in ComfyUI generieren">
+                  🎨 ${escapeHtml(t('btnRegenerateCharPortrait'))}
+                </button>
                 <input type="file" class="char-img-file-input" accept="image/png, image/jpeg, image/webp" style="display:none;">
                 <button type="button" class="btn btn-secondary btn-xs btn-trigger-upload-img">
                   🔄 ${escapeHtml(t('btnChangeCharImg'))}
@@ -941,7 +962,10 @@
           ` : `
             <div class="char-portrait-upload-area">
               <input type="file" class="char-img-file-input" accept="image/png, image/jpeg, image/webp" style="display:none;">
-              <div class="char-portrait-upload-controls">
+              <div class="char-portrait-upload-controls" style="flex-wrap:wrap;">
+                <button type="button" class="btn btn-primary btn-sm btn-trigger-generate-portrait" title="Porträt jetzt direkt in ComfyUI generieren">
+                  <span>🎨</span> <span>${escapeHtml(t('btnGenerateCharPortrait'))}</span>
+                </button>
                 <button type="button" class="btn btn-secondary btn-sm btn-trigger-upload-img">
                   <span>📤</span> <span>${escapeHtml(t('btnUploadCharImg'))}</span>
                 </button>
@@ -1112,7 +1136,8 @@
             character: char,
             preset: char.model || selectedModel,
             title: state.screenplay.title,
-            description: state.screenplay.description
+            description: state.screenplay.description,
+            variables: state.screenplay.variables || state.screenplay.variablen || {}
           });
           if (res && res.prompt) {
             char.prompt = res.prompt;
@@ -1213,6 +1238,40 @@
         showToast(t('charImgRemoved'), 'info');
       });
     }
+
+    // Generate Character Portrait in ComfyUI Button Handler
+    const generatePortraitBtns = card.querySelectorAll('.btn-trigger-generate-portrait');
+    generatePortraitBtns.forEach(gBtn => {
+      gBtn.addEventListener('click', async () => {
+        const projectName = (el.movieFilename && el.movieFilename.value.trim()) ? el.movieFilename.value.trim() : 'film';
+        const doRemoveBg = removeBgChk ? removeBgChk.checked : true;
+        const vars = state.screenplay.variables || state.screenplay.variablen || {};
+
+        try {
+          if (uploadStatus) {
+            uploadStatus.style.display = 'flex';
+            const statusText = uploadStatus.querySelector('.char-upload-status-text');
+            if (statusText) statusText.textContent = t('charGenerating') || 'Generiere Charakter-Porträt in ComfyUI...';
+          }
+          gBtn.disabled = true;
+
+          const res = await API.generateCharacterPortrait(projectName, char, vars, doRemoveBg);
+          if (res && res.success) {
+            char.image = res.image;
+            char.image_url = res.image_url;
+            renderCharacters();
+            markDirty();
+            showToast((t('charGeneratedSuccess') || "Porträt für '{name}' erfolgreich in ComfyUI generiert!").replace('{name}', char.name || ''), 'success');
+          }
+        } catch (err) {
+          console.error('Character generation failed:', err);
+          showToast(err.message || 'Fehler beim Generieren des Charakterbildes', 'error');
+        } finally {
+          if (uploadStatus) uploadStatus.style.display = 'none';
+          gBtn.disabled = false;
+        }
+      });
+    });
 
     return card;
   }

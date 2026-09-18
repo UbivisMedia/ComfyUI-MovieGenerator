@@ -1775,6 +1775,42 @@ textarea.form-control {
   border-color: var(--accent-red);
 }
 
+.btn-primary-outline {
+  background: transparent;
+  border: 1px solid rgba(168, 85, 247, 0.5);
+  color: #c084fc;
+  padding: 7px 14px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-primary-outline:hover {
+  background: rgba(168, 85, 247, 0.2);
+  border-color: #c084fc;
+  color: #fff;
+}
+
+.btn-accent-outline {
+  background: transparent;
+  border: 1px solid rgba(34, 211, 238, 0.5);
+  color: #22d3ee;
+  padding: 7px 14px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-accent-outline:hover {
+  background: rgba(34, 211, 238, 0.2);
+  border-color: #22d3ee;
+  color: #fff;
+}
+
 .hook-chip {
   background: rgba(168, 85, 247, 0.12);
   border: 1px dashed rgba(168, 85, 247, 0.4);

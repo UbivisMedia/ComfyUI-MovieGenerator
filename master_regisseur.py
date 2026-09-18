@@ -887,10 +887,33 @@ def get_workflow_sampling_params(wf):
 
     return steps, sampler, scheduler, cfg, seed
 
-def ask_lm_studio_character(char, screenplay, preset_name, preset):
+def interpolate_variables(text, variables):
+    """Replaces {variable_name} in text with its current value from variables dictionary (whitespace & case tolerant)."""
+    if not text or not variables:
+        return text
+    result = text
+    # Exact replacement
+    for key, val in variables.items():
+        result = result.replace(f"{{{key}}}", str(val))
+    # Case-insensitive & whitespace-tolerant replacement (e.g. { celina_top })
+    for key, val in variables.items():
+        pattern = re.compile(rf"\{{\s*{re.escape(key)}\s*\}}", re.IGNORECASE)
+        result = pattern.sub(str(val), result)
+    return result
+
+
+def ask_lm_studio_character(char, screenplay, preset_name, preset, active_variables=None):
     """Invokes LM Studio to generate the optimal T2I character casting prompt."""
     char_name = char.get("name", "Character")
     existing_prompt = char.get("prompt") or char.get("beschreibung") or char.get("rolle") or char.get("idee") or char.get("description") or ""
+
+    # Interpolate active variables (e.g. {celina_top}) in character prompt / description
+    if active_variables:
+        existing_prompt = interpolate_variables(existing_prompt, active_variables)
+    elif screenplay:
+        root_vars = screenplay.get("variablen") or screenplay.get("variables") or {}
+        if root_vars:
+            existing_prompt = interpolate_variables(existing_prompt, root_vars)
 
     # Check for optional reference character link (bilingual support)
     ref_char_val = (
@@ -973,14 +996,6 @@ GUIDELINES:
         print(t("char_prompt_error", error=e))
         return existing_prompt
 
-def interpolate_variables(text, variables):
-    """Replaces {variable_name} in text with its current value from variables dictionary."""
-    if not text or not variables:
-        return text
-    result = text
-    for key, val in variables.items():
-        result = result.replace(f"{{{key}}}", str(val))
-    return result
 
 def format_state_instruction(characters, active_variables=None, character_states=None):
     """Formats active character wardrobe and environment variables into instructions for the LLM."""
@@ -1964,7 +1979,7 @@ def main():
                     continue
 
                 print(t("char_optimizing_prompt", name=char_name, preset=preset_name))
-                ki_char_prompt = ask_lm_studio_character(char, screenplay, preset_name, preset)
+                ki_char_prompt = ask_lm_studio_character(char, screenplay, preset_name, preset, active_variables=active_variables)
                 char["prompt"] = ki_char_prompt
                 print(t("char_new_prompt", name=char_name, prompt=ki_char_prompt[:90]))
 
@@ -2405,7 +2420,8 @@ def main():
         wf_t2i["11"]["inputs"]["clip"] = current_clip
         wf_t2i["12"]["inputs"]["clip"] = current_clip
 
-        full_prompt = char["prompt"]
+        raw_char_prompt = char.get("prompt") or char.get("description") or char.get("beschreibung") or ""
+        full_prompt = interpolate_variables(raw_char_prompt, active_variables)
         if extra_trigger_words:
             new_triggers = [tw for tw in extra_trigger_words if tw.lower() not in full_prompt.lower()]
             if new_triggers:
