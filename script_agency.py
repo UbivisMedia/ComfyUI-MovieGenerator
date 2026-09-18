@@ -192,6 +192,59 @@ def get_lora_companion_info(lora_key, lora_name):
     return info
 
 
+_MODEL_COMPANION_CACHE = {}
+
+
+def resolve_model_path(unet_or_ckpt):
+    """Resolves absolute path of a base/diffusion model inside models directory."""
+    models_dir = get_comfy_models_dir()
+    if not models_dir or not unet_or_ckpt:
+        return None
+    norm_name = os.path.normpath(unet_or_ckpt)
+    candidates = [
+        os.path.join(models_dir, "diffusion_models", norm_name),
+        os.path.join(models_dir, "checkpoints", norm_name),
+        os.path.join(models_dir, "unet", norm_name),
+        os.path.join(models_dir, norm_name),
+    ]
+    for cand in candidates:
+        if os.path.exists(cand):
+            return cand
+    # Fallback search inside subdirectories
+    for subdir in ["diffusion_models", "checkpoints", "unet"]:
+        target_dir = os.path.join(models_dir, subdir)
+        if os.path.exists(target_dir):
+            base_fname = os.path.basename(norm_name)
+            for root, _, files in os.walk(target_dir):
+                if base_fname in files:
+                    return os.path.join(root, base_fname)
+    return None
+
+
+def get_model_companion_info(model_key, unet_name):
+    """Returns companion info (media path, preview URL, media type, published date) for a model."""
+    cache_key = f"{model_key}:{unet_name}"
+    if cache_key in _MODEL_COMPANION_CACHE:
+        return _MODEL_COMPANION_CACHE[cache_key]
+
+    m_path = resolve_model_path(unet_name)
+    media_f, m_type, p_date = find_companion_media_and_meta(m_path)
+
+    preview_url = None
+    if media_f and m_type:
+        preview_url = f"/api/models/media?name={urllib.parse.quote(model_key)}"
+
+    info = {
+        "media_file": media_f,
+        "media_type": m_type,
+        "preview_url": preview_url,
+        "published_at": p_date,
+        "has_preview": bool(preview_url)
+    }
+    _MODEL_COMPANION_CACHE[cache_key] = info
+    return info
+
+
 def serve_media_file(handler, file_path, content_type):
     """Serves media file with byte-range and caching support."""
     try:
@@ -271,6 +324,16 @@ def get_presets_data(enrich=True):
                 data = json.load(f)
         except Exception as e:
             print(f"⚠️ Error reading presets: {e}")
+
+    if enrich and "presets" in data and isinstance(data["presets"], dict):
+        for mkey, mval in data["presets"].items():
+            if isinstance(mval, dict):
+                munet = mval.get("unet_name") or mval.get("checkpoint") or ""
+                cinfo = get_model_companion_info(mkey, munet)
+                mval["preview_url"] = cinfo.get("preview_url")
+                mval["media_type"] = cinfo.get("media_type")
+                mval["published_at"] = cinfo.get("published_at")
+                mval["has_preview"] = cinfo.get("has_preview", False)
 
     if enrich and "lora_presets" in data and isinstance(data["lora_presets"], dict):
         for lkey, lval in data["lora_presets"].items():
@@ -1110,9 +1173,41 @@ def generate_character_portrait_comfy(project_name, char, variables=None, remove
     wf_t2i["11"]["inputs"]["clip"] = current_clip
     wf_t2i["12"]["inputs"]["clip"] = current_clip
 
-    # Interpolate variables in character prompt
-    raw_prompt = char.get("prompt") or char.get("description") or char.get("beschreibung") or ""
-    full_prompt = interpolate_variables(raw_prompt, variables or {})
+    # Determine prompt to use:
+    # If auto_prompt is enabled, use LM Studio to optimize description, or fallback to description.
+    # Never let default placeholder prompts ("A brave protagonist...") override the user's description.
+    is_auto_prompt = char.get("auto_prompt") is not False and char.get("ki_prompt_generieren") is not False
+    desc_text = (char.get("description") or char.get("beschreibung") or "").strip()
+    fixed_prompt = (char.get("prompt") or "").strip()
+    dummy_defaults = [
+        "a brave protagonist with a determined expression",
+        "ein mutiger protagonist mit entschlossenem blick"
+    ]
+    is_dummy_prompt = any(fixed_prompt.lower().rstrip(".! ") == d for d in dummy_defaults)
+
+    final_raw_prompt = ""
+    if is_auto_prompt and desc_text:
+        try:
+            opt_res = ai_optimize_character_prompt({
+                "character": char,
+                "preset": preset_name,
+                "variables": variables or {}
+            })
+            if opt_res and opt_res.get("success") and opt_res.get("prompt"):
+                final_raw_prompt = opt_res["prompt"]
+                char["prompt"] = final_raw_prompt
+        except Exception:
+            pass
+        if not final_raw_prompt:
+            final_raw_prompt = desc_text
+    elif fixed_prompt and not is_dummy_prompt:
+        final_raw_prompt = fixed_prompt
+    elif desc_text:
+        final_raw_prompt = desc_text
+    else:
+        final_raw_prompt = fixed_prompt or "high quality portrait of a character"
+
+    full_prompt = interpolate_variables(final_raw_prompt, variables or {})
     if extra_trigger_words:
         new_triggers = [tw for tw in extra_trigger_words if tw.lower() not in full_prompt.lower()]
         if new_triggers:
@@ -1198,7 +1293,8 @@ def generate_character_portrait_comfy(project_name, char, variables=None, remove
         "success": True,
         "image": f"Characters/{safe_char}.png",
         "image_url": img_url,
-        "prompt_used": full_prompt
+        "prompt_used": full_prompt,
+        "generated_prompt": char.get("prompt") or full_prompt
     }
 
 
@@ -2286,6 +2382,42 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
                 return
 
             cinfo = get_lora_companion_info(name_param, lval.get("lora_name", ""))
+            media_file = cinfo.get("media_file")
+            if not media_file or not os.path.exists(media_file):
+                self.send_error(404, "Vorschaumedium nicht gefunden")
+                return
+
+            ext = os.path.splitext(media_file)[1].lower()
+            mime_map = {
+                ".png": "image/png",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".webp": "image/webp",
+                ".mp4": "video/mp4",
+                ".webm": "video/webm"
+            }
+            content_type = mime_map.get(ext, "application/octet-stream")
+            serve_media_file(self, media_file, content_type)
+            return
+
+        # -------------------------------------------------------------
+        # GET /api/models/media (Serve Base Model preview image/video)
+        # -------------------------------------------------------------
+        if path == "/api/models/media":
+            name_param = query.get("name", [""])[0].strip() or query.get("key", [""])[0].strip()
+            if not name_param:
+                self.send_error(400, "Parameter 'name' erforderlich")
+                return
+
+            presets = get_presets_data(enrich=False)
+            model_presets = presets.get("presets", {})
+            mval = model_presets.get(name_param)
+            if not mval:
+                self.send_error(404, "Modell im Preset-Katalog nicht gefunden")
+                return
+
+            munet = mval.get("unet_name") or mval.get("checkpoint") or ""
+            cinfo = get_model_companion_info(name_param, munet)
             media_file = cinfo.get("media_file")
             if not media_file or not os.path.exists(media_file):
                 self.send_error(404, "Vorschaumedium nicht gefunden")

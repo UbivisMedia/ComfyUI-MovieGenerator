@@ -1975,7 +1975,12 @@ def main():
                 if not auto_prompt:
                     print(t("char_keep_manual_prompt", name=char_name))
                     continue
-                if char.get("prompt"):
+                dummy_defaults = [
+                    "a brave protagonist with a determined expression",
+                    "ein mutiger protagonist mit entschlossenem blick"
+                ]
+                existing_p = (char.get("prompt") or "").strip().lower().rstrip(".! ")
+                if existing_p and existing_p not in dummy_defaults:
                     continue
 
                 print(t("char_optimizing_prompt", name=char_name, preset=preset_name))
