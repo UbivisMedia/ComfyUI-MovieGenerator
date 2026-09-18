@@ -286,115 +286,242 @@ def scan_loras_directory(loras_dir, filter_nsfw=False):
 
 def scan_diffusion_models(models_dir):
     """
-    Scans diffusion_models and checkpoints directories for available base models / UNets.
-    Generates recommended preset configurations for character casting.
+    Scans diffusion_models (and checkpoints) directories for available base models / UNets.
+    Preserves established preset keys while dynamically discovering any new T2I models
+    (such as Berry Model, Photanima, SilvermoonMix, Redcraft, etc.) with companion metadata.
     """
     discovered_presets = {}
     if not models_dir or not os.path.exists(models_dir):
         return discovered_presets
 
-    search_dirs = [
-        ("diffusion_models", os.path.join(models_dir, "diffusion_models")),
-        ("checkpoints", os.path.join(models_dir, "checkpoints")),
+    VIDEO_AUDIO_KEYWORDS = [
+        "minimax", "wan", "cogvideo", "i2v", "t2v", "music", "infinitetalk",
+        "qwen34bllm", "qwen3_4_b", "part", "tmp"
     ]
 
-    for category, cat_dir in search_dirs:
-        if not os.path.exists(cat_dir):
-            continue
-        for root, _, files in os.walk(cat_dir):
-            for f in files:
-                if not f.endswith((".safetensors", ".gguf")):
-                    continue
-                full_path = os.path.join(root, f)
-                rel_path = os.path.relpath(full_path, cat_dir)
-                fn_low = f.lower()
-                rel_low = rel_path.lower()
+    # Established base presets with tuned settings for standard casting
+    base_presets = {
+        "anima_catpony": {
+            "beschreibung": "Anima CatPony v1.0 - Expressive stylized anime & semi-realistic characters",
+            "unet_name": os.path.join("Anima", "sexy", "CatPony_Ani_v1.0.fp16.safetensors"),
+            "clip_name": "qwen_3_06b_base.safetensors",
+            "clip_type": "stable_diffusion",
+            "vae_name": "qwen_image_vae.safetensors",
+            "steps": 30,
+            "cfg": 4.0,
+            "sampler_name": "er_sde",
+            "scheduler": "beta57",
+            "aspect_ratio": "3:4 (Portrait Standard)",
+            "megapixels": 1.2,
+            "negative_prompt": "score_4, score_5, score_6, worst quality, low quality, blurry, deformed, bad anatomy",
+        },
+        "anima_cyberrealistic": {
+            "beschreibung": "CyberRealistic Anima v6.0 - Detailed photorealistic human portraits, natural lighting",
+            "unet_name": os.path.join("Anima", "realistic", "cyberrealisticAnima_v60AestheticV11.safetensors"),
+            "clip_name": "qwen_3_06b_base.safetensors",
+            "clip_type": "stable_diffusion",
+            "vae_name": "qwen_image_vae.safetensors",
+            "steps": 28,
+            "cfg": 3.5,
+            "sampler_name": "er_sde",
+            "scheduler": "beta57",
+            "aspect_ratio": "3:4 (Portrait Standard)",
+            "megapixels": 1.2,
+            "negative_prompt": "worst quality, low quality, cartoon, 3d, render, anime, illustration, blurry, bad anatomy",
+        },
+        "anima_turbo": {
+            "beschreibung": "Anima Turbo v1.1 - High-speed character casting (8 steps)",
+            "unet_name": os.path.join("Anima", "anime", "anima_turboV11.safetensors"),
+            "clip_name": "qwen_3_06b_base.safetensors",
+            "clip_type": "stable_diffusion",
+            "vae_name": "qwen_image_vae.safetensors",
+            "steps": 8,
+            "cfg": 1.8,
+            "sampler_name": "er_sde",
+            "scheduler": "beta57",
+            "aspect_ratio": "3:4 (Portrait Standard)",
+            "megapixels": 1.0,
+            "negative_prompt": "worst quality, low quality, blurry, deformed",
+        },
+        "anima_finalcut_int8": {
+            "beschreibung": "Anima FinalCut INT8 - VRAM-friendly high efficiency model (12 steps)",
+            "unet_name": os.path.join("Anima", "base model", "animaFinalcutNewINT8_turboINT8LOWCFG.safetensors"),
+            "clip_name": "qwen_3_06b_base.safetensors",
+            "clip_type": "stable_diffusion",
+            "vae_name": "qwen_image_vae.safetensors",
+            "steps": 12,
+            "cfg": 2.0,
+            "sampler_name": "er_sde",
+            "scheduler": "beta57",
+            "aspect_ratio": "3:4 (Portrait Standard)",
+            "megapixels": 1.0,
+            "negative_prompt": "worst quality, low quality, blurry, deformed",
+        },
+        "krea2_turbo_int8": {
+            "beschreibung": "Krea 2 Turbo (INT8) - Ultra-fast photorealism optimized for photographic casting",
+            "unet_name": os.path.join("Krea 2", "base model", "krea2TurboOfficialComfy_krea2TurboInt8.safetensors"),
+            "clip_name": "qwen3VL_4b.safetensors",
+            "clip_type": "krea2",
+            "vae_name": "qwen_image_vae.safetensors",
+            "steps": 8,
+            "cfg": 1.0,
+            "sampler_name": "euler",
+            "scheduler": "simple",
+            "aspect_ratio": "3:4 (Portrait Standard)",
+            "megapixels": 1.0,
+            "negative_prompt": "worst quality, low quality, blurry, distorted, unnatural anatomy",
+        }
+    }
 
-                # Anima CatPony
-                if "catpony" in fn_low:
-                    discovered_presets["anima_catpony"] = {
-                        "beschreibung": "Anima CatPony v1.0 - Expressive stylized anime & semi-realistic characters",
-                        "unet_name": rel_path if category == "diffusion_models" else None,
-                        "checkpoint": rel_path if category == "checkpoints" else None,
-                        "clip_name": "clip_l.safetensors",
-                        "clip_type": "sdxl",
-                        "vae_name": "sdxl_vae.safetensors",
-                        "steps": 30,
-                        "cfg": 4.0,
-                        "sampler_name": "er_sde",
-                        "scheduler": "beta57",
-                        "aspect_ratio": "16:9",
-                        "megapixels": 1.0,
-                        "negative_prompt": "score_4, score_5, score_6, worst quality, low quality, blurry, deformed, bad anatomy",
-                    }
-                # Anima CyberRealistic
-                elif "cyberrealistic" in fn_low and "anima" in rel_low:
-                    discovered_presets["anima_cyberrealistic"] = {
-                        "beschreibung": "CyberRealistic Anima v6.0 - Detailed photorealistic human portraits, skin texture, natural lighting",
-                        "unet_name": rel_path if category == "diffusion_models" else None,
-                        "checkpoint": rel_path if category == "checkpoints" else None,
-                        "clip_name": "clip_l.safetensors",
-                        "clip_type": "sdxl",
-                        "vae_name": "sdxl_vae.safetensors",
-                        "steps": 28,
-                        "cfg": 3.5,
-                        "sampler_name": "er_sde",
-                        "scheduler": "beta57",
-                        "aspect_ratio": "16:9",
-                        "megapixels": 1.0,
-                        "negative_prompt": "worst quality, low quality, blurry, distorted, bad hands, missing fingers, deformed",
-                    }
-                # Anima Turbo
-                elif "turbo" in fn_low and "anima" in rel_low:
-                    discovered_presets["anima_turbo"] = {
-                        "beschreibung": "Anima Turbo v1.1 - High-speed character casting (8 steps)",
-                        "unet_name": rel_path if category == "diffusion_models" else None,
-                        "checkpoint": rel_path if category == "checkpoints" else None,
-                        "clip_name": "clip_l.safetensors",
-                        "clip_type": "sdxl",
-                        "vae_name": "sdxl_vae.safetensors",
-                        "steps": 8,
-                        "cfg": 1.8,
-                        "sampler_name": "er_sde",
-                        "scheduler": "beta57",
-                        "aspect_ratio": "16:9",
-                        "megapixels": 1.0,
-                        "negative_prompt": "worst quality, low quality, blurry, deformed",
-                    }
-                # Anima FinalCut INT8
-                elif "finalcut" in fn_low and "anima" in rel_low:
-                    discovered_presets["anima_finalcut_int8"] = {
-                        "beschreibung": "Anima FinalCut INT8 - VRAM-friendly high efficiency model (12 steps)",
-                        "unet_name": rel_path if category == "diffusion_models" else None,
-                        "checkpoint": rel_path if category == "checkpoints" else None,
-                        "clip_name": "clip_l.safetensors",
-                        "clip_type": "sdxl",
-                        "vae_name": "sdxl_vae.safetensors",
-                        "steps": 12,
-                        "cfg": 2.0,
-                        "sampler_name": "er_sde",
-                        "scheduler": "beta57",
-                        "aspect_ratio": "16:9",
-                        "megapixels": 1.0,
-                        "negative_prompt": "worst quality, low quality, blurry, deformed",
-                    }
-                # Krea 2 Turbo INT8
-                elif "krea2" in fn_low or "krea" in rel_low:
-                    discovered_presets["krea2_turbo_int8"] = {
-                        "beschreibung": "Krea 2 Turbo (INT8) - Ultra-fast photorealism optimized for photographic casting",
-                        "unet_name": rel_path if category == "diffusion_models" else None,
-                        "checkpoint": rel_path if category == "checkpoints" else None,
-                        "clip_name": "qwen3VL_4b.safetensors",
-                        "clip_type": "krea2",
-                        "vae_name": "qwen_image_vae.safetensors",
-                        "steps": 8,
-                        "cfg": 1.0,
-                        "sampler_name": "euler",
-                        "scheduler": "simple",
-                        "aspect_ratio": "16:9",
-                        "megapixels": 1.0,
-                        "negative_prompt": "worst quality, low quality, blurry, distorted, unnatural anatomy",
-                    }
+    discovered_presets.update(base_presets)
+    known_unets = {
+        cfg["unet_name"].lower().replace("/", "\\")
+        for cfg in base_presets.values() if cfg.get("unet_name")
+    }
+
+    diff_dir = os.path.join(models_dir, "diffusion_models")
+    if not os.path.exists(diff_dir):
+        return discovered_presets
+
+    for root, _, files in os.walk(diff_dir):
+        for f in sorted(files):
+            if not f.endswith((".safetensors", ".gguf")):
+                continue
+            if f.endswith(".part") or f.endswith(".tmp"):
+                continue
+
+            full_path = os.path.join(root, f)
+            rel_path = os.path.relpath(full_path, diff_dir)
+            rel_norm = rel_path.lower().replace("/", "\\")
+            rel_low = rel_path.lower()
+            fn_low = f.lower()
+
+            if any(k in rel_low for k in VIDEO_AUDIO_KEYWORDS):
+                continue
+            if rel_norm in known_unets:
+                continue
+
+            # Parse companion metadata (Civitai metadata etc.)
+            meta = find_companion_metadata(full_path) or {}
+            civitai_data = meta.get("civitai", {}) if isinstance(meta, dict) else {}
+
+            sample_meta = {}
+            img_list = civitai_data.get("images", []) or (meta.get("images", []) if isinstance(meta, dict) else [])
+            if isinstance(img_list, list):
+                for im in img_list:
+                    if isinstance(im, dict) and im.get("meta"):
+                        sample_meta = im["meta"]
+                        break
+
+            # Model title & description
+            raw_title = meta.get("model_name") or meta.get("name") or os.path.splitext(f)[0]
+            raw_desc = meta.get("modelDescription") or meta.get("description") or ""
+            clean_desc_text = clean_description(raw_desc, 120)
+            if clean_desc_text:
+                desc = f"{raw_title} - {clean_desc_text}"
+            else:
+                desc = f"{raw_title} - T2I Diffusion Model"
+
+            # Detect Sampler & Scheduler
+            sampler_str = str(sample_meta.get("sampler") or "").lower()
+            if "dpm" in sampler_str:
+                sampler_name = "dpmpp_2m"
+            elif "euler" in sampler_str:
+                sampler_name = "euler"
+            elif "er_sde" in sampler_str:
+                sampler_name = "er_sde"
+            else:
+                sampler_name = "er_sde" if "anima" in rel_low else "euler"
+
+            sched_str = str(sample_meta.get("Schedule type") or sample_meta.get("scheduler") or "").lower()
+            if "karras" in sched_str or "karras" in sampler_str:
+                scheduler = "karras"
+            elif "simple" in sched_str:
+                scheduler = "simple"
+            elif "beta" in sched_str:
+                scheduler = "beta57"
+            else:
+                scheduler = "beta57" if "anima" in rel_low else "simple"
+
+            # Steps & CFG
+            steps = 30
+            cfg = 4.0
+            if sample_meta.get("steps"):
+                try:
+                    steps = max(6, min(50, int(sample_meta["steps"])))
+                except Exception:
+                    pass
+            elif "turbo" in fn_low or "int8" in fn_low:
+                steps = 10
+                cfg = 2.0
+
+            if sample_meta.get("cfgScale"):
+                try:
+                    cfg = max(1.0, min(15.0, float(sample_meta["cfgScale"])))
+                except Exception:
+                    pass
+
+            neg_prompt = sample_meta.get("negativePrompt") or "worst quality, low quality, blurry, bad anatomy, deformed"
+
+            # Architecture detection
+            if "anima" in rel_low or "illustrious" in rel_low or "pony" in rel_low or "berry" in fn_low:
+                clip_name = "qwen_3_06b_base.safetensors"
+                clip_type = "stable_diffusion"
+                vae_name = "qwen_image_vae.safetensors"
+                prefix = "anima"
+            elif "krea" in rel_low or "redcraft" in rel_low:
+                clip_name = "qwen3VL_4b.safetensors"
+                clip_type = "krea2"
+                vae_name = "qwen_image_vae.safetensors"
+                prefix = "krea2"
+                if not sample_meta.get("sampler"):
+                    sampler_name = "euler"
+                    scheduler = "simple"
+            elif "zimage" in rel_low or "moody" in rel_low:
+                clip_name = "qwen_3_06b_base.safetensors"
+                clip_type = "stable_diffusion"
+                vae_name = "qwen_image_vae.safetensors"
+                prefix = "zimage"
+                sampler_name = "euler"
+                scheduler = "simple"
+                steps = 8
+                cfg = 1.5
+            else:
+                clip_name = "clip_l.safetensors"
+                clip_type = "sdxl"
+                vae_name = "sdxl_vae.safetensors"
+                prefix = "model"
+
+            # Generate clean preset key
+            clean_fn = re.sub(r"[-_](?:v\d+(?:\.\d+)*|epoch\d+|step\d+|bf16|fp16|fp8|int8|convrot|pruned)", "", os.path.splitext(f)[0], flags=re.IGNORECASE)
+            clean_fn = re.sub(r"[^a-zA-Z0-9_]+", "_", clean_fn).strip("_").lower()
+            if prefix and not clean_fn.startswith(prefix):
+                p_key = f"{prefix}_{clean_fn}"
+            else:
+                p_key = clean_fn
+
+            # Ensure unique key
+            orig_p_key = p_key
+            counter = 2
+            while p_key in discovered_presets and discovered_presets[p_key].get("unet_name") != rel_path:
+                p_key = f"{orig_p_key}_{counter}"
+                counter += 1
+
+            discovered_presets[p_key] = {
+                "beschreibung": desc,
+                "unet_name": rel_path,
+                "clip_name": clip_name,
+                "clip_type": clip_type,
+                "vae_name": vae_name,
+                "steps": steps,
+                "cfg": cfg,
+                "sampler_name": sampler_name,
+                "scheduler": scheduler,
+                "aspect_ratio": "3:4 (Portrait Standard)",
+                "megapixels": 1.2 if "anima" in rel_low else 1.0,
+                "negative_prompt": neg_prompt,
+            }
+            known_unets.add(rel_norm)
 
     return discovered_presets
 

@@ -2391,7 +2391,15 @@ def main():
 
                 compatible = l_cfg.get("kompatible_modelle")
                 if compatible and preset_name not in compatible:
-                    print(t("lora_compat_notice", lora=l_name, models=', '.join(compatible), chosen=preset_name))
+                    is_fam_compat = any(
+                        (c.startswith("anima") and preset_name.startswith("anima")) or
+                        (c.startswith("krea") and preset_name.startswith("krea")) or
+                        (c.startswith("sdxl") and (preset_name.startswith("anima") or preset_name.startswith("sdxl"))) or
+                        (c.startswith("zimage") and preset_name.startswith("zimage"))
+                        for c in compatible
+                    )
+                    if not is_fam_compat:
+                        print(t("lora_compat_notice", lora=l_name, models=', '.join(compatible), chosen=preset_name))
             else:
                 real_file = l_name
                 s_model = custom_strength if custom_strength is not None else 1.0

@@ -898,7 +898,8 @@
     let modelOptionsHtml = '';
     for (const [mKey, mVal] of Object.entries(presets)) {
       const isSel = mKey === selectedModel ? 'selected' : '';
-      const label = mVal.beschreibung ? `${mKey} — ${mVal.beschreibung.substring(0, 45)}...` : mKey;
+      const descPart = mVal.beschreibung ? ` — ${mVal.beschreibung.substring(0, 65)}${mVal.beschreibung.length > 65 ? '...' : ''}` : '';
+      const label = `${mKey}${descPart}`;
       modelOptionsHtml += `<option value="${mKey}" ${isSel}>${escapeHtml(label)}</option>`;
     }
 
@@ -1412,7 +1413,18 @@
 
       let isCompat = false;
       if (target.type === 'character') {
-        isCompat = compatList.length === 0 || compatList.includes(target.model);
+        const tModel = (target.model || '').toLowerCase();
+        isCompat = compatList.length === 0 ||
+          compatList.includes(target.model) ||
+          compatList.some(m => {
+            const mLow = m.toLowerCase();
+            if (mLow === 'all' || mLow === '*' || mLow === tModel) return true;
+            if (mLow.startsWith('anima') && tModel.startsWith('anima')) return true;
+            if (mLow.startsWith('krea') && tModel.startsWith('krea')) return true;
+            if (mLow.startsWith('sdxl') && (tModel.startsWith('anima') || tModel.startsWith('sdxl'))) return true;
+            if (mLow.startsWith('zimage') && tModel.startsWith('zimage')) return true;
+            return false;
+          });
       } else if (target.type === 'scene') {
         if (turboExcludes.includes(lKeyLower) && !showAll) {
           continue;
