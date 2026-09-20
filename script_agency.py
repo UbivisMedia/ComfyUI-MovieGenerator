@@ -15,6 +15,7 @@ import threading
 import re
 import base64
 import time
+import shutil
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from version import __version__
 
@@ -2229,8 +2230,37 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
+    def do_HEAD(self):
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        if path == "/api/music/soundtrack":
+            query = urllib.parse.parse_qs(parsed.query)
+            proj = query.get("project", [""])[0]
+            if not proj:
+                self.send_error(404)
+                return
+            safe_proj = re.sub(r'[\\/*?:"<>| ]', '_', proj)
+            proj_dir = os.path.join(PROJECTS_DIR, safe_proj)
+            movie_dir = os.path.join(proj_dir, "Movie")
+            soundtrack_path = None
+            if os.path.exists(movie_dir):
+                for f in os.listdir(movie_dir):
+                    if "soundtrack" in f.lower() and f.endswith((".flac", ".mp3", ".wav", ".ogg")):
+                        soundtrack_path = os.path.join(movie_dir, f)
+                        break
+            if soundtrack_path and os.path.exists(soundtrack_path):
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/wav")
+                self.send_header("Content-Length", str(os.path.getsize(soundtrack_path)))
+                self.end_headers()
+            else:
+                self.send_error(404, "Soundtrack not found")
+            return
+        self.send_response(200)
         self.end_headers()
 
     def do_GET(self):
@@ -2256,6 +2286,59 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
 
         if path == "/api/llm/status":
             self.send_json(check_lm_studio_status())
+            return
+
+        if path == "/api/music/models":
+            models_dir = get_comfy_models_dir()
+            from master_regisseur import find_music_checkpoints
+            found = find_music_checkpoints(models_dir) if models_dir else []
+            settings = load_settings()
+            cfg_ckpt = settings.get("music_studio", {}).get("checkpoint", "Other\\base model\\ace_step_v1_3.5b.safetensors")
+            if cfg_ckpt and cfg_ckpt not in found:
+                found.insert(0, cfg_ckpt)
+
+            formatted = []
+            for f in found:
+                title = os.path.splitext(os.path.basename(f))[0]
+                m_type = "ACE-Step" if "ace" in f.lower() else ("Music" if "music" in f.lower() else "Audio")
+                formatted.append({
+                    "filename": f,
+                    "title": title,
+                    "type": m_type
+                })
+
+            self.send_json({
+                "models": formatted,
+                "default": cfg_ckpt
+            })
+            return
+
+        if path == "/api/music/soundtrack":
+            proj = query.get("project", [""])[0]
+            if not proj:
+                self.send_error(400, "Missing project param")
+                return
+            safe_proj = re.sub(r'[\\/*?:"<>| ]', '_', proj)
+            proj_dir = os.path.join(PROJECTS_DIR, safe_proj)
+            movie_dir = os.path.join(proj_dir, "Movie")
+            soundtrack_path = None
+            if os.path.exists(movie_dir):
+                for f in os.listdir(movie_dir):
+                    if "soundtrack" in f.lower() and f.endswith((".flac", ".mp3", ".wav", ".ogg")):
+                        soundtrack_path = os.path.join(movie_dir, f)
+                        break
+            if soundtrack_path and os.path.exists(soundtrack_path):
+                ext = os.path.splitext(soundtrack_path)[1].lower()
+                mime = "audio/flac" if ext == ".flac" else ("audio/mpeg" if ext == ".mp3" else "audio/wav")
+                with open(soundtrack_path, "rb") as af:
+                    content = af.read()
+                self.send_response(200)
+                self.send_header("Content-Type", mime)
+                self.send_header("Content-Length", str(len(content)))
+                self.end_headers()
+                self.wfile.write(content)
+                return
+            self.send_error(404, "Soundtrack not found")
             return
 
         if path == "/api/projects":
@@ -2498,6 +2581,116 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.send_error_json(f"Ungültiges JSON im Request Body: {e}")
                 return
+
+        # -------------------------------------------------------------
+        # POST /api/music/suggest-tags
+        # -------------------------------------------------------------
+        if path == "/api/music/suggest-tags":
+            title = payload.get("title", "")
+            description = payload.get("description", "")
+            scenes = payload.get("scenes")
+            if not scenes and payload.get("project"):
+                safe_proj = re.sub(r'[\\/*?:"<>| ]', '_', payload.get("project", "").strip())
+                proj_json = os.path.join(PROJECTS_DIR, f"{safe_proj}.json")
+                if os.path.exists(proj_json):
+                    try:
+                        with open(proj_json, "r", encoding="utf-8") as pf:
+                            p_data = json.load(pf)
+                            scenes = p_data.get("scenes") or p_data.get("szenen")
+                    except Exception:
+                        pass
+            from master_regisseur import ask_lm_studio_music_tags
+            tags = ask_lm_studio_music_tags(title, description, scenes=scenes)
+            self.send_json({
+                "success": True,
+                "prompt_tags": tags,
+                "tags": tags
+            })
+            return
+
+        # -------------------------------------------------------------
+        # POST /api/music/score-movie
+        # -------------------------------------------------------------
+        if path == "/api/music/score-movie":
+            project = payload.get("project", "").strip()
+            if not project:
+                self.send_error_json("Feld 'project' erforderlich")
+                return
+            safe_proj = re.sub(r'[\\/*?:"<>| ]', '_', project)
+            proj_dir = os.path.join(PROJECTS_DIR, safe_proj)
+            movie_dir = os.path.join(proj_dir, "Movie")
+            final_video = os.path.join(movie_dir, f"{safe_proj}_FINAL.mp4")
+            if not os.path.exists(final_video):
+                found_v = None
+                if os.path.exists(movie_dir):
+                    for f in os.listdir(movie_dir):
+                        if f.endswith(".mp4") and "soundtrack" not in f.lower() and not f.endswith("_RAW.mp4"):
+                            found_v = os.path.join(movie_dir, f)
+                            break
+                final_video = found_v
+
+            if not final_video or not os.path.exists(final_video):
+                self.send_error_json(f"Finales Video für '{project}' nicht gefunden in {movie_dir}. Bitte zuerst die Szenen fertigstellen!")
+                return
+
+            from master_regisseur import (
+                find_file, WORKFLOWS_DIR, BASE_DIR, get_video_duration,
+                generate_movie_soundtrack, mix_soundtrack_into_movie
+            )
+            settings = load_settings()
+            wf_music_path = find_file("workflow_music_ace.json", [WORKFLOWS_DIR, BASE_DIR])
+            if not wf_music_path or not os.path.exists(wf_music_path):
+                self.send_error_json("Workflow 'workflow_music_ace.json' nicht gefunden.")
+                return
+
+            with open(wf_music_path, "r", encoding="utf-8") as mf:
+                wf_music = json.load(mf)
+
+            movie_dur = get_video_duration(final_video) or 30.0
+            chosen_ckpt = payload.get("checkpoint") or settings.get("music_studio", {}).get("checkpoint") or "Other\\base model\\ace_step_v1_3.5b.safetensors"
+            prompt_tags = payload.get("prompt") or payload.get("tags") or "cinematic ambient soundtrack, acoustic guitar, warm pads, gentle tempo, instrumental"
+            steps = int(payload.get("steps") or 40)
+            cfg = float(payload.get("cfg") or 4.0)
+            vol = float(payload.get("volume") or 0.20)
+            ducking = bool(payload.get("ducking") if payload.get("ducking") is not None else True)
+
+            try:
+                aud_data, aud_fn = generate_movie_soundtrack(
+                    wf_music,
+                    prompt_tags=prompt_tags,
+                    duration_seconds=movie_dur,
+                    checkpoint=chosen_ckpt,
+                    steps=steps,
+                    cfg=cfg
+                )
+                if not aud_data:
+                    self.send_error_json("ComfyUI konnte keine Audiodaten erzeugen.")
+                    return
+
+                ext = os.path.splitext(aud_fn)[1] if aud_fn else ".flac"
+                soundtrack_file = os.path.abspath(os.path.join(movie_dir, f"{safe_proj}_soundtrack{ext}"))
+                with open(soundtrack_file, "wb") as af:
+                    af.write(aud_data)
+
+                raw_backup = os.path.abspath(os.path.join(movie_dir, f"{safe_proj}_RAW.mp4"))
+                if not os.path.exists(raw_backup):
+                    shutil.copy2(final_video, raw_backup)
+
+                scored_temp = os.path.abspath(os.path.join(movie_dir, f"{safe_proj}_SCORED.mp4"))
+                mix_ok = mix_soundtrack_into_movie(raw_backup, soundtrack_file, scored_temp, volume=vol, ducking=ducking)
+                if mix_ok and os.path.exists(scored_temp):
+                    shutil.move(scored_temp, final_video)
+                    self.send_json({
+                        "success": True,
+                        "soundtrack_url": f"/api/music/soundtrack?project={safe_proj}&t={int(time.time())}",
+                        "video_url": f"/api/projects/video?name={safe_proj}&t={int(time.time())}",
+                        "message": "Soundtrack erfolgreich generiert und eingemischt!"
+                    })
+                else:
+                    self.send_error_json("FFmpeg Audio-Mix fehlgeschlagen.")
+            except Exception as e:
+                self.send_error_json(f"Fehler beim Nachvertonen: {e}")
+            return
 
         # -------------------------------------------------------------
         # POST /api/project (Save Screenplay)

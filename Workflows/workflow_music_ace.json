@@ -1,0 +1,120 @@
+{
+  "40": {
+    "inputs": {
+      "ckpt_name": "Other\\base model\\ace_step_v1_3.5b.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint (ACE-Step)"
+    }
+  },
+  "45": {
+    "inputs": {
+      "shift": 4.0,
+      "model": [
+        "40",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingSD3",
+    "_meta": {
+      "title": "ModelSamplingSD3"
+    }
+  },
+  "17": {
+    "inputs": {
+      "seconds": 60,
+      "batch_size": 1
+    },
+    "class_type": "EmptyAceStepLatentAudio",
+    "_meta": {
+      "title": "EmptyAceStepLatentAudio"
+    }
+  },
+  "14": {
+    "inputs": {
+      "tags": "cinematic soundtrack, acoustic guitar, warm ocean pads, gentle rhythm, instrumental",
+      "lyrics": "[instrumental]",
+      "lyrics_strength": 1.0,
+      "clip": [
+        "40",
+        1
+      ]
+    },
+    "class_type": "TextEncodeAceStepAudio",
+    "_meta": {
+      "title": "TextEncodeAceStepAudio"
+    }
+  },
+  "44": {
+    "inputs": {
+      "conditioning": [
+        "14",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "3": {
+    "inputs": {
+      "seed": 449601688123789,
+      "steps": 40,
+      "cfg": 4.0,
+      "sampler_name": "res_multistep",
+      "scheduler": "simple",
+      "denoise": 1.0,
+      "model": [
+        "45",
+        0
+      ],
+      "positive": [
+        "14",
+        0
+      ],
+      "negative": [
+        "44",
+        0
+      ],
+      "latent_image": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler (Audio)"
+    }
+  },
+  "18": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "40",
+        2
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "VAE Decode Audio"
+    }
+  },
+  "19": {
+    "inputs": {
+      "filename_prefix": "audio/soundtrack",
+      "audio": [
+        "18",
+        0
+      ]
+    },
+    "class_type": "SaveAudio",
+    "_meta": {
+      "title": "Save Audio"
+    }
+  }
+}

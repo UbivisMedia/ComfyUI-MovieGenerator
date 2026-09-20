@@ -50,12 +50,260 @@ DEFAULT_SETTINGS = {
         "video_vae_name": "minimax_h3_video_vae_int8_convrot.safetensors",
         "audio_vae_name": "minimax_h3_audio_vae_fp32.safetensors"
     },
+    "music_studio": {
+        "enabled": False,
+        "checkpoint": "Other\\base model\\ace_step_v1_3.5b.safetensors",
+        "steps": 40,
+        "cfg": 4.0,
+        "volume": 0.20,
+        "ducking": True
+    },
     "lm_studio": {
         "url": "http://127.0.0.1:1234/v1/chat/completions",
         "model_name": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
         "temperature": 0.7
     }
 }
+
+def find_music_checkpoints(models_dir):
+    """Finds audio/music checkpoints (e.g. ACE-Step, Stable Audio) in models/checkpoints."""
+    found = []
+    if not models_dir or not os.path.exists(models_dir):
+        return found
+    base = os.path.join(models_dir, "checkpoints")
+    if not os.path.exists(base):
+        return found
+    for root, _, files in os.walk(base):
+        for f in files:
+            if f.endswith((".safetensors", ".gguf", ".sft", ".ckpt")):
+                rel_p = os.path.relpath(os.path.join(root, f), base)
+                rp_lower = rel_p.lower()
+                if any(kw in rp_lower for kw in ["ace", "music", "audio", "sound"]):
+                    if rel_p not in found:
+                        found.append(rel_p)
+    return sorted(found)
+
+def get_video_duration(video_path):
+    """Returns duration of video in seconds using ffprobe."""
+    cmd = [
+        "ffprobe", "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        video_path
+    ]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return float(res.stdout.strip())
+    except Exception:
+        return None
+
+def mix_soundtrack_into_movie(video_path, audio_path, output_path, volume=0.20, ducking=True, ducking_threshold=0.08):
+    """Mixes generated background music into the movie without replacing or drowning speech/foley."""
+    vol = max(0.05, min(1.0, float(volume)))
+    if ducking:
+        filter_complex = (
+            f"[1:a]volume={vol:.2f}[bgm];"
+            f"[bgm][0:a]sidechaincompress=threshold={ducking_threshold:.2f}:ratio=4:attack=150:release=800[ducked];"
+            f"[0:a][ducked]amix=inputs=2:duration=first:dropout_transition=2[aout]"
+        )
+    else:
+        filter_complex = (
+            f"[1:a]volume={vol:.2f}[bgm];"
+            f"[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]"
+        )
+
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", video_path,
+        "-i", audio_path,
+        "-filter_complex", filter_complex,
+        "-map", "0:v",
+        "-map", "[aout]",
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-b:a", "320k",
+        output_path
+    ]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        return True
+    except Exception as e:
+        fallback_cmd = [
+            "ffmpeg", "-y",
+            "-i", video_path,
+            "-i", audio_path,
+            "-map", "0:v",
+            "-map", "1:a",
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-b:a", "320k",
+            output_path
+        ]
+        try:
+            subprocess.run(fallback_cmd, check=True, capture_output=True, text=True)
+            return True
+        except Exception as fe:
+            print(f"   ❌ FFmpeg Audio-Mix Fehler: {fe}")
+            return False
+
+def generate_movie_soundtrack(wf_music_template, prompt_tags, duration_seconds, checkpoint=None, steps=40, cfg=4.0, seed=None):
+    """Executes ComfyUI audio workflow to generate an instrumental soundtrack."""
+    wf = json.loads(json.dumps(wf_music_template))
+    
+    if checkpoint and "40" in wf and "inputs" in wf["40"]:
+        wf["40"]["inputs"]["ckpt_name"] = checkpoint
+        
+    dur = max(5.0, min(360.0, float(duration_seconds)))
+    if "17" in wf and "inputs" in wf["17"]:
+        wf["17"]["inputs"]["seconds"] = round(dur, 1)
+        
+    if "14" in wf and "inputs" in wf["14"]:
+        wf["14"]["inputs"]["tags"] = prompt_tags
+        wf["14"]["inputs"]["lyrics"] = "[instrumental]"
+        
+    audio_seed = seed if seed is not None else random.randint(1, 999999999999999)
+    if "3" in wf and "inputs" in wf["3"]:
+        wf["3"]["inputs"]["seed"] = audio_seed
+        wf["3"]["inputs"]["steps"] = int(steps)
+        wf["3"]["inputs"]["cfg"] = float(cfg)
+        
+    res = queue_prompt(wf)
+    prompt_id = res['prompt_id']
+    
+    while True:
+        history = get_history(prompt_id)
+        if prompt_id in history:
+            prompt_info = history[prompt_id]
+            status_info = prompt_info.get("status", {})
+            if status_info.get("status_str") == "error":
+                err_msg = "Unknown ComfyUI error"
+                for msg in status_info.get("messages", []):
+                    if msg[0] == "execution_error":
+                        err_msg = msg[1].get("exception_message", str(msg[1]))
+                raise RuntimeError(f"ComfyUI Music Error: {err_msg}")
+                
+            outputs = prompt_info.get('outputs', {})
+            for node_id in outputs:
+                if 'audio' in outputs[node_id]:
+                    audio_list = outputs[node_id]['audio']
+                    if audio_list:
+                        aud_info = audio_list[0]
+                        aud_data = get_image(aud_info['filename'], aud_info['subfolder'], aud_info['type'])
+                        return aud_data, aud_info['filename']
+            break
+        time.sleep(2)
+    return None, None
+
+def build_scenes_timeline(scenes):
+    """Builds a chronological scene timeline with timestamps for music scoring."""
+    if not scenes or not isinstance(scenes, list):
+        return "", 0
+    lines = []
+    current_sec = 0.0
+    for idx, s in enumerate(scenes, start=1):
+        if not isinstance(s, dict):
+            continue
+        try:
+            dur = float(s.get("duration", s.get("dauer", 6)) or 6)
+        except (ValueError, TypeError):
+            dur = 6.0
+        
+        start_min, start_sec = divmod(int(current_sec), 60)
+        end_time = current_sec + dur
+        end_min, end_sec = divmod(int(end_time), 60)
+        time_tag = f"[{start_min:02d}:{start_sec:02d}-{end_min:02d}:{end_sec:02d}]"
+        
+        seq = (s.get("sequence") or s.get("sequenz") or f"Szene {idx}").strip()
+        loc = (s.get("location") or s.get("ort") or "").strip()
+        idea = (s.get("idea") or s.get("prompt") or s.get("handlung") or "").strip()
+        # Clean idea from tags like <Subject 1>, {variables} etc.
+        clean_idea = re.sub(r'<Subject \d+>\s*(?:\([^)]*\))?', '', idea)
+        clean_idea = re.sub(r'\{[^}]+\}', '', clean_idea)
+        clean_idea = re.sub(r'\s+', ' ', clean_idea).strip()
+        if len(clean_idea) > 100:
+            clean_idea = clean_idea[:97] + "..."
+            
+        soundscape = (s.get("soundscape") or s.get("geraeusche") or "").strip()
+        
+        entry = f"- {time_tag} Szene {idx} ({seq}"
+        if loc:
+            entry += f", {loc}"
+        entry += f"): {clean_idea}"
+        if soundscape:
+            entry += f" [SFX: {soundscape}]"
+        lines.append(entry)
+        current_sec = end_time
+
+    return "\n".join(lines), int(current_sec)
+
+def ask_lm_studio_music_tags(title, description, scenes=None, url=None, model=None):
+    """Generates chronologically synchronized musical progression tags via LM Studio."""
+    lms_cfg = SETTINGS.get("lm_studio", {})
+    endpoint = url or lms_cfg.get("url", "http://127.0.0.1:1234/v1/chat/completions")
+    model_name = model or lms_cfg.get("model_name", "")
+    
+    timeline_str, total_sec = build_scenes_timeline(scenes) if scenes else ("", 0)
+    
+    if timeline_str and len(scenes) > 1:
+        system_prompt = (
+            "You are an expert cinematic film composer.\n"
+            "Compose a time-synchronized, progression-based instrumental soundtrack prompt for AI music generation (ACE-Step).\n"
+            "Match the narrative progression and emotional arc of the scenes using timestamp segments.\n"
+            "Strictly instrumental (no vocals, no singing).\n"
+            "Format: Output 3-5 comma-separated segments with timestamps matching the timeline, e.g.:\n"
+            "[00:00-00:07] intro motif with light rhythm, [00:07-00:19] playful swelling melody, [00:19-00:29] emotional cello climax, [00:29-00:35] mellow outro, instrumental\n"
+            "Output ONLY the prompt text. No explanations."
+        )
+        user_prompt = (
+            f"Film Title: {title}\n"
+            f"Story Premise: {description}\n"
+            f"Total Duration: {total_sec}s\n"
+            f"Scene Timeline:\n{timeline_str}"
+        )
+        max_tokens = 200
+    else:
+        system_prompt = (
+            "You are an expert cinematic film composer and soundtrack supervisor.\n"
+            "Generate a comma-separated list of 5-8 English descriptive tags defining the musical genre, instruments, tempo, and mood for a cinematic instrumental background soundtrack.\n"
+            "The soundtrack MUST be strictly instrumental (no singing, no lyrics, no vocals).\n"
+            "Output ONLY the comma-separated tags (e.g. 'cinematic acoustic guitar, warm pads, gentle ocean breeze, light percussion, romantic chill vibe, instrumental'). No other text."
+        )
+        user_prompt = f"Movie Title: {title}\nStory Premise: {description}"
+        max_tokens = 120
+    
+    payload = {
+        "model": model_name,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        "temperature": 0.5,
+        "max_tokens": max_tokens
+    }
+    
+    try:
+        req = urllib.request.Request(
+            endpoint,
+            data=json.dumps(payload).encode('utf-8'),
+            headers={'Content-Type': 'application/json'}
+        )
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            msg = data['choices'][0]['message']
+            raw_text = (msg.get('content') or msg.get('reasoning_content') or '').strip()
+            tags = re.sub(r'[\'"`*]', '', raw_text).strip()
+            if "prompt:" in tags.lower():
+                tags = tags.split(":", 1)[1].strip()
+            if not tags:
+                raise ValueError("Empty response from LM Studio")
+            if "instrumental" not in tags.lower():
+                tags += ", instrumental"
+            return tags
+    except Exception as e:
+        print(f"⚠️ LM Studio Music Tags Warning: {e}")
+        if timeline_str:
+            return f"[00:00-00:07] warm acoustic guitar, soft ocean pads, [00:07-00:19] joyful strings, light percussion, [00:19-{total_sec:02d}] emotional climax, gentle sunset resolution, instrumental"
+        return "cinematic ambient soundtrack, acoustic guitar, warm pads, gentle tempo, emotional, instrumental"
 
 def find_minimax_unets(models_dir):
     """Finds Minimax diffusion models in models/diffusion_models and models/unet."""
@@ -1553,6 +1801,84 @@ def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_
     try:
         res = subprocess.run(cmd, cwd=scenes_dir, check=True, capture_output=True, text=True)
         print(t("cutting_success", path=final_video_path))
+
+        # Check for Music Studio soundtrack scoring
+        music_cfg = (screenplay.get("music") if isinstance(screenplay, dict) else None) or SETTINGS.get("music_studio", {})
+        if music_cfg and (music_cfg.get("enabled") is True or (isinstance(screenplay, dict) and screenplay.get("music", {}).get("enabled") is True)):
+            try:
+                print(t("music_starting"))
+                wf_music_path = find_file("workflow_music_ace.json", [WORKFLOWS_DIR, BASE_DIR])
+                if wf_music_path and os.path.exists(wf_music_path):
+                    with open(wf_music_path, "r", encoding="utf-8") as mf:
+                        wf_music = json.load(mf)
+                    
+                    # Determine exact video duration
+                    movie_dur = get_video_duration(final_video_path)
+                    if not movie_dur and prepared_scenes:
+                        movie_dur = sum(float(sc.get("dauer", 5)) for sc in prepared_scenes)
+                    if not movie_dur:
+                        movie_dur = 30.0
+
+                    # Configurable checkpoint (NOT hardcoded!)
+                    chosen_ckpt = (
+                        music_cfg.get("checkpoint") or 
+                        music_cfg.get("model") or 
+                        SETTINGS.get("music_studio", {}).get("checkpoint") or 
+                        "Other\\base model\\ace_step_v1_3.5b.safetensors"
+                    )
+                    prompt_tags = music_cfg.get("prompt") or music_cfg.get("tags")
+                    if not prompt_tags:
+                        print("   🧠 LM Studio: Erstelle musikalische Tags für den Film-Soundtrack...")
+                        p_title = screenplay.get("titel") or screenplay.get("title") or movie_name
+                        p_scenes = screenplay.get("scenes") or screenplay.get("szenen") if isinstance(screenplay, dict) else None
+                        prompt_tags = ask_lm_studio_music_tags(p_title, p_desc, scenes=p_scenes)
+                        music_cfg["prompt"] = prompt_tags
+                    
+                    music_steps = music_cfg.get("steps") or SETTINGS.get("music_studio", {}).get("steps", 40)
+                    music_cfg_scale = music_cfg.get("cfg") or SETTINGS.get("music_studio", {}).get("cfg", 4.0)
+                    music_vol = float(music_cfg.get("volume") or SETTINGS.get("music_studio", {}).get("volume", 0.20))
+                    use_ducking = bool(music_cfg.get("ducking") if music_cfg.get("ducking") is not None else SETTINGS.get("music_studio", {}).get("ducking", True))
+
+                    print(t("music_generating", duration=movie_dur, model=os.path.basename(chosen_ckpt)))
+                    aud_data, aud_fn = generate_movie_soundtrack(
+                        wf_music,
+                        prompt_tags=prompt_tags,
+                        duration_seconds=movie_dur,
+                        checkpoint=chosen_ckpt,
+                        steps=music_steps,
+                        cfg=music_cfg_scale
+                    )
+
+                    if aud_data:
+                        # Save companion soundtrack file
+                        ext = os.path.splitext(aud_fn)[1] if aud_fn else ".flac"
+                        soundtrack_file = os.path.abspath(os.path.join(movie_dir, f"{movie_name}_soundtrack{ext}"))
+                        with open(soundtrack_file, "wb") as af:
+                            af.write(aud_data)
+                        print(t("music_generated", path=soundtrack_file))
+
+                        # Mix soundtrack into movie with auto-ducking
+                        print(t("music_mixing"))
+                        raw_backup_path = os.path.abspath(os.path.join(movie_dir, f"{movie_name}_RAW.mp4"))
+                        shutil.copy2(final_video_path, raw_backup_path)
+
+                        scored_temp_path = os.path.abspath(os.path.join(movie_dir, f"{movie_name}_SCORED.mp4"))
+                        mix_ok = mix_soundtrack_into_movie(
+                            raw_backup_path,
+                            soundtrack_file,
+                            scored_temp_path,
+                            volume=music_vol,
+                            ducking=use_ducking
+                        )
+                        if mix_ok and os.path.exists(scored_temp_path):
+                            shutil.move(scored_temp_path, final_video_path)
+                            print(t("music_mixed_success", path=final_video_path))
+                        else:
+                            print("   ⚠️ Audio-Mix fehlgeschlagen, behalte untermalte Rohfassung.")
+                else:
+                    print("   ⚠️ workflow_music_ace.json nicht gefunden.")
+            except Exception as me:
+                print(f"   ⚠️ Music Studio Fehler: {me}")
         
         # Optional WebM export with embedded metadata
         if SETTINGS.get("export_webm", True):
@@ -2195,7 +2521,11 @@ def main():
                 "sequenz": seq_name,
                 "ort": loc_name,
                 "variables": dict(active_variables),
-                "idee": scene_idea
+                "idee": scene_idea,
+                "turbo": scene.get("turbo"),
+                "steps": scene.get("steps") or scene.get("schritte"),
+                "megapixels": scene.get("megapixels") or scene.get("resolution") or scene.get("aufloesung"),
+                "upscale": scene.get("upscale") or scene.get("hochskalieren")
             })
 
             continuity_badges = []
@@ -2536,6 +2866,67 @@ def main():
 
         print(t("scene_shooting", id=szene_id))
         
+        # --- Director's Control: Scene-specific Turbo, Steps, Resolution & Upscaling ---
+        scene_turbo_val = scene_data.get("turbo")
+        scene_steps_val = scene_data.get("steps")
+        scene_mp_val = scene_data.get("megapixels")
+        scene_upscale_val = scene_data.get("upscale")
+
+        # 1. Turbo & Steps resolution
+        is_turbo_disabled = (scene_turbo_val is False) or (str(scene_turbo_val).strip().lower() in ["off", "false", "no", "0", "disable", "disabled", "hq"])
+        turbo_active = False if is_turbo_disabled else (True if configured_turbo else False)
+
+        if "674" in wf_i2v and "inputs" in wf_i2v["674"]:
+            if "lora_1" in wf_i2v["674"]["inputs"]:
+                wf_i2v["674"]["inputs"]["lora_1"]["on"] = turbo_active
+
+        # Determine steps: scene_steps > configured_steps or defaults (8 for turbo, 20 for non-turbo HQ)
+        if scene_steps_val is not None and str(scene_steps_val).strip():
+            try:
+                active_steps = int(scene_steps_val)
+            except (ValueError, TypeError):
+                active_steps = 20 if not turbo_active else (int(configured_steps) if configured_steps else 8)
+        else:
+            if not turbo_active:
+                active_steps = 20
+            else:
+                active_steps = int(configured_steps) if configured_steps is not None else int(wf_i2v.get("750", {}).get("inputs", {}).get("value", 8))
+
+        if "750" in wf_i2v and "inputs" in wf_i2v["750"]:
+            wf_i2v["750"]["inputs"]["value"] = active_steps
+
+        # 2. Native Resolution (Megapixels in Node 115)
+        # Default: 0.25 (approx. 672x384 in 16:9), Wide/Detail: 0.45 (approx. 896x512), Native HD: 0.75 (approx. 1152x648)
+        active_mp = 0.25
+        if scene_mp_val is not None and str(scene_mp_val).strip():
+            try:
+                active_mp = float(scene_mp_val)
+            except (ValueError, TypeError):
+                s_mp_lower = str(scene_mp_val).strip().lower()
+                if s_mp_lower in ["detail", "high", "totale", "wide", "0.45"]:
+                    active_mp = 0.45
+                elif s_mp_lower in ["native_hd", "hd", "ultra", "0.75"]:
+                    active_mp = 0.75
+                else:
+                    active_mp = 0.25
+
+        if "115" in wf_i2v and "inputs" in wf_i2v["115"]:
+            wf_i2v["115"]["inputs"]["megapixels"] = active_mp
+
+        # 3. Upscaling Bypass (Node 702 & 761)
+        is_upscale_off = (scene_upscale_val is False) or (str(scene_upscale_val).strip().lower() in ["off", "none", "false", "bypass", "native", "0"])
+        if "702" in wf_i2v and "inputs" in wf_i2v["702"]:
+            if is_upscale_off:
+                # Direct feed from VAEDecode (node 703) -> bypasses RealESRGAN
+                wf_i2v["702"]["inputs"]["images"] = ["703", 0]
+            else:
+                # Standard feed from ImageUpscaleWithModel (node 761)
+                wf_i2v["702"]["inputs"]["images"] = ["761", 0]
+
+        turbo_status_str = "AN" if turbo_active else "AUS (HQ)"
+        upscale_status_str = "AUS (Nativ)" if is_upscale_off else "2x RealESRGAN"
+        print(t("scene_shooting_settings", id=szene_id, turbo=turbo_status_str, steps=active_steps, mp=active_mp, upscale=upscale_status_str))
+
         # Reset dynamic scene LoRAs from node 674 (keep base lora_1 intact)
         if "674" in wf_i2v and "inputs" in wf_i2v["674"]:
             keys_to_remove_674 = [k for k in wf_i2v["674"]["inputs"].keys() if re.match(r"^lora_[2-9]\d*$", k)]

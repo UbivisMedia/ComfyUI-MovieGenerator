@@ -26,6 +26,8 @@ $RECYCLE.BIN/
 *.log
 *_temp*
 *_last_frame_temp.png
+*_RAW.mp4
+*_soundtrack.*
 ffmpeg_list.txt
 
 # Projects directory rules:

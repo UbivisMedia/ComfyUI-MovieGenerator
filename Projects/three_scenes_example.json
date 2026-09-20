@@ -1,9 +1,17 @@
 {
   "title": "The Artifact",
   "description": "A concise 3-scene demonstration showcasing character casting, environmental continuity, and dynamic wardrobe variables.",
+  "producer_instructions": "",
   "variables": {
     "outfit_maya": "worn tactical jacket over techwear vest",
     "goggles": "resting around her neck"
+  },
+  "music": {
+    "enabled": false,
+    "model": "Other\\base model\\ace_fp8.safetensors",
+    "prompt": "Epic orchestral, soaring strings, driving brass, moderate tempo, adventurous, sweeping, heroic, cinematic percussion, instrumental",
+    "volume": 0.22,
+    "ducking": true
   },
   "characters": [
     {
@@ -14,7 +22,11 @@
         "realskin",
         "anima_detailer"
       ],
-      "description": "A skilled cyber-archeologist exploring an ancient subterranean vault."
+      "description": "A skilled cyber-archeologist exploring an ancient subterranean vault.",
+      "prompt": "A skilled cyber-archeologist exploring an ancient subterranean vault.",
+      "auto_prompt": true,
+      "image": "Characters/Maya.png",
+      "image_url": "/api/characters/image?project=three_scenes_example&name=Maya&t=1789382364"
     }
   ],
   "scenes": [
@@ -23,24 +35,29 @@
       "sequence": "Subterranean Vault Discovery",
       "location": "Ancient Stone Corridor",
       "duration": 8,
-      "idea": "Maya walks cautiously through a dimly lit ancient stone corridor in her {outfit_maya}, holding a holographic scanner casting a soft cyan glow."
+      "idea": "Maya walks cautiously through a dimly lit ancient stone corridor in her {outfit_maya}, holding a holographic scanner casting a soft cyan glow.",
+      "prompt": "Maya walks cautiously through a dimly lit ancient stone corridor in her {outfit_maya}, holding a holographic scanner casting a soft cyan glow."
     },
     {
       "id": 2,
       "sequence": "Subterranean Vault Discovery",
-      "same_scene": true,
+      "location": "",
       "duration": 7,
+      "idea": "Maya discovers an illuminated pedestal. With her goggles {goggles}, she approaches slowly and reaches toward the hovering golden crystalline artifact.",
+      "prompt": "Maya discovers an illuminated pedestal. With her goggles {goggles}, she approaches slowly and reaches toward the hovering golden crystalline artifact.",
+      "same_scene": true,
       "variables_update": {
         "goggles": "pulled up over her eyes, glowing with cyan digital HUD readouts"
-      },
-      "idea": "Maya discovers an illuminated pedestal. With her goggles {goggles}, she approaches slowly and reaches toward the hovering golden crystalline artifact."
+      }
     },
     {
       "id": 3,
       "sequence": "Subterranean Vault Discovery",
-      "match_cut": true,
+      "location": "",
       "duration": 7,
-      "idea": "Direct seamless continuation: Maya's fingers touch the artifact. Instantly, radiant energy ripples across its surface, illuminating her goggles and face in pure awe."
+      "idea": "Direct seamless continuation: Maya's fingers touch the artifact. Instantly, radiant energy ripples across its surface, illuminating her goggles and face in pure awe.",
+      "prompt": "Direct seamless continuation: Maya's fingers touch the artifact. Instantly, radiant energy ripples across its surface, illuminating her goggles and face in pure awe.",
+      "match_cut": true
     }
   ]
 }
