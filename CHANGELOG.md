@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2026-09-20
+
+### 🌟 Highlights
+- **Visual Storyboard Filmstrip Timeline (`#storyboardTimelineContainer`)**: An interactive, responsive timeline strip positioned directly above the scene cards. Displays live scene thumbnails, durations, readiness status badges, interactive transition chips, and an immediate full movie playback launcher (`▶️ Gesamten Film abspielen`).
+- **In-Browser Video Playback & Streaming**: Integrated HTML5 video player modal (`#videoPlayerModal`) supporting HTTP 206 Partial Content (Range requests) for instant, seekable scrubbing of both individual scene clips and the assembled master movie without leaving Script Agency.
+- **Cinematic Scene Transitions**: Added per-scene cinematic transition controls with custom durations (0.5s – 2.0s). Supports **Hard Cut**, **Cross-Dissolve** (`dissolve`), **Fade to Black** (`fadeblack`), **Dip to White** (`fadewhite`), and directional **Wipes** (`wipeleft`, `wiperight`). Transition assembly automatically constructs chained FFmpeg `xfade` (video) and `acrossfade` (audio) complex filtergraphs with sample rate normalization, while seamlessly falling back to ultra-fast lossless stream-copy (`-c copy`) when only hard cuts are used.
+- **Incremental Re-Rendering (`--scene <id>`)**: Directors can now re-shoot any single scene directly from its scene card (`🔄 Szene neu drehen` / `Reshoot Scene`) or via CLI flag. Automatically loads existing anchor frames for match-cut continuity, regenerates only the target scene, and immediately reassembles the master movie.
+
+### ✨ Added
+- **Storyboard Timeline Track (`web/index.html`, `web/style.css`, `web/app.js`)**:
+  - Filmstrip cards displaying thumbnail previews, scene indices, durations, and rendered/pending badges.
+  - Interactive transition badges between timeline cards that cycle transitions on click (`CUT` ➔ `DISSOLVE` ➔ `FADE-BLACK` ➔ `FADE-WHITE` ➔ `WIPE-LEFT`) and synchronize instantly with scene card controls.
+  - Scene card highlight effect and auto-scroll when clicking timeline thumbnails.
+- **In-Browser Video Player Modal (`web/index.html`, `web/style.css`, `web/app.js`)**:
+  - Native video controls with keyboard shortcuts (`Escape` to close), duration indicator, and direct file download button.
+  - Play buttons integrated into both timeline cards and scene card headers (`▶️`).
+- **HTTP 206 Partial Content Media Streaming (`script_agency.py`)**:
+  - `GET /api/scene/video?project=...&scene=...`: Stream individual scene clips.
+  - `GET /api/scene/preview?project=...&scene=...`: Serve companion preview keyframes.
+  - `GET /api/movie/video?project=...`: Stream the assembled full movie.
+  - `GET /api/scenes/status?project=...`: Real-time query of all scene statuses, video file sizes, and duration metadata.
+  - `POST /api/scene/rerender`: Background execution of selective re-rendering via `master_regisseur.py --scene <id>`.
+- **FFmpeg Cinematic Transition Pipeline (`master_regisseur.py`)**:
+  - `has_audio_stream(video_path)`: Reliable probe for audio presence across clips.
+  - `assemble_movie()`: Dynamically compiles `xfade` and `acrossfade` filter chains with duration offsets.
+  - `--scene <id>` and `--only-scene <id>` CLI arguments for targeted scene re-shooting.
+- **Full Bilingual Localization**:
+  - 25+ new translation keys in both `localization/de.json` and `localization/en.json` covering all timeline elements, player modal strings, and transition choices.
+
+---
+
 ## [1.1.0] - 2026-09-20
 
 ### 🌟 Highlights

@@ -199,6 +199,25 @@
           </div>
         </div>
 
+        <!-- Storyboard Filmstrip Timeline -->
+        <div id="storyboardTimelineContainer" class="storyboard-timeline-container">
+          <div class="timeline-header">
+            <div class="timeline-header-left">
+              <span class="timeline-icon">🎞️</span>
+              <span class="timeline-title" data-i18n="storyboard_timeline">Storyboard-Timeline</span>
+              <span id="timelineStatsBadge" class="badge badge-subtle">0s • 0 Szenen</span>
+            </div>
+            <div class="timeline-header-right">
+              <button id="btnPlayFullMovie" class="btn btn-primary btn-xs" style="display:none;" data-i18n-title="timeline_play_movie">
+                <span>🎬</span> <span data-i18n="btn_preview_movie">Ganzen Film abspielen</span>
+              </button>
+            </div>
+          </div>
+          <div id="filmstripTrack" class="filmstrip-track">
+            <!-- Filmstrip thumbnail cells and transition badges injected here -->
+          </div>
+        </div>
+
         <div id="scenesContainer" class="scenes-list">
           <!-- Scene cards injected here -->
         </div>
@@ -859,6 +878,26 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" id="btnCloseGuideModalBtn" data-i18n="close">Schließen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Video Player Modal -->
+  <div id="videoPlayerModal" class="modal-overlay">
+    <div class="modal-card modal-video">
+      <div class="modal-header">
+        <h3 class="modal-title" id="videoModalTitle">▶️ <span data-i18n="video_modal_title">Video-Player</span></h3>
+        <button class="btn-close-modal" id="btnCloseVideoModal">&times;</button>
+      </div>
+      <div class="modal-body modal-video-body">
+        <div class="video-container">
+          <video id="modalVideoElement" controls playsinline class="responsive-video-player"></video>
+        </div>
+        <div class="video-meta-bar" id="videoMetaBar">
+          <span id="videoMetaTitle" class="video-meta-title">Szene 1</span>
+          <span id="videoMetaDuration" class="badge badge-subtle">6.0s</span>
+          <a id="videoDownloadLink" href="#" download class="btn btn-secondary btn-xs">⬇️ <span data-i18n="video_modal_download">Herunterladen</span></a>
+        </div>
       </div>
     </div>
   </div>

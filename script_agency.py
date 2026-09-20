@@ -2521,6 +2521,187 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
             return
 
         # -------------------------------------------------------------
+        # GET /api/scene/video (Stream rendered scene clip with HTTP 206)
+        # -------------------------------------------------------------
+        if path == "/api/scene/video":
+            project_param = query.get("project", [""])[0].strip()
+            scene_param = query.get("scene", [""])[0].strip() or query.get("id", [""])[0].strip()
+            if not project_param or not scene_param:
+                self.send_error(400, "Parameter 'project' und 'scene' erforderlich")
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            scenes_dir = os.path.join(PROJECTS_DIR, safe_project, "Scenes")
+
+            target_file = None
+            if scene_param.endswith(".mp4"):
+                cand = os.path.join(scenes_dir, os.path.basename(scene_param))
+                if os.path.exists(cand):
+                    target_file = cand
+            else:
+                try:
+                    s_id = int(re.search(r'\d+', scene_param).group(0))
+                    cand1 = os.path.join(scenes_dir, f"Szene_{s_id:02d}.mp4")
+                    cand2 = os.path.join(scenes_dir, f"Szene_{s_id}.mp4")
+                    if os.path.exists(cand1):
+                        target_file = cand1
+                    elif os.path.exists(cand2):
+                        target_file = cand2
+                except Exception:
+                    pass
+
+            if not target_file or not os.path.exists(target_file):
+                self.send_error(404, "Szenen-Video nicht gefunden")
+                return
+
+            serve_media_file(self, target_file, "video/mp4")
+            return
+
+        # -------------------------------------------------------------
+        # GET /api/scene/preview (Serve scene companion thumbnail)
+        # -------------------------------------------------------------
+        if path == "/api/scene/preview":
+            project_param = query.get("project", [""])[0].strip()
+            scene_param = query.get("scene", [""])[0].strip() or query.get("id", [""])[0].strip()
+            if not project_param or not scene_param:
+                self.send_error(400, "Parameter 'project' und 'scene' erforderlich")
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            scenes_dir = os.path.join(PROJECTS_DIR, safe_project, "Scenes")
+
+            target_file = None
+            try:
+                s_id = int(re.search(r'\d+', scene_param).group(0))
+                cand1 = os.path.join(scenes_dir, f"Szene_{s_id:02d}_preview.png")
+                cand2 = os.path.join(scenes_dir, f"Szene_{s_id}_preview.png")
+                cand3 = os.path.join(scenes_dir, f"Szene_{s_id:02d}.png")
+                if os.path.exists(cand1):
+                    target_file = cand1
+                elif os.path.exists(cand2):
+                    target_file = cand2
+                elif os.path.exists(cand3):
+                    target_file = cand3
+            except Exception:
+                pass
+
+            if not target_file or not os.path.exists(target_file):
+                self.send_error(404, "Szenen-Vorschaubild nicht gefunden")
+                return
+
+            serve_media_file(self, target_file, "image/png")
+            return
+
+        # -------------------------------------------------------------
+        # GET /api/movie/video (Stream final assembled movie with HTTP 206)
+        # -------------------------------------------------------------
+        if path == "/api/movie/video":
+            project_param = query.get("project", [""])[0].strip()
+            if not project_param:
+                self.send_error(400, "Parameter 'project' erforderlich")
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            movie_dir = os.path.join(PROJECTS_DIR, safe_project, "Movie")
+
+            target_file = os.path.join(movie_dir, f"{safe_project}_FINAL.mp4")
+            if not os.path.exists(target_file) and os.path.exists(movie_dir):
+                for f in os.listdir(movie_dir):
+                    if f.endswith(".mp4") and not f.endswith("_RAW.mp4"):
+                        target_file = os.path.join(movie_dir, f)
+                        break
+
+            if not target_file or not os.path.exists(target_file):
+                self.send_error(404, "Finales Video nicht gefunden")
+                return
+
+            serve_media_file(self, target_file, "video/mp4")
+            return
+
+        # -------------------------------------------------------------
+        # GET /api/scenes/status (Return render state & media URLs for storyboard timeline)
+        # -------------------------------------------------------------
+        if path == "/api/scenes/status":
+            project_param = query.get("project", [""])[0].strip()
+            if not project_param:
+                self.send_error_json("Parameter 'project' erforderlich")
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            proj_dir = os.path.join(PROJECTS_DIR, safe_project)
+            scenes_dir = os.path.join(proj_dir, "Scenes")
+            movie_dir = os.path.join(proj_dir, "Movie")
+
+            proj_json = os.path.join(PROJECTS_DIR, f"{safe_project}.json")
+            if not os.path.exists(proj_json):
+                proj_json = os.path.join(proj_dir, f"{safe_project}.json")
+
+            screenplay_scenes = []
+            if os.path.exists(proj_json):
+                try:
+                    with open(proj_json, "r", encoding="utf-8") as f:
+                        sp_data = json.load(f)
+                    screenplay_scenes = sp_data.get("scenes") or sp_data.get("szenen") or []
+                except Exception:
+                    pass
+
+            scene_results = []
+            for idx, sc in enumerate(screenplay_scenes):
+                sid = sc.get("id", idx + 1)
+                try:
+                    s_num = int(sid)
+                except Exception:
+                    s_num = idx + 1
+
+                v_path1 = os.path.join(scenes_dir, f"Szene_{s_num:02d}.mp4")
+                v_path2 = os.path.join(scenes_dir, f"Szene_{s_num}.mp4")
+                has_video = os.path.exists(v_path1) or os.path.exists(v_path2)
+
+                p_path1 = os.path.join(scenes_dir, f"Szene_{s_num:02d}_preview.png")
+                p_path2 = os.path.join(scenes_dir, f"Szene_{s_num}_preview.png")
+                p_path3 = os.path.join(scenes_dir, f"Szene_{s_num:02d}.png")
+                has_preview = os.path.exists(p_path1) or os.path.exists(p_path2) or os.path.exists(p_path3)
+
+                v_url = f"/api/scene/video?project={urllib.parse.quote(safe_project)}&scene={s_num}" if has_video else None
+                p_url = f"/api/scene/preview?project={urllib.parse.quote(safe_project)}&scene={s_num}" if has_preview else None
+
+                sc_dur = float(sc.get("duration") or sc.get("dauer_sekunden") or sc.get("dauer") or 6.0)
+                sc_trans = str(sc.get("transition") or sc.get("uebergang") or sc.get("blende") or "cut")
+                sc_trans_dur = float(sc.get("transition_duration") or sc.get("uebergang_dauer") or 0.75)
+
+                scene_results.append({
+                    "id": s_num,
+                    "sequence": sc.get("sequence") or sc.get("sequenz") or "",
+                    "location": sc.get("location") or sc.get("ort") or "",
+                    "has_video": has_video,
+                    "video_url": v_url,
+                    "has_preview": has_preview,
+                    "preview_url": p_url,
+                    "duration": sc_dur,
+                    "transition": sc_trans,
+                    "transition_duration": sc_trans_dur
+                })
+
+            final_movie_path = os.path.join(movie_dir, f"{safe_project}_FINAL.mp4")
+            has_final_movie = os.path.exists(final_movie_path)
+            if not has_final_movie and os.path.exists(movie_dir):
+                for f in os.listdir(movie_dir):
+                    if f.endswith(".mp4") and not f.endswith("_RAW.mp4"):
+                        final_movie_path = os.path.join(movie_dir, f)
+                        has_final_movie = True
+                        break
+
+            self.send_json({
+                "success": True,
+                "project": safe_project,
+                "scenes": scene_results,
+                "movie_ready": has_final_movie,
+                "movie_url": f"/api/movie/video?project={urllib.parse.quote(safe_project)}" if has_final_movie else None,
+                "movie_file": os.path.basename(final_movie_path) if has_final_movie else None
+            })
+            return
+
+        # -------------------------------------------------------------
         # Static Asset Serving (HTML, CSS, JS)
         # -------------------------------------------------------------
         rel_path = path.lstrip("/")
@@ -2913,6 +3094,52 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
                     self.server.shutdown()
 
             threading.Thread(target=stop_server, daemon=True).start()
+            return
+
+        # -------------------------------------------------------------
+        # POST /api/scene/rerender (Incrementally re-shoot single scene)
+        # -------------------------------------------------------------
+        if path == "/api/scene/rerender":
+            project_param = payload.get("project", "").strip()
+            scene_id = payload.get("scene_id")
+            if not project_param or scene_id is None:
+                self.send_error_json("Parameter 'project' und 'scene_id' erforderlich")
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            proj_json = os.path.join(PROJECTS_DIR, f"{safe_project}.json")
+            if not os.path.exists(proj_json):
+                proj_json = os.path.join(PROJECTS_DIR, safe_project, f"{safe_project}.json")
+
+            if not os.path.exists(proj_json):
+                self.send_error_json(f"Projekt-Drehbuch '{safe_project}' nicht gefunden")
+                return
+
+            # Launch master_regisseur.py in background thread with --scene <id>
+            def run_targeted_reshoot():
+                import subprocess
+                cmd = [
+                    sys.executable,
+                    os.path.join(BASE_DIR, "master_regisseur.py"),
+                    proj_json,
+                    "--scene", str(scene_id)
+                ]
+                print(f"🎬 [Re-Render] Starte gezielten Dreh von Szene {scene_id} für '{safe_project}'...")
+                try:
+                    subprocess.run(cmd, cwd=BASE_DIR, check=True)
+                    print(f"✅ [Re-Render] Szene {scene_id} erfolgreich neu gedreht!")
+                except Exception as ex:
+                    print(f"❌ [Re-Render] Fehler beim Drehen von Szene {scene_id}: {ex}")
+
+            t_thread = threading.Thread(target=run_targeted_reshoot, daemon=True)
+            t_thread.start()
+
+            self.send_json({
+                "success": True,
+                "message": f"Dreh für Szene {scene_id} wurde im Hintergrund gestartet.",
+                "scene_id": scene_id,
+                "project": safe_project
+            })
             return
 
         self.send_error_json(f"Unbekannte POST-Route: {path}", status=404)

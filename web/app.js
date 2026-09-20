@@ -110,6 +110,17 @@
     scenesContainer: document.getElementById('scenesContainer'),
     btnAddCharacter: document.getElementById('btnAddCharacter'),
     btnAddScene: document.getElementById('btnAddScene'),
+    storyboardTimelineContainer: document.getElementById('storyboardTimelineContainer'),
+    timelineStatsBadge: document.getElementById('timelineStatsBadge'),
+    btnPlayFullMovie: document.getElementById('btnPlayFullMovie'),
+    filmstripTrack: document.getElementById('filmstripTrack'),
+    videoPlayerModal: document.getElementById('videoPlayerModal'),
+    btnCloseVideoModal: document.getElementById('btnCloseVideoModal'),
+    videoModalTitle: document.getElementById('videoModalTitle'),
+    modalVideoElement: document.getElementById('modalVideoElement'),
+    videoMetaTitle: document.getElementById('videoMetaTitle'),
+    videoMetaDuration: document.getElementById('videoMetaDuration'),
+    videoDownloadLink: document.getElementById('videoDownloadLink'),
     jsonPreview: document.getElementById('jsonPreview'),
     btnCopyJson: document.getElementById('btnCopyJson'),
     btnFormatJson: document.getElementById('btnFormatJson'),
@@ -416,6 +427,25 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Fehler bei der Filmmusik-Generierung');
+      }
+      return data;
+    },
+
+    async getScenesStatus(project) {
+      const res = await fetch(`/api/scenes/status?project=${encodeURIComponent(project)}`);
+      if (!res.ok) throw new Error('Fehler beim Laden des Szenen-Status');
+      return await res.json();
+    },
+
+    async reshootScene(project, sceneId) {
+      const res = await fetch('/api/scene/rerender', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project, scene_id: sceneId })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Starten des Szenen-Drehs');
       }
       return data;
     }
@@ -731,6 +761,12 @@
       if (Object.keys(sVarUpd).length > 0) sceneObj.variables_update = sVarUpd;
       if (sLoras.length > 0) sceneObj.loras = sLoras;
 
+      // Cinematic scene transition & duration
+      const sTrans = s.transition || s.uebergang || s.blende || 'cut';
+      const sTransDur = parseFloat(s.transition_duration || s.uebergang_dauer || 0.75) || 0.75;
+      sceneObj.transition = sTrans;
+      sceneObj.transition_duration = sTransDur;
+
       return sceneObj;
     });
 
@@ -758,6 +794,7 @@
       renderCharacters();
       renderScenes();
       renderMusicStudio();
+      fetchAndRenderTimeline();
       updateStats();
       renderJsonPreview();
       markClean();
@@ -1882,6 +1919,7 @@
           </button>
         </div>
       `;
+      renderStoryboardTimeline();
       return;
     }
 
@@ -1889,11 +1927,13 @@
       const card = createSceneCard(scene, idx, scenes);
       el.scenesContainer.appendChild(card);
     });
+    renderStoryboardTimeline();
   }
 
   function createSceneCard(scene, idx, allScenes) {
     const card = document.createElement('div');
     card.className = 'scene-card';
+    card.id = `sceneCard_${scene.id || (idx + 1)}`;
     card.dataset.sceneIndex = idx;
 
     const sceneId = scene.id || (idx + 1);
@@ -1970,6 +2010,8 @@
             <input type="number" class="scene-duration-input" min="3" max="15" value="${duration}">
             <span>${escapeHtml(t('secondsUnit'))}</span>
           </div>
+          <button class="btn btn-primary-outline btn-xs btn-play-scene" title="${escapeHtml(t('btn_preview_scene') || 'Clip ansehen')}">▶️</button>
+          <button class="btn btn-secondary btn-xs btn-reshoot-scene" title="${escapeHtml(t('btn_reshoot_scene') || 'Szene neu drehen')}">🔄</button>
           <button class="btn btn-ghost btn-xs btn-move-up" title="${escapeHtml(t('moveUp'))}" ${idx === 0 ? 'disabled' : ''}>▲</button>
           <button class="btn btn-ghost btn-xs btn-move-down" title="${escapeHtml(t('moveDown'))}" ${idx === allScenes.length - 1 ? 'disabled' : ''}>▼</button>
           <button class="btn btn-ghost btn-xs btn-dup-scene" title="${escapeHtml(t('duplicateSceneTitle'))}">📋</button>
@@ -2064,6 +2106,29 @@
               <option value="auto" ${scene.upscale !== false ? 'selected' : ''}>${escapeHtml(t('sceneUpscaleAuto'))}</option>
               <option value="off" ${scene.upscale === false ? 'selected' : ''}>${escapeHtml(t('sceneUpscaleOff'))}</option>
             </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Szenenübergänge / Cinematic Transitions -->
+      <div class="scene-transition-section">
+        <div class="scene-transition-header">
+          <label>🎬 ${escapeHtml(t('transition_label') || 'Übergang zur nächsten Szene')}</label>
+        </div>
+        <div class="scene-transition-grid">
+          <div class="transition-field">
+            <select class="select-input select-xs scene-transition-select">
+              <option value="cut" ${scene.transition === 'cut' || !scene.transition ? 'selected' : ''}>${escapeHtml(t('transition_cut') || 'Harter Schnitt (Cut)')}</option>
+              <option value="dissolve" ${scene.transition === 'dissolve' || scene.transition === 'fade' ? 'selected' : ''}>${escapeHtml(t('transition_dissolve') || 'Weiche Blende (Crossfade / Dissolve)')}</option>
+              <option value="fadeblack" ${scene.transition === 'fadeblack' || scene.transition === 'fade_to_black' ? 'selected' : ''}>${escapeHtml(t('transition_fadeblack') || 'Schwarzblende (Fade to Black)')}</option>
+              <option value="fadewhite" ${scene.transition === 'fadewhite' || scene.transition === 'dip_to_white' ? 'selected' : ''}>${escapeHtml(t('transition_fadewhite') || 'Weißblende (Dip to White)')}</option>
+              <option value="wipeleft" ${scene.transition === 'wipeleft' ? 'selected' : ''}>${escapeHtml(t('transition_wipeleft') || 'Wischblende Links (Wipe Left)')}</option>
+              <option value="wiperight" ${scene.transition === 'wiperight' ? 'selected' : ''}>${escapeHtml(t('transition_wiperight') || 'Wischblende Rechts (Wipe Right)')}</option>
+            </select>
+          </div>
+          <div class="transition-duration-field">
+            <span class="render-field-label">${escapeHtml(t('transition_duration_label') || 'Dauer (s):')}</span>
+            <input type="number" class="scene-transition-duration-input" min="0.2" max="3.0" step="0.1" value="${scene.transition_duration || 0.75}">
           </div>
         </div>
       </div>
@@ -2416,6 +2481,60 @@
       });
     }
 
+    // Transition Listeners
+    const transSelect = card.querySelector('.scene-transition-select');
+    if (transSelect) {
+      transSelect.addEventListener('change', () => {
+        scene.transition = transSelect.value;
+        renderStoryboardTimeline();
+        markDirty();
+      });
+    }
+
+    const transDurInput = card.querySelector('.scene-transition-duration-input');
+    if (transDurInput) {
+      transDurInput.addEventListener('change', () => {
+        scene.transition_duration = parseFloat(transDurInput.value) || 0.75;
+        renderStoryboardTimeline();
+        markDirty();
+      });
+    }
+
+    // Play Clip in Player Modal
+    const playBtn = card.querySelector('.btn-play-scene');
+    if (playBtn) {
+      playBtn.addEventListener('click', () => {
+        const projName = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+        const videoUrl = `/api/scene/video?project=${encodeURIComponent(projName)}&scene=${sceneId}&t=${Date.now()}`;
+        openVideoPlayerModal(videoUrl, `Szene #${sceneId} (${duration}s)`, duration);
+      });
+    }
+
+    // Re-shoot Scene Button
+    const reshootBtn = card.querySelector('.btn-reshoot-scene');
+    if (reshootBtn) {
+      reshootBtn.addEventListener('click', async () => {
+        const confirmMsg = (t('reshoot_confirm') || 'Möchtest du Szene {id} wirklich neu rendern?').replace('{id}', sceneId);
+        if (!confirm(confirmMsg)) return;
+
+        const projName = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+        try {
+          reshootBtn.disabled = true;
+          reshootBtn.innerHTML = '⏳';
+          const res = await API.reshootScene(projName, sceneId);
+          showToast(res.message || (t('reshoot_started') || 'Dreh gestartet...').replace('{id}', sceneId), 'info');
+          setTimeout(() => {
+            fetchAndRenderTimeline();
+          }, 3000);
+        } catch (err) {
+          showToast(err.message, 'error');
+        } finally {
+          reshootBtn.disabled = false;
+          reshootBtn.innerHTML = '🔄';
+        }
+      });
+    }
+
     return card;
   }
 
@@ -2424,6 +2543,207 @@
     scenes.forEach((s, idx) => {
       s.id = idx + 1;
     });
+  }
+
+  // --- Storyboard Filmstrip Timeline & Video Player Methods ---
+  async function fetchAndRenderTimeline() {
+    const projName = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+    if (!projName) return;
+
+    try {
+      const statusData = await API.getScenesStatus(projName);
+      if (statusData && statusData.success) {
+        state.scenesStatus = statusData;
+        renderStoryboardTimeline();
+      }
+    } catch (err) {
+      console.warn('Could not fetch scene render status:', err);
+      renderStoryboardTimeline();
+    }
+  }
+
+  function renderStoryboardTimeline() {
+    if (!el.filmstripTrack) return;
+    el.filmstripTrack.innerHTML = '';
+
+    const scenes = state.screenplay.scenes || [];
+    const statusMap = {};
+    if (state.scenesStatus && Array.isArray(state.scenesStatus.scenes)) {
+      for (const sc of state.scenesStatus.scenes) {
+        statusMap[sc.id] = sc;
+      }
+    }
+
+    const projName = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+
+    let totalSecs = 0;
+    let renderedCount = 0;
+
+    scenes.forEach((sc, idx) => {
+      const d = parseFloat(sc.duration || 6);
+      totalSecs += d;
+      if (idx < scenes.length - 1 && sc.transition && sc.transition !== 'cut' && sc.transition !== 'none') {
+        const td = parseFloat(sc.transition_duration || 0.75);
+        totalSecs -= Math.min(td, d / 2.0);
+      }
+      const st = statusMap[sc.id || (idx + 1)];
+      if (st && st.has_video) renderedCount++;
+    });
+
+    if (el.timelineStatsBadge) {
+      el.timelineStatsBadge.textContent = `${totalSecs.toFixed(1)}s • ${renderedCount}/${scenes.length} ${t('timeline_ready') || 'Gerendert'}`;
+    }
+
+    if (el.btnPlayFullMovie) {
+      if (state.scenesStatus && state.scenesStatus.movie_ready) {
+        el.btnPlayFullMovie.style.display = 'inline-flex';
+        el.btnPlayFullMovie.onclick = () => {
+          const mUrl = state.scenesStatus.movie_url + '&t=' + Date.now();
+          const title = state.screenplay.title || projName;
+          openVideoPlayerModal(mUrl, `🎬 ${title} (FINAL)`, totalSecs.toFixed(1));
+        };
+      } else {
+        el.btnPlayFullMovie.style.display = 'none';
+      }
+    }
+
+    if (scenes.length === 0) {
+      el.filmstripTrack.innerHTML = `<span style="color:var(--text-dim);font-size:12px;font-style:italic;">${escapeHtml(t('timeline_no_scenes') || 'Noch keine Szenen im Drehbuch.')}</span>`;
+      return;
+    }
+
+    scenes.forEach((scene, idx) => {
+      const sceneId = scene.id || (idx + 1);
+      const st = statusMap[sceneId];
+      const hasVid = st && st.has_video;
+      const hasPrev = st && st.has_preview;
+      const duration = scene.duration || 6;
+      const seq = scene.sequence || scene.sequenz || `Szene ${sceneId}`;
+
+      const cell = document.createElement('div');
+      cell.className = `filmstrip-cell ${hasVid ? 'rendered' : ''}`;
+      cell.title = `${t('timeline_jump_to_scene') || 'Zu Szene {id} springen'}`.replace('{id}', sceneId);
+
+      const previewUrl = (st && st.preview_url) ? st.preview_url : `/api/scene/preview?project=${encodeURIComponent(projName)}&scene=${sceneId}&t=${Date.now()}`;
+      const videoUrl = (st && st.video_url) ? st.video_url : `/api/scene/video?project=${encodeURIComponent(projName)}&scene=${sceneId}&t=${Date.now()}`;
+
+      let thumbHtml = '';
+      if (hasPrev) {
+        thumbHtml = `<img src="${previewUrl}" class="filmstrip-thumb-img" alt="Szene ${sceneId}" onerror="this.style.display='none'">`;
+      } else {
+        thumbHtml = `
+          <div class="filmstrip-placeholder">
+            <span style="font-size:14px;margin-bottom:2px;">🎬</span>
+            <span style="font-weight:600;font-size:10px;">${escapeHtml(seq)}</span>
+          </div>
+        `;
+      }
+
+      cell.innerHTML = `
+        ${thumbHtml}
+        <div class="filmstrip-cell-topbar">
+          <span class="filmstrip-scene-badge">#${sceneId}</span>
+          <span class="filmstrip-status-pill ${hasVid ? 'ready' : 'pending'}">${hasVid ? (t('timeline_ready') || 'Gerendert') : (t('timeline_not_rendered') || 'Offen')}</span>
+        </div>
+        ${hasVid ? `<div class="filmstrip-play-overlay" title="${escapeHtml(t('timeline_play_scene') || 'Szene im Player ansehen')}">▶</div>` : ''}
+        <div class="filmstrip-cell-bottombar">
+          <span class="filmstrip-cell-seq">${escapeHtml(seq)}</span>
+          <span class="filmstrip-cell-dur">${duration}s</span>
+        </div>
+      `;
+
+      cell.addEventListener('click', (e) => {
+        if (e.target.closest('.filmstrip-play-overlay') || (hasVid && e.shiftKey)) {
+          openVideoPlayerModal(videoUrl, `Szene #${sceneId}: ${seq}`, duration);
+        } else {
+          const targetCard = document.getElementById(`sceneCard_${sceneId}`);
+          if (targetCard) {
+            targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            targetCard.style.outline = '2px solid var(--accent-blue, #38bdf8)';
+            targetCard.style.boxShadow = '0 0 20px rgba(56, 189, 248, 0.5)';
+            setTimeout(() => {
+              targetCard.style.outline = '';
+              targetCard.style.boxShadow = '';
+            }, 1600);
+          }
+        }
+      });
+
+      el.filmstripTrack.appendChild(cell);
+
+      // Add Transition Badge between scene idx and idx + 1
+      if (idx < scenes.length - 1) {
+        const transType = scene.transition || 'cut';
+        const transDur = scene.transition_duration || 0.75;
+        const isCut = transType === 'cut' || transType === 'none';
+
+        const transBadge = document.createElement('div');
+        transBadge.className = `filmstrip-transition-badge ${isCut ? '' : 'custom'}`;
+
+        let transIcon = '✂️';
+        let transName = 'CUT';
+        if (transType === 'dissolve' || transType === 'fade') {
+          transIcon = '🌫️';
+          transName = `DISSOLVE (${transDur}s)`;
+        } else if (transType === 'fadeblack') {
+          transIcon = '🌑';
+          transName = `FADE BLACK (${transDur}s)`;
+        } else if (transType === 'fadewhite') {
+          transIcon = '⚪';
+          transName = `DIP WHITE (${transDur}s)`;
+        } else if (transType === 'wipeleft') {
+          transIcon = '◀️';
+          transName = `WIPE LEFT (${transDur}s)`;
+        } else if (transType === 'wiperight') {
+          transIcon = '▶️';
+          transName = `WIPE RIGHT (${transDur}s)`;
+        }
+
+        transBadge.innerHTML = `<span>${transIcon}</span> <span>${escapeHtml(transName)}</span>`;
+        transBadge.title = `${escapeHtml(t('transition_label') || 'Übergang')}: ${transName}`;
+
+        transBadge.addEventListener('click', () => {
+          const sequence = ['cut', 'dissolve', 'fadeblack', 'fadewhite', 'wipeleft'];
+          const currentIdx = sequence.indexOf(scene.transition || 'cut');
+          const nextTrans = sequence[(currentIdx + 1) % sequence.length];
+          scene.transition = nextTrans;
+          if (!scene.transition_duration) scene.transition_duration = 0.75;
+
+          const cardElem = document.getElementById(`sceneCard_${sceneId}`);
+          if (cardElem) {
+            const sel = cardElem.querySelector('.scene-transition-select');
+            if (sel) sel.value = nextTrans;
+          }
+
+          renderStoryboardTimeline();
+          markDirty();
+          showToast(`Übergang Szene #${sceneId} -> #${sceneId + 1}: ${nextTrans}`, 'info');
+        });
+
+        el.filmstripTrack.appendChild(transBadge);
+      }
+    });
+  }
+
+  function openVideoPlayerModal(videoUrl, title, duration) {
+    if (!el.videoPlayerModal || !el.modalVideoElement) return;
+    if (el.videoModalTitle) el.videoModalTitle.textContent = `▶️ ${title}`;
+    if (el.videoMetaTitle) el.videoMetaTitle.textContent = title;
+    if (el.videoMetaDuration) el.videoMetaDuration.textContent = duration ? `${duration}s` : '';
+    if (el.videoDownloadLink) el.videoDownloadLink.href = videoUrl;
+
+    el.modalVideoElement.src = videoUrl;
+    el.modalVideoElement.load();
+    el.videoPlayerModal.classList.add('open');
+    el.modalVideoElement.play().catch(() => {});
+  }
+
+  function closeVideoPlayerModal() {
+    if (!el.videoPlayerModal || !el.modalVideoElement) return;
+    el.modalVideoElement.pause();
+    el.modalVideoElement.removeAttribute('src');
+    el.modalVideoElement.load();
+    el.videoPlayerModal.classList.remove('open');
   }
 
   function addScene() {
@@ -3794,6 +4114,7 @@
         Object.values(el.tabContents).forEach(content => content && content.classList.remove('active'));
         if (el.tabContents[tab]) el.tabContents[tab].classList.add('active');
 
+        if (tab === 'scenes') fetchAndRenderTimeline();
         if (tab === 'json') renderJsonPreview();
         if (tab === 'music') renderMusicStudio();
       });
@@ -4001,6 +4322,16 @@
       });
     }
 
+    // Video Player Modal Events
+    if (el.btnCloseVideoModal) {
+      el.btnCloseVideoModal.addEventListener('click', closeVideoPlayerModal);
+    }
+    if (el.videoPlayerModal) {
+      el.videoPlayerModal.addEventListener('click', (e) => {
+        if (e.target === el.videoPlayerModal) closeVideoPlayerModal();
+      });
+    }
+
     // Keyboard Shortcuts (Ctrl+S to save, Escape to close modals)
     window.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -4010,6 +4341,7 @@
         closeModelPickerModal();
         closeLoraPickerModal();
         closeGuideModal();
+        closeVideoPlayerModal();
       }
     });
   }

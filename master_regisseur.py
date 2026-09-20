@@ -97,6 +97,21 @@ def get_video_duration(video_path):
     except Exception:
         return None
 
+def has_audio_stream(video_path):
+    """Returns True if the video file contains an audio stream."""
+    cmd = [
+        "ffprobe", "-v", "error",
+        "-select_streams", "a",
+        "-show_entries", "stream=codec_type",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        video_path
+    ]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return "audio" in res.stdout
+    except Exception:
+        return False
+
 def mix_soundtrack_into_movie(video_path, audio_path, output_path, volume=0.20, ducking=True, ducking_threshold=0.08):
     """Mixes generated background music into the movie without replacing or drowning speech/foley."""
     vol = max(0.05, min(1.0, float(volume)))
@@ -1789,14 +1804,131 @@ def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_
         f.write(f"description={escape_ffmetadata(full_description)}\n")
         f.write(f"comment={escape_ffmetadata(metadata_json_str)}\n")
 
-    cmd = [
-        "ffmpeg", "-y",
-        "-f", "concat", "-safe", "0", "-i", "ffmpeg_list.txt",
-        "-i", "ffmetadata.txt",
-        "-map_metadata", "1",
-        "-c", "copy",
-        final_video_path
-    ]
+    # Map scenes to transition settings
+    scene_lookup = {}
+    if prepared_scenes:
+        for sc in prepared_scenes:
+            sid = sc.get("id")
+            if sid is not None:
+                scene_lookup[str(sid)] = sc
+    elif screenplay:
+        s_list = screenplay.get("szenen") or screenplay.get("scenes") or []
+        for idx, sc in enumerate(s_list):
+            sid = sc.get("id", idx + 1)
+            scene_lookup[str(sid)] = sc
+
+    TRANSITION_MAP = {
+        "cut": None,
+        "hart": None,
+        "none": None,
+        "fade": "fade",
+        "dissolve": "fade",
+        "crossfade": "fade",
+        "cross_dissolve": "fade",
+        "fadeblack": "fadeblack",
+        "fade_to_black": "fadeblack",
+        "blende_schwarz": "fadeblack",
+        "fadewhite": "fadewhite",
+        "dip_to_white": "fadewhite",
+        "blende_weiss": "fadewhite",
+        "wipeleft": "wipeleft",
+        "wiperight": "wiperight",
+        "smoothleft": "smoothleft",
+        "smoothright": "smoothright",
+        "circlecrop": "circlecrop",
+    }
+
+    transitions_to_apply = []
+    has_custom_transition = False
+    for i in range(len(scene_files) - 1):
+        sfile = scene_files[i]
+        m = re.search(r'(\d+)', sfile)
+        sid = str(int(m.group(1))) if m else str(i + 1)
+        sc_data = scene_lookup.get(sid, {})
+        t_raw = str(sc_data.get("transition") or sc_data.get("uebergang") or sc_data.get("blende") or "cut").strip().lower()
+        t_type = TRANSITION_MAP.get(t_raw)
+        try:
+            t_dur = float(sc_data.get("transition_duration") or sc_data.get("uebergang_dauer") or 0.75)
+        except (ValueError, TypeError):
+            t_dur = 0.75
+        transitions_to_apply.append((t_type, t_dur))
+        if t_type is not None:
+            has_custom_transition = True
+
+    if not has_custom_transition or len(scene_files) <= 1:
+        # Fast lossless stream concatenation via ffmpeg_list.txt
+        cmd = [
+            "ffmpeg", "-y",
+            "-f", "concat", "-safe", "0", "-i", "ffmpeg_list.txt",
+            "-i", "ffmetadata.txt",
+            "-map_metadata", "1",
+            "-c", "copy",
+            final_video_path
+        ]
+    else:
+        # Cinematic transition assembly via FFmpeg xfade + acrossfade filter complex
+        print("   🎬 Wende filmische Szenenübergänge (xfade) an...")
+        inputs_cmd = []
+        filter_steps = []
+        durations = []
+        has_audios = []
+
+        for i, sfile in enumerate(scene_files):
+            spath = os.path.join(scenes_dir, sfile)
+            d = get_video_duration(spath) or 5.0
+            durations.append(d)
+            inputs_cmd.extend(["-i", sfile])
+            has_a = has_audio_stream(spath)
+            has_audios.append(has_a)
+
+            filter_steps.append(f"[{i}:v]format=yuv420p[v_in_{i}]")
+            if has_a:
+                filter_steps.append(f"[{i}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo[a_in_{i}]")
+            else:
+                filter_steps.append(f"anullsrc=channel_layout=stereo:sample_rate=44100,atrim=duration={d:.3f}[a_in_{i}]")
+
+        cur_v = "v_in_0"
+        cur_a = "a_in_0"
+        running_dur = durations[0]
+
+        for i in range(len(scene_files) - 1):
+            next_v = f"v_in_{i+1}"
+            next_a = f"a_in_{i+1}"
+            dur_next = durations[i+1]
+            t_type, req_dur = transitions_to_apply[i]
+
+            t_dur = min(req_dur, running_dur / 2.0, dur_next / 2.0)
+            if t_dur < 0.1:
+                t_type = None
+
+            out_v = f"v_trans_{i+1}"
+            out_a = f"a_trans_{i+1}"
+
+            if t_type is None:
+                filter_steps.append(f"[{cur_v}][{next_v}]concat=n=2:v=1:a=0[{out_v}]")
+                filter_steps.append(f"[{cur_a}][{next_a}]concat=n=2:v=0:a=1[{out_a}]")
+                running_dur = running_dur + dur_next
+            else:
+                offset = max(0.0, running_dur - t_dur)
+                filter_steps.append(f"[{cur_v}][{next_v}]xfade=transition={t_type}:duration={t_dur:.3f}:offset={offset:.3f}[{out_v}]")
+                filter_steps.append(f"[{cur_a}][{next_a}]acrossfade=d={t_dur:.3f}[{out_a}]")
+                running_dur = offset + dur_next
+
+            cur_v = out_v
+            cur_a = out_a
+
+        meta_input_idx = len(scene_files)
+        inputs_cmd.extend(["-i", "ffmetadata.txt"])
+
+        cmd = ["ffmpeg", "-y"] + inputs_cmd + [
+            "-filter_complex", ";".join(filter_steps),
+            "-map", f"[{cur_v}]",
+            "-map", f"[{cur_a}]",
+            "-map_metadata", str(meta_input_idx),
+            "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            "-c:a", "aac", "-b:a", "192k",
+            final_video_path
+        ]
     
     try:
         res = subprocess.run(cmd, cwd=scenes_dir, check=True, capture_output=True, text=True)
@@ -1997,9 +2129,20 @@ def main():
         run_script_agency(blocking=True)
         return
 
-    # 1. Determine screenplay input
-    if len(sys.argv) >= 2:
-        screenplay_input = sys.argv[1]
+    # 1. Check for targeted scene re-shooting flag (--scene <id> or --only-scene <id>)
+    target_scene_id = None
+    cli_args = list(sys.argv[1:])
+    for flag in ["--scene", "--only-scene"]:
+        if flag in cli_args:
+            s_idx = cli_args.index(flag)
+            if s_idx + 1 < len(cli_args):
+                target_scene_id = cli_args[s_idx + 1]
+                del cli_args[s_idx:s_idx + 2]
+                break
+
+    # Determine screenplay input
+    if len(cli_args) >= 1:
+        screenplay_input = cli_args[0]
     else:
         # Interactive menu selection or fallback
         print(f"\n🎬 MovieGenerator v{__version__} • Master Regisseur")
@@ -2853,7 +2996,36 @@ def main():
         szene_id = scene_data["id"]
         target_path = os.path.join(scenes_dir, f"Szene_{szene_id:02d}.mp4")
 
-        # Smart Scene Caching / Reshooting: Skip scene if it is already rendered on disk
+        # Targeted Scene Re-Shooting Filter (--scene <id>):
+        # Skip all non-target scenes while preserving last_video_data for match cuts
+        if target_scene_id is not None:
+            is_target = False
+            try:
+                if int(szene_id) == int(target_scene_id):
+                    is_target = True
+            except (ValueError, TypeError):
+                if str(szene_id).lower() == str(target_scene_id).lower():
+                    is_target = True
+
+            if not is_target:
+                if os.path.exists(target_path):
+                    try:
+                        with open(target_path, "rb") as vf:
+                            last_video_data = vf.read()
+                        last_video_path = target_path
+                    except Exception:
+                        pass
+                continue
+            else:
+                # Force reshoot for target scene by removing previous video
+                if os.path.exists(target_path):
+                    try:
+                        os.remove(target_path)
+                        print(f"   🔄 Entferne alte Fassung von Szene {szene_id} für Neuaufnahme...")
+                    except Exception as rm_err:
+                        print(f"   ⚠️ Konnte alte Szene nicht löschen: {rm_err}")
+
+        # Smart Scene Caching: Skip scene if it is already rendered on disk
         if os.path.exists(target_path):
             print(t("scene_already_exists_skip", id=szene_id, file=target_path))
             try:
