@@ -87,8 +87,23 @@
     tabContents: {
       characters: document.getElementById('tabContentCharacters'),
       scenes: document.getElementById('tabContentScenes'),
+      music: document.getElementById('tabContentMusic'),
       json: document.getElementById('tabContentJson')
     },
+
+    // Music Studio
+    chkMusicEnabled: document.getElementById('chkMusicEnabled'),
+    musicSettingsBody: document.getElementById('musicSettingsBody'),
+    musicModelSelect: document.getElementById('musicModelSelect'),
+    musicPromptInput: document.getElementById('musicPromptInput'),
+    btnSuggestMusicTags: document.getElementById('btnSuggestMusicTags'),
+    musicVolumeSelect: document.getElementById('musicVolumeSelect'),
+    chkMusicDucking: document.getElementById('chkMusicDucking'),
+    btnScoreMovie: document.getElementById('btnScoreMovie'),
+    musicScoreStatus: document.getElementById('musicScoreStatus'),
+    musicPlayerWrapper: document.getElementById('musicPlayerWrapper'),
+    audioSoundtrackPlayer: document.getElementById('audioSoundtrackPlayer'),
+    linkDownloadSoundtrack: document.getElementById('linkDownloadSoundtrack'),
 
     // Containers
     charactersContainer: document.getElementById('charactersContainer'),
@@ -122,6 +137,15 @@
     btnCloseRenderModalBtn: document.getElementById('btnCloseRenderModalBtn'),
     renderCliCommand: document.getElementById('renderCliCommand'),
     btnCopyCli: document.getElementById('btnCopyCli'),
+
+    // In-App Guide Modal Elements
+    btnGuide: document.getElementById('btnGuide'),
+    guideModal: document.getElementById('guideModal'),
+    btnCloseGuideModal: document.getElementById('btnCloseGuideModal'),
+    btnCloseGuideModalBtn: document.getElementById('btnCloseGuideModalBtn'),
+    btnOpenGuideFromWizard: document.getElementById('btnOpenGuideFromWizard'),
+    btnOpenGuideFromWizardInteractive: document.getElementById('btnOpenGuideFromWizardInteractive'),
+    guideNav: document.getElementById('guideNav'),
 
     // Toast
     toastContainer: document.getElementById('toastContainer'),
@@ -233,6 +257,7 @@
     renderVariables();
     renderCharacters();
     renderScenes();
+    renderMusicStudio();
     updateStats();
 
     // 6. Update LLM status text
@@ -361,6 +386,38 @@
         throw new Error(data.error || 'Fehler beim Generieren des Charakterbildes');
       }
       return data;
+    },
+
+    async getMusicModels() {
+      const res = await fetch('/api/music/models');
+      if (!res.ok) throw new Error('Fehler beim Laden der Musik-Modelle');
+      return await res.json();
+    },
+
+    async suggestMusicTags(project, title, description, scenes = []) {
+      const res = await fetch('/api/music/suggest-tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project, title, description, scenes })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Abrufen von Musik-Tags');
+      }
+      return data;
+    },
+
+    async scoreMovie(payload) {
+      const res = await fetch('/api/music/score-movie', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler bei der Filmmusik-Generierung');
+      }
+      return data;
     }
   };
 
@@ -464,6 +521,9 @@
       // 2. Load Presets (Models & LoRAs)
       state.presetsData = await API.getPresets();
 
+      // Load Music Models
+      await loadMusicModels();
+
       // 3. Load Projects list
       await refreshProjectsList();
 
@@ -522,6 +582,16 @@
     if (typeof norm.variables !== 'object' || Array.isArray(norm.variables)) {
       norm.variables = {};
     }
+
+    // Music Studio Configuration
+    const m = data.music || data.music_studio || {};
+    norm.music = {
+      enabled: m.enabled !== undefined ? Boolean(m.enabled) : false,
+      model: m.model || m.checkpoint || '',
+      prompt: m.prompt || m.tags || '',
+      volume: m.volume !== undefined ? parseFloat(m.volume) : 0.22,
+      ducking: m.ducking !== undefined ? Boolean(m.ducking) : true
+    };
 
     // Characters
     let rawChars = data.characters || data.charaktere || [];
@@ -687,6 +757,7 @@
       renderVariables();
       renderCharacters();
       renderScenes();
+      renderMusicStudio();
       updateStats();
       renderJsonPreview();
       markClean();
@@ -739,7 +810,14 @@
             ? '<Subject 1> (Hero) steps cautiously out of the shadows into {location_alley}, his {hero_top} and {hero_bottom} reflecting wet puddles.'
             : '<Subject 1> (Hero) tritt langsam aus dem Schatten in {location_alley}, seine {hero_top} und {hero_bottom} reflektieren das nasse Pflaster.'
         }
-      ]
+      ],
+      music: {
+        enabled: false,
+        model: '',
+        prompt: '',
+        volume: 0.22,
+        ducking: true
+      }
     };
 
     el.movieTitle.value = state.screenplay.title;
@@ -764,6 +842,13 @@
       // Synchronize metadata from inputs
       state.screenplay.title = el.movieTitle.value.trim();
       state.screenplay.description = el.movieDescription.value.trim();
+
+      if (!state.screenplay.music) state.screenplay.music = {};
+      if (el.chkMusicEnabled) state.screenplay.music.enabled = el.chkMusicEnabled.checked;
+      if (el.musicModelSelect) state.screenplay.music.model = el.musicModelSelect.value;
+      if (el.musicPromptInput) state.screenplay.music.prompt = el.musicPromptInput.value.trim();
+      if (el.musicVolumeSelect) state.screenplay.music.volume = parseFloat(el.musicVolumeSelect.value);
+      if (el.chkMusicDucking) state.screenplay.music.ducking = el.chkMusicDucking.checked;
 
       markSaving();
       await API.saveProject(filename, state.screenplay);
@@ -1950,6 +2035,38 @@
           ${sceneLorasHtml}
         </div>
       </div>
+
+      <!-- Regie & Render-Einstellungen (Director's Control) -->
+      <div class="scene-render-settings">
+        <div class="scene-render-settings-header">
+          <label>⚙️ ${escapeHtml(t('sceneRenderSettings'))}</label>
+        </div>
+        <div class="scene-render-grid">
+          <div class="render-field">
+            <span class="render-field-label">${escapeHtml(t('sceneTurboLabel'))}:</span>
+            <select class="select-input select-xs scene-turbo-select">
+              <option value="auto" ${scene.turbo === undefined || scene.turbo === null ? 'selected' : ''}>${escapeHtml(t('sceneTurboAuto'))}</option>
+              <option value="on" ${scene.turbo === true ? 'selected' : ''}>${escapeHtml(t('sceneTurboOn'))}</option>
+              <option value="off" ${scene.turbo === false ? 'selected' : ''}>${escapeHtml(t('sceneTurboOff'))}</option>
+            </select>
+          </div>
+          <div class="render-field">
+            <span class="render-field-label">${escapeHtml(t('sceneResolutionLabel'))}:</span>
+            <select class="select-input select-xs scene-res-select">
+              <option value="auto" ${!scene.megapixels || scene.megapixels === 0.25 ? 'selected' : ''}>${escapeHtml(t('sceneResAuto'))}</option>
+              <option value="0.45" ${scene.megapixels === 0.45 || scene.megapixels === '0.45' ? 'selected' : ''}>${escapeHtml(t('sceneResHigh'))}</option>
+              <option value="0.75" ${scene.megapixels === 0.75 || scene.megapixels === '0.75' ? 'selected' : ''}>${escapeHtml(t('sceneResNativeHd'))}</option>
+            </select>
+          </div>
+          <div class="render-field">
+            <span class="render-field-label">${escapeHtml(t('sceneUpscaleLabel'))}:</span>
+            <select class="select-input select-xs scene-upscale-select">
+              <option value="auto" ${scene.upscale !== false ? 'selected' : ''}>${escapeHtml(t('sceneUpscaleAuto'))}</option>
+              <option value="off" ${scene.upscale === false ? 'selected' : ''}>${escapeHtml(t('sceneUpscaleOff'))}</option>
+            </select>
+          </div>
+        </div>
+      </div>
     `;
 
     // Hook listeners
@@ -2254,6 +2371,51 @@
       }
     });
 
+    // Render Settings Listeners
+    const turboSelect = card.querySelector('.scene-turbo-select');
+    if (turboSelect) {
+      turboSelect.addEventListener('change', () => {
+        const val = turboSelect.value;
+        if (val === 'auto') {
+          delete scene.turbo;
+          delete scene.steps;
+        } else if (val === 'on') {
+          scene.turbo = true;
+          scene.steps = 8;
+        } else if (val === 'off') {
+          scene.turbo = false;
+          scene.steps = 20;
+        }
+        markDirty();
+      });
+    }
+
+    const resSelect = card.querySelector('.scene-res-select');
+    if (resSelect) {
+      resSelect.addEventListener('change', () => {
+        const val = resSelect.value;
+        if (val === 'auto') {
+          delete scene.megapixels;
+        } else {
+          scene.megapixels = parseFloat(val);
+        }
+        markDirty();
+      });
+    }
+
+    const upscaleSelect = card.querySelector('.scene-upscale-select');
+    if (upscaleSelect) {
+      upscaleSelect.addEventListener('change', () => {
+        const val = upscaleSelect.value;
+        if (val === 'auto') {
+          delete scene.upscale;
+        } else if (val === 'off') {
+          scene.upscale = false;
+        }
+        markDirty();
+      });
+    }
+
     return card;
   }
 
@@ -2289,6 +2451,177 @@
   function renderJsonPreview() {
     if (el.jsonPreview) {
       el.jsonPreview.textContent = JSON.stringify(state.screenplay, null, 2);
+    }
+  }
+
+  // --- Music Studio Methods ---
+  let availableMusicModels = [];
+
+  async function loadMusicModels() {
+    if (!el.musicModelSelect) return;
+    try {
+      const data = await API.getMusicModels();
+      availableMusicModels = data.models || [];
+      el.musicModelSelect.innerHTML = '';
+
+      if (availableMusicModels.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = state.lang === 'en' ? 'No music models found' : 'Keine Musik-Modelle gefunden';
+        el.musicModelSelect.appendChild(opt);
+        return;
+      }
+
+      for (const m of availableMusicModels) {
+        const opt = document.createElement('option');
+        opt.value = m.filename;
+        opt.textContent = `${m.title} (${m.type}) - ${m.filename}`;
+        el.musicModelSelect.appendChild(opt);
+      }
+
+      // If current screenplay has a music model configured, select it
+      if (state.screenplay.music && state.screenplay.music.model) {
+        el.musicModelSelect.value = state.screenplay.music.model;
+      } else if (data.default_model) {
+        el.musicModelSelect.value = data.default_model;
+        if (state.screenplay.music) state.screenplay.music.model = data.default_model;
+      }
+    } catch (e) {
+      console.warn('Fehler beim Laden der Musik-Modelle:', e);
+    }
+  }
+
+  async function renderMusicStudio() {
+    if (!state.screenplay.music) {
+      state.screenplay.music = {
+        enabled: false,
+        model: availableMusicModels[0]?.filename || '',
+        prompt: '',
+        volume: 0.22,
+        ducking: true
+      };
+    }
+    const m = state.screenplay.music;
+
+    if (el.chkMusicEnabled) {
+      el.chkMusicEnabled.checked = Boolean(m.enabled);
+    }
+    if (el.musicModelSelect && m.model) {
+      el.musicModelSelect.value = m.model;
+    }
+    if (el.musicPromptInput) {
+      el.musicPromptInput.value = m.prompt || '';
+    }
+    if (el.musicVolumeSelect && m.volume !== undefined) {
+      el.musicVolumeSelect.value = String(m.volume);
+    }
+    if (el.chkMusicDucking) {
+      el.chkMusicDucking.checked = m.ducking !== undefined ? Boolean(m.ducking) : true;
+    }
+
+    // Check if soundtrack file exists for current project
+    const projName = (el.movieFilename && el.movieFilename.value.trim()) || (state.currentFilename ? state.currentFilename.replace('.json', '') : '');
+    if (projName && el.musicPlayerWrapper && el.audioSoundtrackPlayer && el.linkDownloadSoundtrack) {
+      const audioUrl = `/api/music/soundtrack?project=${encodeURIComponent(projName)}&t=${Date.now()}`;
+      try {
+        const resp = await fetch(audioUrl, { method: 'HEAD' });
+        if (resp.ok) {
+          el.audioSoundtrackPlayer.src = audioUrl;
+          el.linkDownloadSoundtrack.href = audioUrl;
+          el.linkDownloadSoundtrack.download = `${projName}_soundtrack.wav`;
+          el.musicPlayerWrapper.style.display = 'block';
+        } else {
+          el.musicPlayerWrapper.style.display = 'none';
+        }
+      } catch {
+        el.musicPlayerWrapper.style.display = 'none';
+      }
+    }
+  }
+
+  async function handleSuggestMusicTags() {
+    if (!el.btnSuggestMusicTags || !el.musicPromptInput) return;
+    const projName = (el.movieFilename && el.movieFilename.value.trim()) || (state.currentFilename ? state.currentFilename.replace('.json', '') : '');
+    const title = (el.movieTitle && el.movieTitle.value.trim()) || state.screenplay.title || 'Movie';
+    const description = (el.movieDescription && el.movieDescription.value.trim()) || state.screenplay.description || '';
+    const scenes = state.screenplay.scenes || [];
+
+    const origBtnHtml = el.btnSuggestMusicTags.innerHTML;
+    el.btnSuggestMusicTags.disabled = true;
+    el.btnSuggestMusicTags.innerHTML = `<span>⏳</span> <span>${t('aiGenerating') || 'Generiere...'}</span>`;
+
+    try {
+      const res = await API.suggestMusicTags(projName, title, description, scenes);
+      const tags = res?.prompt_tags || res?.tags;
+      if (tags) {
+        el.musicPromptInput.value = tags;
+        if (!state.screenplay.music) state.screenplay.music = {};
+        state.screenplay.music.prompt = tags;
+        markDirty();
+        showToast(state.lang === 'en' ? 'Music score prompt synchronized with scenes!' : 'Film-Score mit Szenen-Zeitleiste synchronisiert!', 'success');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      el.btnSuggestMusicTags.disabled = false;
+      el.btnSuggestMusicTags.innerHTML = origBtnHtml;
+    }
+  }
+
+  async function handleScoreMovie() {
+    if (!el.btnScoreMovie) return;
+    const projName = (el.movieFilename && el.movieFilename.value.trim()) || (state.currentFilename ? state.currentFilename.replace('.json', '') : '');
+    if (!projName) {
+      showToast(state.lang === 'en' ? 'No project active!' : 'Kein Projekt geladen!', 'error');
+      return;
+    }
+
+    // Save project changes first so settings are on disk
+    await saveCurrentProject();
+
+    const origBtnHtml = el.btnScoreMovie.innerHTML;
+    el.btnScoreMovie.disabled = true;
+    el.btnScoreMovie.innerHTML = `<span>⏳</span> <span>${t('scoringInProgress') || 'Komponiere Soundtrack & mische Audio...'}</span>`;
+    if (el.musicScoreStatus) {
+      el.musicScoreStatus.textContent = state.lang === 'en' ? 'Composing music in ComfyUI & mixing with auto-ducking... Please wait...' : 'Komponiere Musik in ComfyUI & mische mit Auto-Ducking... Bitte warten...';
+      el.musicScoreStatus.className = 'music-status-text loading';
+    }
+
+    try {
+      const payload = {
+        project: projName,
+        prompt_tags: (el.musicPromptInput && el.musicPromptInput.value.trim()) || (state.screenplay.music && state.screenplay.music.prompt) || '',
+        checkpoint: (el.musicModelSelect && el.musicModelSelect.value) || (state.screenplay.music && state.screenplay.music.model) || '',
+        volume: el.musicVolumeSelect ? parseFloat(el.musicVolumeSelect.value) : 0.22,
+        ducking: el.chkMusicDucking ? el.chkMusicDucking.checked : true
+      };
+
+      const res = await API.scoreMovie(payload);
+      if (res && res.success) {
+        showToast(state.lang === 'en' ? 'Soundtrack generated and movie scored!' : 'Soundtrack generiert und Film erfolgreich nachvertont!', 'success');
+        if (el.musicScoreStatus) {
+          el.musicScoreStatus.textContent = state.lang === 'en' ? '✅ Completed! Film scored with auto-ducking.' : '✅ Fertiggestellt! Film erfolgreich nachvertont.';
+          el.musicScoreStatus.className = 'music-status-text success';
+        }
+        // Update audio preview
+        if (el.musicPlayerWrapper && el.audioSoundtrackPlayer && el.linkDownloadSoundtrack) {
+          const audioUrl = `/api/music/soundtrack?project=${encodeURIComponent(projName)}&t=${Date.now()}`;
+          el.audioSoundtrackPlayer.src = audioUrl;
+          el.linkDownloadSoundtrack.href = audioUrl;
+          el.linkDownloadSoundtrack.download = `${projName}_soundtrack.wav`;
+          el.musicPlayerWrapper.style.display = 'block';
+          el.audioSoundtrackPlayer.play().catch(() => {});
+        }
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+      if (el.musicScoreStatus) {
+        el.musicScoreStatus.textContent = `❌ ${err.message}`;
+        el.musicScoreStatus.className = 'music-status-text error';
+      }
+    } finally {
+      el.btnScoreMovie.disabled = false;
+      el.btnScoreMovie.innerHTML = origBtnHtml;
     }
   }
 
@@ -2671,6 +3004,47 @@
 
     // Trigger subtle harmonization in background to ensure character tags and outfit variables are aligned
     handleHarmonizeScreenplay(true);
+  }
+
+  // =============================================================
+  // IN-APP GUIDE & BEST PRACTICES MODAL
+  // =============================================================
+
+  function openGuideModal(targetSectionId = 'section-workflow') {
+    if (!el.guideModal) return;
+    switchGuideSection(targetSectionId);
+    el.guideModal.classList.add('open');
+  }
+
+  function closeGuideModal() {
+    if (el.guideModal) {
+      el.guideModal.classList.remove('open');
+    }
+  }
+
+  function switchGuideSection(targetId) {
+    const navButtons = document.querySelectorAll('.guide-nav-item');
+    const sections = document.querySelectorAll('.guide-section');
+
+    navButtons.forEach(btn => {
+      const target = btn.getAttribute('data-guide-target');
+      if (target === targetId) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+
+    sections.forEach(sec => {
+      if (sec.id === targetId) {
+        sec.classList.add('active');
+      } else {
+        sec.classList.remove('active');
+      }
+    });
+
+    const contentPane = document.getElementById('guideContentPane');
+    if (contentPane) contentPane.scrollTop = 0;
   }
 
   // =============================================================
@@ -3417,10 +3791,11 @@
         el.tabButtons.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
 
-        Object.values(el.tabContents).forEach(content => content.classList.remove('active'));
+        Object.values(el.tabContents).forEach(content => content && content.classList.remove('active'));
         if (el.tabContents[tab]) el.tabContents[tab].classList.add('active');
 
         if (tab === 'json') renderJsonPreview();
+        if (tab === 'music') renderMusicStudio();
       });
     });
 
@@ -3469,6 +3844,49 @@
     if (el.btnCloseAiModal) el.btnCloseAiModal.addEventListener('click', closeAiModal);
     if (el.btnDiscardAiModal) el.btnDiscardAiModal.addEventListener('click', closeAiModal);
     if (el.btnApplyAiModal) el.btnApplyAiModal.addEventListener('click', applyPendingAiScene);
+
+    // Music Studio Events
+    if (el.chkMusicEnabled) {
+      el.chkMusicEnabled.addEventListener('change', () => {
+        if (!state.screenplay.music) state.screenplay.music = {};
+        state.screenplay.music.enabled = el.chkMusicEnabled.checked;
+        markDirty();
+      });
+    }
+    if (el.musicModelSelect) {
+      el.musicModelSelect.addEventListener('change', () => {
+        if (!state.screenplay.music) state.screenplay.music = {};
+        state.screenplay.music.model = el.musicModelSelect.value;
+        markDirty();
+      });
+    }
+    if (el.musicPromptInput) {
+      el.musicPromptInput.addEventListener('input', () => {
+        if (!state.screenplay.music) state.screenplay.music = {};
+        state.screenplay.music.prompt = el.musicPromptInput.value.trim();
+        markDirty();
+      });
+    }
+    if (el.musicVolumeSelect) {
+      el.musicVolumeSelect.addEventListener('change', () => {
+        if (!state.screenplay.music) state.screenplay.music = {};
+        state.screenplay.music.volume = parseFloat(el.musicVolumeSelect.value);
+        markDirty();
+      });
+    }
+    if (el.chkMusicDucking) {
+      el.chkMusicDucking.addEventListener('change', () => {
+        if (!state.screenplay.music) state.screenplay.music = {};
+        state.screenplay.music.ducking = el.chkMusicDucking.checked;
+        markDirty();
+      });
+    }
+    if (el.btnSuggestMusicTags) {
+      el.btnSuggestMusicTags.addEventListener('click', handleSuggestMusicTags);
+    }
+    if (el.btnScoreMovie) {
+      el.btnScoreMovie.addEventListener('click', handleScoreMovie);
+    }
 
     // Story Generator Events
     if (el.btnStoryGenerator) el.btnStoryGenerator.addEventListener('click', openStoryGeneratorModal);
@@ -3548,6 +3966,41 @@
       });
     }
 
+    // In-App Guide Events
+    if (el.btnGuide) {
+      el.btnGuide.addEventListener('click', () => openGuideModal('section-workflow'));
+    }
+    if (el.btnCloseGuideModal) {
+      el.btnCloseGuideModal.addEventListener('click', closeGuideModal);
+    }
+    if (el.btnCloseGuideModalBtn) {
+      el.btnCloseGuideModalBtn.addEventListener('click', closeGuideModal);
+    }
+    if (el.btnOpenGuideFromWizard) {
+      el.btnOpenGuideFromWizard.addEventListener('click', () => {
+        openGuideModal('section-continuity');
+      });
+    }
+    if (el.btnOpenGuideFromWizardInteractive) {
+      el.btnOpenGuideFromWizardInteractive.addEventListener('click', () => {
+        openGuideModal('section-continuity');
+      });
+    }
+    if (el.guideNav) {
+      el.guideNav.addEventListener('click', (e) => {
+        const item = e.target.closest('.guide-nav-item');
+        if (item) {
+          const targetId = item.getAttribute('data-guide-target');
+          if (targetId) switchGuideSection(targetId);
+        }
+      });
+    }
+    if (el.guideModal) {
+      el.guideModal.addEventListener('click', (e) => {
+        if (e.target === el.guideModal) closeGuideModal();
+      });
+    }
+
     // Keyboard Shortcuts (Ctrl+S to save, Escape to close modals)
     window.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -3556,6 +4009,7 @@
       } else if (e.key === 'Escape') {
         closeModelPickerModal();
         closeLoraPickerModal();
+        closeGuideModal();
       }
     });
   }

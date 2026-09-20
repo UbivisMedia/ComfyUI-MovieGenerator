@@ -9,13 +9,21 @@
     ]
   },
   "minimax_i2v": {
-    "unet_name": "MiniMax H3\\base model\\minimaxH3INT8INT4_flREF2VAPruned.safetensors",
-    "turbo_lora": "MiniMax H3\\tool\\minimax_h3_fl2v_lightx2v_turbo_8step_v1.0_resized_avg_rank_24_bf16.safetensors",
+    "unet_name": "minimaxH3INT8INT4_flREF2VAPruned.safetensors",
+    "turbo_lora": "minimax_h3_fl2v_lightx2v_turbo_8step_v1.0_resized_avg_rank_24_bf16.safetensors",
     "turbo_strength": 1.0,
     "steps": 8,
     "clip_name": "minimaxH3INT8INT4_fl2vaINT8Pruned_txt.safetensors",
     "video_vae_name": "minimax_h3_video_vae_int8_convrot.safetensors",
     "audio_vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+  },
+  "music_studio": {
+    "enabled": false,
+    "checkpoint": "ace_step_v1_3.5b.safetensors",
+    "steps": 40,
+    "cfg": 4.0,
+    "volume": 0.20,
+    "ducking": true
   },
   "export_webm": true,
   "lm_studio": {

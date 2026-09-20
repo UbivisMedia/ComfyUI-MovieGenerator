@@ -2302,4 +2302,634 @@ textarea.form-control {
   border-radius: 4px;
 }
 
+/* Director's Control - Scene Render Settings */
+.scene-render-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+
+.scene-render-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.scene-render-settings-header label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.scene-render-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.render-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.render-field-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.select-xs {
+  font-size: 11px;
+  padding: 3px 8px;
+  height: 26px;
+  border-radius: 4px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--bg-border);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.select-xs:hover, .select-xs:focus {
+  border-color: var(--accent-primary);
+}
+
+/* Music Studio Styling */
+.music-studio-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 10px 0 30px;
+}
+
+.music-card {
+  background: var(--bg-card);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-md);
+  padding: 22px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.music-card-header {
+  border-bottom: 1px solid var(--bg-border);
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+}
+
+.music-prompt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.music-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 14px;
+}
+
+@media (max-width: 768px) {
+  .music-grid-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
+.music-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--bg-border);
+}
+
+.music-status-text {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.music-status-text.working {
+  color: var(--accent-gold);
+}
+
+.music-status-text.success {
+  color: var(--accent-green);
+}
+
+.music-status-text.error {
+  color: var(--accent-red);
+}
+
+.music-player-wrapper {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-top: 20px;
+}
+
+.player-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.player-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+/* ==========================================================================
+   Co-Director Advisory Box (Script Wizard)
+   ========================================================================== */
+.wizard-notice-compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 12px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}
+
+.notice-compact-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wizard-director-notice-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-left: 4px solid var(--accent-gold);
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.wizard-notice-icon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.wizard-notice-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wizard-notice-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-gold);
+}
+
+.wizard-notice-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.btn-guide-link {
+  background: transparent;
+  border: none;
+  color: var(--accent-cyan);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  margin-top: 4px;
+  transition: all 0.15s ease;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.btn-guide-link:hover {
+  color: #7dd3fc;
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   In-App Guide Modal
+   ========================================================================== */
+.guide-modal-dialog {
+  max-width: 1040px;
+  width: 95%;
+  height: 86vh;
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.guide-modal-subtitle {
+  font-size: 11px;
+  color: var(--text-dim);
+  display: block;
+  margin-top: 2px;
+}
+
+.guide-modal-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.guide-nav {
+  width: 250px;
+  flex-shrink: 0;
+  background: rgba(10, 14, 22, 0.7);
+  border-right: 1px solid var(--bg-border);
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.guide-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.guide-nav-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-main);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.guide-nav-item.active {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: var(--accent-gold);
+  font-weight: 600;
+  box-shadow: 0 0 10px var(--accent-gold-glow);
+}
+
+.guide-nav-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.guide-nav-text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.guide-content-pane {
+  flex: 1;
+  padding: 24px 28px;
+  overflow-y: auto;
+  min-height: 0;
+  background: var(--bg-sidebar);
+}
+
+.guide-section {
+  display: none;
+  flex-direction: column;
+  gap: 18px;
+  animation: fadeIn 0.15s ease;
+}
+
+.guide-section.active {
+  display: flex;
+}
+
+.guide-section-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent-gold);
+  border-bottom: 1px solid var(--bg-border);
+  padding-bottom: 8px;
+}
+
+.guide-intro-text {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+/* Timeline Step Cards (Workflow) */
+.guide-timeline-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.guide-step-card {
+  background: rgba(10, 14, 22, 0.55);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.guide-step-card:hover {
+  background: rgba(15, 22, 35, 0.7);
+  border-color: var(--bg-border-light);
+}
+
+.guide-step-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.guide-step-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(56, 189, 248, 0.15);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  font-family: var(--font-mono);
+}
+
+.guide-step-header h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.guide-step-card p {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+/* Rules List (Continuity) */
+.guide-rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.guide-rule-card {
+  background: rgba(10, 14, 22, 0.55);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.guide-rule-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.guide-rule-icon {
+  font-size: 16px;
+}
+
+.guide-rule-header h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.guide-rule-card p {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.guide-warning-box {
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 4px;
+  font-size: 12px;
+  color: #fca5a5;
+  margin-top: 4px;
+}
+
+/* Prompting & Formula Box */
+.guide-formula-box {
+  background: #000;
+  border: 1px solid var(--bg-border-light);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.formula-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-gold);
+  letter-spacing: 1px;
+}
+
+.formula-code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent-cyan);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.guide-comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.comparison-card {
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.comparison-card.bad {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.comparison-card.good {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.comparison-badge {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.badge-bad {
+  color: var(--accent-red);
+}
+
+.badge-good {
+  color: var(--accent-green);
+}
+
+.comparison-text {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-main);
+  font-style: italic;
+}
+
+.guide-key-points {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.key-point-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: rgba(10, 14, 22, 0.4);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+
+.key-point-bullet {
+  font-size: 16px;
+  line-height: 1;
+  margin-top: 2px;
+}
+
+.key-point-item p {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+/* Controls Grid (Director's Control) */
+.guide-controls-grid, .guide-music-features {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.guide-control-card, .music-feature-card {
+  background: rgba(10, 14, 22, 0.55);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.guide-control-header, .music-feature-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-icon, .music-feature-icon {
+  font-size: 16px;
+}
+
+.guide-control-header h4, .music-feature-header h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.guide-control-body, .music-feature-card p {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* Checklist (Script Wizard) */
+.guide-checklist-container {
+  background: rgba(10, 14, 22, 0.55);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.checklist-heading {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent-gold);
+}
+
+.guide-checklist {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.checklist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-main);
+  line-height: 1.45;
+}
+
+.check-icon {
+  color: var(--accent-green);
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+
+
+
 

@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-09-20
+
+### 🌟 Highlights
+- **In-App Directing Guide & Best Practices (`📚 Guide`)**: Comprehensive, interactive studio manual with 6 structured chapters accessible directly from the header navigation. Covers the complete production pipeline, visual continuity rules (Match-Cuts, Last-Frame extraction, camera angles), scene prompting formulas, Director's Control tradeoffs, audio scoring, and a 5-step post-wizard checklist.
+- **Script Wizard Co-Director Advisory System**: Prominent advisory callout boxes integrated into both the Wizard setup screen and the step-by-step interactive drafting view. Educates directors that AI scripts serve as a creative rough draft that requires human refinement (camera perspectives, match-cuts, and wardrobe alignment) to avoid disjointed video sequences. Includes direct one-click deep links to the best practices manual.
+- **Director's Control (Scene-Specific Render Settings)**: Granular per-scene control over video generation parameters. Choose between fast 8-step Turbo mode or artifact-free 20-step High Quality (HQ) mode for facial stability, select native render resolutions (0.25 MP Standard, 0.45 MP Wide/Detail, 0.75 MP Native HD), and optionally bypass AI upscaling.
+- **Music Studio & Time-Synchronized Scoring**: Built-in soundtrack composition using ComfyUI ACE-Step checkpoints matched to the exact film runtime. Generates scene-synchronized progression prompts with timestamps (`[mm:ss - mm:ss]`) that mirror dramatic beats and locations. Features intelligent sidechain auto-ducking via FFmpeg to automatically lower music by 6–8 dB during dialogue and sound effects.
+- **Strategic Development Roadmap (`ROADMAP.md`)**: Comprehensive multi-phase evolution plan covering v1.2 (Workflow, Incremental Re-Rendering, Transitions), v1.3 (Continuity & Audio Stems), and v2.0 (Live Queue & Social Cuts).
+
+### ✨ Added
+- **In-App Guide Modal (`#guideModal`)**:
+  - Split-pane layout with responsive topic navigation and cinema dark aesthetic.
+  - 6 chapters with practical comparisons (❌ Vague Prompt vs. ✅ Director's Prompt), technical breakdown charts, and warning callouts.
+  - Keyboard shortcut (`Escape`) and backdrop click to close.
+- **Script Wizard Advisory Banners**:
+  - Full-width amber callout box in initial setup view (`.wizard-director-notice-box`).
+  - Compact header hint bar in interactive view (`.wizard-notice-compact`) with instant jump link (`Best Practices ↗`) targeting Chapter 2 (Continuity & Cuts).
+- **Time-Synchronized Scene Progression Prompts**:
+  - `build_scenes_timeline()` in `master_regisseur.py` calculates cumulative timecodes and extracts scene action, locations, and SFX.
+  - LM Studio integration generates timeline-based score progression prompts with timestamps matching actual scene durations.
+- **Scene-Level Render Settings (`master_regisseur.py`)**:
+  - `turbo`: Toggle Minimax Turbo LoRA on/off (8 steps vs. 20 steps) per scene.
+  - `megapixels` / `resolution`: Dynamically set native resolution in ComfyUI node `115` (`ResolutionSelector`).
+  - `upscale`: Option to bypass `RealESRGAN_x2` for high native resolutions.
+- **Music Studio Pipeline (`master_regisseur.py` & `script_agency.py`)**:
+  - ComfyUI music generation workflow (`Workflows/workflow_music_ace.json`).
+  - Automated sidechain compression mixing via FFmpeg (`sidechaincompress`).
+  - Endpoints: `/api/music/models`, `/api/music/soundtrack`, `/api/music/suggest-tags`, `/api/music/score-movie`.
+  - In-browser soundtrack player with download link and volume presets.
+- **Full Bilingual Localization**:
+  - Over 65 new translation keys in both `localization/de.json` and `localization/en.json` supporting real-time language switching for all new features.
+
+### 🐛 Fixed
+- Resolved `NameError: name 'shutil' is not defined` when scoring movies in `script_agency.py`.
+- Standardized `/api/music/suggest-tags` response format to prevent toast error notifications on AI tag suggestion.
+- Added `do_HEAD` HTTP method handler in `script_agency.py` to prevent 501 Unsupported Method errors when checking soundtrack file existence.
+
+---
+
 ## [1.0.0] - 2026-09-18
 
 ### 🌟 Highlights
