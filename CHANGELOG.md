@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.2.1] - 2026-09-22
 
 ### 🐛 Fixed
+- **Character Casting Continuity & Variable Timeline**: Fixed continuity error where character casting portraits in ComfyUI interpolated `{variables}` (such as wardrobe changes) using values from the very end of the screenplay after LM Studio processed all scenes. Introduced automated detection of each character's first appearance scene (`first_scene`) and scoped variable resolution (`get_variables_for_scene`) so characters are cast in their authentic introductory attire.
 - **Video Player Modal Overlay & Layout**: Fixed video player element rendering as a static unhideable box taking up half the viewport height by standardizing its markup on studio-wide `.modal-backdrop` and `.modal-dialog` classes. The player is now properly hidden by default.
 - **Scene Re-Rendering Background Thread**: Fixed `NameError: cannot access free variable 'BASE_DIR'` in `script_agency.py` during `POST /api/scene/rerender` by removing redundant local `BASE_DIR` import shadowing in `do_POST()`.
 

@@ -1166,6 +1166,135 @@ def interpolate_variables(text, variables):
     return result
 
 
+def get_character_first_scene(char, scenes_list):
+    """
+    Determines the first scene number where a character appears.
+    Checks char['first_scene'] / char['erste_szene'] / char['first_appearance'].
+    If not specified, automatically scans scenes_list for references to this character.
+    Returns 1-based scene id (int).
+    """
+    if not isinstance(char, dict):
+        return 1
+
+    # 1. Explicit user/screenplay configuration
+    for key in ["first_scene", "erste_szene", "first_appearance", "auftritt", "erster_auftritt"]:
+        val = char.get(key)
+        if val is not None and str(val).strip():
+            try:
+                scene_num = int(val)
+                if scene_num > 0:
+                    return scene_num
+            except (ValueError, TypeError):
+                pass
+
+    if not scenes_list:
+        return 1
+
+    char_id = char.get("id")
+    char_name = (char.get("name") or "").strip()
+    char_name_lower = char_name.lower()
+    clean_char_name = re.sub(r"[^a-zA-Z0-9]", "", char_name_lower)
+
+    # 2. Search scenes sequentially for first appearance
+    for idx, scene in enumerate(scenes_list):
+        s_id = scene.get("id", idx + 1)
+        try:
+            s_id_int = int(s_id)
+        except (ValueError, TypeError):
+            s_id_int = idx + 1
+
+        # Check scene['characters'] / scene['charaktere'] / scene['actors']
+        scene_chars = (
+            scene.get("characters") or 
+            scene.get("charaktere") or 
+            scene.get("actors") or 
+            scene.get("darsteller") or 
+            []
+        )
+        if isinstance(scene_chars, list):
+            for sc in scene_chars:
+                if sc is None:
+                    continue
+                # Match by ID: 1, "1", "<Subject 1>"
+                if char_id is not None:
+                    if sc == char_id or str(sc).strip() == str(char_id):
+                        return s_id_int
+                    sub_match = re.search(r"<Subject\s*(\d+)>", str(sc), re.IGNORECASE)
+                    if sub_match and int(sub_match.group(1)) == int(char_id):
+                        return s_id_int
+
+                # Match by Name: e.g. "Team_2_Sophie", "<Subject 9> (Team_2_Sophie)", "Sophie"
+                sc_str = str(sc).strip().lower()
+                if char_name_lower and (char_name_lower in sc_str or sc_str in char_name_lower):
+                    return s_id_int
+                sc_clean = re.sub(r"[^a-zA-Z0-9]", "", sc_str)
+                if clean_char_name and (clean_char_name in sc_clean or sc_clean in clean_char_name):
+                    return s_id_int
+
+        # Check idea / prompt text for <Subject {id}> or character name
+        text = (scene.get("idea") or scene.get("idee") or scene.get("prompt") or "")
+        if char_id is not None and f"<Subject {char_id}>" in text:
+            return s_id_int
+        if char_name and len(char_name) >= 3:
+            if re.search(r"\b" + re.escape(char_name) + r"\b", text, re.IGNORECASE):
+                return s_id_int
+
+    first_s_id = scenes_list[0].get("id", 1) if scenes_list else 1
+    try:
+        return int(first_s_id)
+    except (ValueError, TypeError):
+        return 1
+
+
+def get_variables_for_scene(screenplay, target_scene_id=1):
+    """
+    Computes the cumulative state of screenplay variables up to and including target_scene_id.
+    Starts with root variables + initial character outfits, then sequentially applies
+    scene-level variable updates (variables_update / set_variables) for each scene
+    up to target_scene_id.
+    """
+    vars_state = {}
+    root_vars = screenplay.get("variablen") or screenplay.get("variables") or {}
+    if isinstance(root_vars, dict):
+        vars_state.update(root_vars)
+
+    characters_list = screenplay.get("charaktere") or screenplay.get("characters") or []
+    for c in characters_list:
+        c_name = c.get("name", "").strip()
+        c_outfit = c.get("outfit") or c.get("kleidung") or c.get("status") or c.get("wardrobe")
+        if c_outfit and c_name:
+            var_key = f"outfit_{re.sub(r'[^a-zA-Z0-9]', '_', c_name.lower())}"
+            if var_key not in vars_state:
+                vars_state[var_key] = str(c_outfit)
+
+    if target_scene_id is None or target_scene_id <= 0:
+        return vars_state
+
+    scenes_list = screenplay.get("szenen") or screenplay.get("scenes") or []
+    for idx, scene in enumerate(scenes_list):
+        s_id = scene.get("id", idx + 1)
+        try:
+            s_id_int = int(s_id)
+        except (ValueError, TypeError):
+            s_id_int = idx + 1
+
+        if s_id_int > target_scene_id:
+            break
+
+        scene_var_updates = (
+            scene.get("variablen_update") or 
+            scene.get("variables_update") or 
+            scene.get("set_variables") or 
+            scene.get("variablen") or 
+            scene.get("variables") or 
+            {}
+        )
+        if isinstance(scene_var_updates, dict) and scene_var_updates:
+            vars_state.update(scene_var_updates)
+
+    return vars_state
+
+
 def ask_lm_studio_character(char, screenplay, preset_name, preset, active_variables=None):
     """Invokes LM Studio to generate the optimal T2I character casting prompt."""
     char_name = char.get("name", "Character")
@@ -2454,8 +2583,13 @@ def main():
                 if existing_p and existing_p not in dummy_defaults:
                     continue
 
+                first_scene_id = get_character_first_scene(char, scenes_list)
+                char_active_vars = get_variables_for_scene(screenplay, first_scene_id)
+                if "first_scene" not in char and "erste_szene" not in char:
+                    char["first_scene"] = first_scene_id
+
                 print(t("char_optimizing_prompt", name=char_name, preset=preset_name))
-                ki_char_prompt = ask_lm_studio_character(char, screenplay, preset_name, preset, active_variables=active_variables)
+                ki_char_prompt = ask_lm_studio_character(char, screenplay, preset_name, preset, active_variables=char_active_vars)
                 char["prompt"] = ki_char_prompt
                 print(t("char_new_prompt", name=char_name, prompt=ki_char_prompt[:90]))
 
@@ -2909,7 +3043,12 @@ def main():
         wf_t2i["12"]["inputs"]["clip"] = current_clip
 
         raw_char_prompt = char.get("prompt") or char.get("description") or char.get("beschreibung") or ""
-        full_prompt = interpolate_variables(raw_char_prompt, active_variables)
+        first_scene_id = get_character_first_scene(char, scenes_list)
+        char_active_vars = get_variables_for_scene(screenplay, first_scene_id)
+        if "first_scene" not in char and "erste_szene" not in char:
+            char["first_scene"] = first_scene_id
+        full_prompt = interpolate_variables(raw_char_prompt, char_active_vars)
+        print(t("char_casting_variables_used", name=char_name, scene=first_scene_id))
         if extra_trigger_words:
             new_triggers = [tw for tw in extra_trigger_words if tw.lower() not in full_prompt.lower()]
             if new_triggers:

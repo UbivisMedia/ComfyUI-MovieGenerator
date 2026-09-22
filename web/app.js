@@ -991,6 +991,85 @@
     showToast(t('tokenInserted').replace('{name}', `{${varKey}}`), 'info');
   }
 
+  // --- Character Continuity Helpers ---
+  function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function getCharacterFirstScene(char, scenes) {
+    if (!char) return 1;
+    if (char.first_scene && parseInt(char.first_scene) > 0) {
+      return parseInt(char.first_scene);
+    }
+    if (!scenes || !Array.isArray(scenes) || scenes.length === 0) return 1;
+
+    const charId = char.id;
+    const charName = (char.name || '').trim().toLowerCase();
+    const cleanName = charName.replace(/[^a-z0-9]/gi, '');
+
+    for (let idx = 0; idx < scenes.length; idx++) {
+      const scene = scenes[idx];
+      const sId = parseInt(scene.id) || (idx + 1);
+      const sceneChars = scene.characters || scene.charaktere || scene.actors || [];
+
+      if (Array.isArray(sceneChars)) {
+        for (const sc of sceneChars) {
+          if (sc === null || sc === undefined) continue;
+          if (charId !== undefined && (String(sc).trim() === String(charId))) return sId;
+          const subMatch = String(sc).match(/<Subject\s*(\d+)>/i);
+          if (subMatch && parseInt(subMatch[1]) === parseInt(charId)) return sId;
+
+          const scStr = String(sc).trim().toLowerCase();
+          if (charName && (scStr.includes(charName) || charName.includes(scStr))) return sId;
+          const scClean = scStr.replace(/[^a-z0-9]/gi, '');
+          if (cleanName && (scClean.includes(cleanName) || cleanName.includes(scClean))) return sId;
+        }
+      }
+
+      const text = `${scene.idea || ''} ${scene.prompt || ''} ${scene.idee || ''}`;
+      if (charId !== undefined && text.includes(`<Subject ${charId}>`)) return sId;
+      if (charName && charName.length >= 3) {
+        const regex = new RegExp(`\\b${escapeRegExp(charName)}\\b`, 'i');
+        if (regex.test(text)) return sId;
+      }
+    }
+
+    return parseInt(scenes[0].id) || 1;
+  }
+
+  function getVariablesForScene(screenplay, targetSceneId) {
+    const vars = {};
+    if (!screenplay) return vars;
+    const rootVars = screenplay.variables || screenplay.variablen || {};
+    Object.assign(vars, rootVars);
+
+    // Initial character outfits
+    (screenplay.characters || screenplay.charaktere || []).forEach(c => {
+      const cName = (c.name || '').trim();
+      const cOutfit = c.outfit || c.kleidung || c.status || c.wardrobe;
+      if (cOutfit && cName) {
+        const varKey = `outfit_${cName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+        if (!vars[varKey]) vars[varKey] = String(cOutfit);
+      }
+    });
+
+    if (!targetSceneId || targetSceneId <= 0) return vars;
+
+    const scenes = screenplay.scenes || screenplay.szenen || [];
+    for (let idx = 0; idx < scenes.length; idx++) {
+      const scene = scenes[idx];
+      const sId = parseInt(scene.id) || (idx + 1);
+      if (sId > targetSceneId) break;
+
+      const updates = scene.variables_update || scene.variablen_update || scene.set_variables || scene.variables || scene.variablen;
+      if (updates && typeof updates === 'object') {
+        Object.assign(vars, updates);
+      }
+    }
+
+    return vars;
+  }
+
   // --- Characters UI ---
   function renderCharacters() {
     el.charactersContainer.innerHTML = '';
@@ -1025,6 +1104,10 @@
     const presets = state.presetsData.presets || {};
     const currentModelInfo = presets[selectedModel] || {};
     const modelDesc = currentModelInfo.beschreibung || t('charModelDefaultDesc');
+
+    // First appearance scene (continuity check)
+    const scenes = state.screenplay.scenes || [];
+    const detectedFirstScene = getCharacterFirstScene(char, scenes);
 
     // LoRAs assigned to this character
     const charLoras = Array.isArray(char.loras) ? char.loras : (typeof char.loras === 'string' ? char.loras.split(',').map(s => s.trim()).filter(Boolean) : []);
@@ -1198,6 +1281,22 @@
         <textarea class="form-control char-desc-input" rows="2" placeholder="${escapeHtml(t('charDescPlaceholder'))}">${escapeHtml(char.description || '')}</textarea>
       </div>
 
+      <!-- Erster Auftritt & Kontinuitäts-Verankerung -->
+      <div class="form-group char-first-scene-group">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <label style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;" title="${escapeHtml(t('charFirstSceneTooltip'))}">
+            <span>🎬</span> <span>${escapeHtml(t('charFirstSceneLabel'))}</span>
+          </label>
+          <span class="badge ${char.first_scene ? 'badge-accent' : 'badge-subtle'}" style="font-size:10px;">
+            ${char.first_scene ? `${escapeHtml(t('charFirstSceneManual'))}: #${char.first_scene}` : `${escapeHtml(t('charFirstSceneAuto'))}: #${detectedFirstScene}`}
+          </span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="number" class="form-control char-first-scene-input" min="1" max="999" value="${char.first_scene || ''}" placeholder="${detectedFirstScene ? `Auto (#${detectedFirstScene})` : '1'}" style="width:120px;">
+          <span style="font-size:11px;color:var(--text-dim);">${escapeHtml(t('charFirstSceneDesc'))}</span>
+        </div>
+      </div>
+
       <!-- LM Studio AI Prompt Toggle & Override -->
       <div class="char-prompt-group">
         <label class="char-prompt-toggle">
@@ -1222,6 +1321,20 @@
       char.name = nameInput.value.trim();
       markDirty();
     });
+
+    const firstSceneInput = card.querySelector('.char-first-scene-input');
+    if (firstSceneInput) {
+      firstSceneInput.addEventListener('change', () => {
+        const val = parseInt(firstSceneInput.value);
+        if (!isNaN(val) && val > 0) {
+          char.first_scene = val;
+        } else {
+          delete char.first_scene;
+        }
+        markDirty();
+        renderCharacters();
+      });
+    }
 
     // Pick Model Button & Card click
     const pickModelBtn = card.querySelector('.btn-pick-model');
@@ -1419,7 +1532,8 @@
       gBtn.addEventListener('click', async () => {
         const projectName = (el.movieFilename && el.movieFilename.value.trim()) ? el.movieFilename.value.trim() : 'film';
         const doRemoveBg = removeBgChk ? removeBgChk.checked : true;
-        const vars = state.screenplay.variables || state.screenplay.variablen || {};
+        const targetSceneId = (char.first_scene && parseInt(char.first_scene) > 0) ? parseInt(char.first_scene) : detectedFirstScene;
+        const vars = getVariablesForScene(state.screenplay, targetSceneId);
 
         try {
           if (uploadStatus) {

@@ -1053,8 +1053,25 @@ GUIDELINES:
 
 def generate_character_portrait_comfy(project_name, char, variables=None, remove_bg=True):
     """Generates a character casting image using ComfyUI and active model/LoRA presets.
-    Interpolates variables ({celina_top}, etc.) into the character prompt.
+    Interpolates variables ({celina_top}, etc.) into the character prompt based on the character's first scene appearance.
     """
+    # If variables were not provided or only root variables, calculate variables up to character's first_scene
+    if not variables:
+        try:
+            from master_regisseur import get_character_first_scene, get_variables_for_scene
+            safe_proj = os.path.splitext(os.path.basename(project_name))[0]
+            proj_json = os.path.join(PROJECTS_DIR, f"{safe_proj}.json")
+            if not os.path.exists(proj_json):
+                proj_json = os.path.join(PROJECTS_DIR, safe_proj, f"{safe_proj}.json")
+            if os.path.exists(proj_json):
+                with open(proj_json, "r", encoding="utf-8") as pf:
+                    proj_data = json.load(pf)
+                scenes = proj_data.get("scenes") or proj_data.get("szenen") or []
+                first_scene_id = get_character_first_scene(char, scenes)
+                variables = get_variables_for_scene(proj_data, first_scene_id)
+        except Exception:
+            pass
+
     settings = load_settings()
     server_address = settings.get("comfyui", {}).get("server_address", "127.0.0.1:8188")
 
