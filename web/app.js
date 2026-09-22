@@ -114,8 +114,10 @@
     timelineStatsBadge: document.getElementById('timelineStatsBadge'),
     btnPlayFullMovie: document.getElementById('btnPlayFullMovie'),
     filmstripTrack: document.getElementById('filmstripTrack'),
+    btnToggleVideoPlayer: document.getElementById('btnToggleVideoPlayer'),
     videoPlayerModal: document.getElementById('videoPlayerModal'),
     btnCloseVideoModal: document.getElementById('btnCloseVideoModal'),
+    btnCloseVideoModalBtn: document.getElementById('btnCloseVideoModalBtn'),
     videoModalTitle: document.getElementById('videoModalTitle'),
     modalVideoElement: document.getElementById('modalVideoElement'),
     videoMetaTitle: document.getElementById('videoMetaTitle'),
@@ -2746,6 +2748,50 @@
     el.videoPlayerModal.classList.remove('open');
   }
 
+  function toggleVideoPlayer() {
+    if (!el.videoPlayerModal) return;
+    if (el.videoPlayerModal.classList.contains('open')) {
+      closeVideoPlayerModal();
+      return;
+    }
+
+    const projName = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+    const title = (el.movieTitle && el.movieTitle.value.trim()) || projName;
+
+    // 1. If full movie is ready, play full movie
+    if (state.scenesStatus && state.scenesStatus.movie_ready && state.scenesStatus.movie_url) {
+      const mUrl = state.scenesStatus.movie_url + '&t=' + Date.now();
+      const totalSecs = (state.scenesStatus.scenes || []).reduce((acc, s) => acc + (s.duration || 6), 0);
+      openVideoPlayerModal(mUrl, `🎬 ${title} (FINAL)`, totalSecs.toFixed(1));
+      return;
+    }
+
+    // 2. If any rendered scene exists, play first available rendered scene
+    const scenes = state.screenplay.scenes || [];
+    const statusMap = (state.scenesStatus && state.scenesStatus.scenes)
+      ? Object.fromEntries(state.scenesStatus.scenes.map(s => [s.id, s]))
+      : {};
+
+    const readyScene = scenes.find(s => statusMap[s.id] && statusMap[s.id].has_video);
+    if (readyScene) {
+      const st = statusMap[readyScene.id];
+      const videoUrl = (st && st.video_url) ? st.video_url : `/api/scene/video?project=${encodeURIComponent(projName)}&scene=${readyScene.id}&t=${Date.now()}`;
+      const seq = readyScene.sequence || readyScene.sequenz || `Szene ${readyScene.id}`;
+      openVideoPlayerModal(videoUrl, `Szene #${readyScene.id}: ${seq}`, readyScene.duration || 6);
+      return;
+    }
+
+    // 3. If there is already a source in modalVideoElement
+    if (el.modalVideoElement && el.modalVideoElement.src) {
+      el.videoPlayerModal.classList.add('open');
+      el.modalVideoElement.play().catch(() => {});
+      return;
+    }
+
+    // 4. No video available yet
+    showToast(t('video_no_rendered_found') || 'Noch kein Video gerendert. Klicke auf "Film rendern" oder starte das Rendering im Storyboard.', 'info');
+  }
+
   function addScene() {
     const scenes = state.screenplay.scenes || [];
     const newId = scenes.length + 1;
@@ -4323,8 +4369,14 @@
     }
 
     // Video Player Modal Events
+    if (el.btnToggleVideoPlayer) {
+      el.btnToggleVideoPlayer.addEventListener('click', toggleVideoPlayer);
+    }
     if (el.btnCloseVideoModal) {
       el.btnCloseVideoModal.addEventListener('click', closeVideoPlayerModal);
+    }
+    if (el.btnCloseVideoModalBtn) {
+      el.btnCloseVideoModalBtn.addEventListener('click', closeVideoPlayerModal);
     }
     if (el.videoPlayerModal) {
       el.videoPlayerModal.addEventListener('click', (e) => {

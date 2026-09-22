@@ -55,6 +55,9 @@
       <button id="btnLaunchMovie" class="btn btn-accent btn-sm" data-i18n-title="btnLaunchTitle" title="Kommando zum Rendern anzeigen">
         <span>⚡</span> <span data-i18n="btnLaunch">Film rendern</span>
       </button>
+      <button id="btnToggleVideoPlayer" class="btn btn-secondary btn-sm" data-i18n-title="btnVideoPlayerTitle" title="Video-Player öffnen / schließen">
+        <span>🎬</span> <span data-i18n="btnVideoPlayer">Player</span>
+      </button>
       <button id="btnGuide" class="btn btn-secondary btn-sm" data-i18n-title="btnGuideTitle" title="Regie-Leitfaden, Szenen-Best-Practices & Optionen öffnen">
         <span>📚</span> <span data-i18n="btnGuide">Anleitung</span>
       </button>
@@ -883,20 +886,25 @@
   </div>
 
   <!-- Video Player Modal -->
-  <div id="videoPlayerModal" class="modal-overlay">
-    <div class="modal-card modal-video">
+  <div id="videoPlayerModal" class="modal-backdrop">
+    <div class="modal-dialog modal-dialog-xl modal-video">
       <div class="modal-header">
         <h3 class="modal-title" id="videoModalTitle">▶️ <span data-i18n="video_modal_title">Video-Player</span></h3>
-        <button class="btn-close-modal" id="btnCloseVideoModal">&times;</button>
+        <button class="modal-close" id="btnCloseVideoModal" title="Schließen">✕</button>
       </div>
       <div class="modal-body modal-video-body">
         <div class="video-container">
           <video id="modalVideoElement" controls playsinline class="responsive-video-player"></video>
         </div>
         <div class="video-meta-bar" id="videoMetaBar">
-          <span id="videoMetaTitle" class="video-meta-title">Szene 1</span>
-          <span id="videoMetaDuration" class="badge badge-subtle">6.0s</span>
-          <a id="videoDownloadLink" href="#" download class="btn btn-secondary btn-xs">⬇️ <span data-i18n="video_modal_download">Herunterladen</span></a>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span id="videoMetaTitle" class="video-meta-title">Szene 1</span>
+            <span id="videoMetaDuration" class="badge badge-subtle">6.0s</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <a id="videoDownloadLink" href="#" download class="btn btn-secondary btn-xs">⬇️ <span data-i18n="video_modal_download">Herunterladen</span></a>
+            <button id="btnCloseVideoModalBtn" class="btn btn-ghost btn-xs" data-i18n="video_modal_close">Schließen</button>
+          </div>
         </div>
       </div>
     </div>

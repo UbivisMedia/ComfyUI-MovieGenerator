@@ -119,6 +119,8 @@
     "btnRescanTitle": "Modelle und LoRAs in ComfyUI neu scannen",
     "btnLaunch": "Film rendern",
     "btnLaunchTitle": "Kommando zum Rendern anzeigen",
+    "btnVideoPlayer": "Player",
+    "btnVideoPlayerTitle": "Video-Player öffnen / schließen",
     "btnLangToggleTitle": "Sprache wechseln / Switch Language",
     "btnExitTitle": "Editor beenden und zum Hauptmenü zurückkehren",
     "sectionScreenplayInfo": "📖 Drehbuch-Info",
@@ -460,6 +462,7 @@
     "video_modal_close": "Schließen",
     "video_modal_download": "Herunterladen",
     "video_not_found": "Kein Video für diesen Clip gefunden.",
+    "video_no_rendered_found": "Noch kein Video gerendert. Klicke auf 'Film rendern' oder starte das Rendering im Storyboard.",
     "video_loading": "Lade Video..."
   },
   "btnGuide": "Anleitung",

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-09-22
+
+### 🐛 Fixed
+- **Video Player Modal Overlay & Layout**: Fixed video player element rendering as a static unhideable box taking up half the viewport height by standardizing its markup on studio-wide `.modal-backdrop` and `.modal-dialog` classes. The player is now properly hidden by default.
+- **Scene Re-Rendering Background Thread**: Fixed `NameError: cannot access free variable 'BASE_DIR'` in `script_agency.py` during `POST /api/scene/rerender` by removing redundant local `BASE_DIR` import shadowing in `do_POST()`.
+
+### ✨ Added
+- **Dedicated Video Player Header Button**: Added an immediate `🎬 Player` launcher button to the Script Agency top navigation bar to open or close the video player anytime.
+- **Enhanced Player Controls**: Added a footer "Schließen" button in the player meta bar in addition to the header close button (✕), backdrop dismissal, and `Escape` key shortcut.
+- **Bilingual Localization**: Added UI translations for `btnVideoPlayer`, `btnVideoPlayerTitle`, and `video_no_rendered_found` in `de.json` and `en.json`.
+
 ---
 
 ## [1.2.0] - 2026-09-20

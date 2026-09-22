@@ -119,6 +119,8 @@
     "btnRescanTitle": "Rescan models and LoRAs from ComfyUI",
     "btnLaunch": "Render Movie",
     "btnLaunchTitle": "Show rendering command",
+    "btnVideoPlayer": "Player",
+    "btnVideoPlayerTitle": "Open / close video player",
     "btnLangToggleTitle": "Switch Language / Sprache wechseln",
     "btnExitTitle": "Exit editor and return to main menu",
     "sectionScreenplayInfo": "📖 Screenplay Info",
@@ -460,6 +462,7 @@
     "video_modal_close": "Close",
     "video_modal_download": "Download",
     "video_not_found": "No video found for this clip.",
+    "video_no_rendered_found": "No video rendered yet. Click 'Render Movie' or start rendering in the storyboard.",
     "video_loading": "Loading video..."
   },
   "btnGuide": "Guide",

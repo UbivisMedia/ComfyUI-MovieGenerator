@@ -2815,7 +2815,7 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
                 return
 
             from master_regisseur import (
-                find_file, WORKFLOWS_DIR, BASE_DIR, get_video_duration,
+                find_file, WORKFLOWS_DIR, get_video_duration,
                 generate_movie_soundtrack, mix_soundtrack_into_movie
             )
             settings = load_settings()

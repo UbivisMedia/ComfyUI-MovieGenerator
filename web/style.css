@@ -3210,8 +3210,12 @@ textarea.form-control {
 /* ==========================================================================
    Video Player Modal
    ========================================================================== */
+.modal-overlay {
+  display: none !important;
+}
+
 .modal-video {
-  max-width: 880px;
+  max-width: 900px;
   width: 95vw;
 }
 
