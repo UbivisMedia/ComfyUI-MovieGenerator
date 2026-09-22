@@ -2637,6 +2637,9 @@
         try {
           reshootBtn.disabled = true;
           reshootBtn.innerHTML = '⏳';
+          if (state.isDirty) {
+            await saveScreenplay();
+          }
           const res = await API.reshootScene(projName, sceneId);
           showToast(res.message || (t('reshoot_started') || 'Dreh gestartet...').replace('{id}', sceneId), 'info');
           setTimeout(() => {

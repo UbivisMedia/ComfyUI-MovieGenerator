@@ -2403,31 +2403,42 @@ def main():
         except Exception:
             pass
 
-    # Check if an extended screenplay already exists in project_dir with pre-generated prompts
-    target_load_path = screenplay_path
-    if os.path.exists(local_screenplay_copy) and os.path.abspath(screenplay_path) != os.path.abspath(local_screenplay_copy):
-        try:
-            with open(local_screenplay_copy, "r", encoding="utf-8") as lf:
-                local_data = json.load(lf)
-            local_scenes = local_data.get("szenen") or local_data.get("scenes") or []
-            if any(s.get("prompt") for s in local_scenes):
-                target_load_path = local_screenplay_copy
-        except Exception:
-            pass
-    elif not os.path.exists(local_screenplay_copy) and os.path.abspath(screenplay_path) != os.path.abspath(local_screenplay_copy):
-        try:
-            shutil.copy2(screenplay_path, local_screenplay_copy)
-        except Exception:
-            pass
-
     print(t("loading_screenplay", film_name=film_name))
     print(t("project_dir", path=project_dir))
     print(f"   ├── Characters: {characters_dir}")
     print(f"   ├── Scenes:     {scenes_dir}")
     print(f"   └── Movie:      {movie_dir}")
 
-    with open(target_load_path, "r", encoding="utf-8") as f:
+    # Primary source of truth is always the explicitly specified screenplay_path
+    with open(screenplay_path, "r", encoding="utf-8") as f:
         screenplay = json.load(f)
+
+    # If local_screenplay_copy exists and differs, borrow generated prompts for scenes that have none
+    if os.path.exists(local_screenplay_copy) and os.path.abspath(screenplay_path) != os.path.abspath(local_screenplay_copy):
+        try:
+            with open(local_screenplay_copy, "r", encoding="utf-8") as lf:
+                local_data = json.load(lf)
+            local_scenes = {s.get("id"): s for s in (local_data.get("szenen") or local_data.get("scenes") or []) if s.get("id") is not None}
+            curr_scenes = screenplay.get("szenen") or screenplay.get("scenes") or []
+            for cs in curr_scenes:
+                cid = cs.get("id")
+                if cid in local_scenes:
+                    ls = local_scenes[cid]
+                    # If current scene in master file doesn't have an AI prompt yet, but local copy did, reuse it
+                    if not cs.get("prompt") and ls.get("prompt"):
+                        cs["prompt"] = ls.get("prompt")
+                    if not cs.get("summary") and ls.get("summary"):
+                        cs["summary"] = ls.get("summary")
+        except Exception:
+            pass
+
+    # Keep local_screenplay_copy synchronized with the latest screenplay
+    try:
+        if os.path.abspath(screenplay_path) != os.path.abspath(local_screenplay_copy):
+            with open(local_screenplay_copy, "w", encoding="utf-8") as sf:
+                json.dump(screenplay, sf, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
 
     # Load workflows and presets
     wf_t2i_path = find_file("workflow_t2i.json", [WORKFLOWS_DIR, BASE_DIR])

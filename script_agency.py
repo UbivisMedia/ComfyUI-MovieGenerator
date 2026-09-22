@@ -2922,6 +2922,17 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
                 with open(target_path, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2, ensure_ascii=False)
 
+                # Synchronize with project subfolder copy if directory exists (Projects/<film_name>/<film_name>.json)
+                proj_base = os.path.splitext(safe_name)[0]
+                sub_proj_dir = os.path.join(PROJECTS_DIR, proj_base)
+                if os.path.isdir(sub_proj_dir):
+                    sub_target_path = os.path.join(sub_proj_dir, safe_name)
+                    try:
+                        with open(sub_target_path, "w", encoding="utf-8") as sf:
+                            json.dump(data, sf, indent=2, ensure_ascii=False)
+                    except Exception as sbe:
+                        print(f"⚠️ Subprojekt-Synchronisation fehlgeschlagen: {sbe}")
+
                 self.send_json({
                     "success": True,
                     "filename": safe_name,

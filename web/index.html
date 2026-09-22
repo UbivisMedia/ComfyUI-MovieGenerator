@@ -1,14 +1,18 @@
 <!DOCTYPE html>
 <html lang="de">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Script Agency • MovieGenerator Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body class="dark-theme">
   <!-- Top Navigation Bar -->
   <header class="app-header">
@@ -16,7 +20,7 @@
       <div class="brand">
         <span class="brand-icon">🎬</span>
         <div class="brand-text">
-          <span class="brand-title">SCRIPT AGENCY <span class="version-tag">v1.1.0</span></span>
+          <span class="brand-title">SCRIPT AGENCY <span class="version-tag">v1.2.1</span></span>
           <span class="brand-subtitle" data-i18n="brandSubtitle">MovieGenerator Visual Screenplay Studio</span>
         </div>
       </div>
@@ -25,7 +29,8 @@
         <select id="projectSelect" class="select-input project-select" title="Drehbuch auswählen">
           <option value="" disabled selected data-i18n="loadingProjects">Lade Drehbücher...</option>
         </select>
-        <button id="btnNewProject" class="btn btn-secondary btn-sm" data-i18n-title="btnNewTitle" title="Neues Drehbuch erstellen">
+        <button id="btnNewProject" class="btn btn-secondary btn-sm" data-i18n-title="btnNewTitle"
+          title="Neues Drehbuch erstellen">
           <span>➕</span> <span data-i18n="btnNew">Neu</span>
         </button>
       </div>
@@ -46,27 +51,34 @@
       <button id="btnSave" class="btn btn-primary" data-i18n-title="btnSaveTitle" title="Drehbuch speichern (Strg+S)">
         <span>💾</span> <span class="btn-text" data-i18n="btnSave">Speichern</span>
       </button>
-      <button id="btnDuplicate" class="btn btn-secondary btn-sm" data-i18n-title="btnDuplicateTitle" title="Als neue Datei duplizieren">
+      <button id="btnDuplicate" class="btn btn-secondary btn-sm" data-i18n-title="btnDuplicateTitle"
+        title="Als neue Datei duplizieren">
         <span>📋</span> <span data-i18n="btnDuplicate">Duplizieren</span>
       </button>
-      <button id="btnRescan" class="btn btn-secondary btn-sm" data-i18n-title="btnRescanTitle" title="Modelle und LoRAs in ComfyUI neu scannen">
+      <button id="btnRescan" class="btn btn-secondary btn-sm" data-i18n-title="btnRescanTitle"
+        title="Modelle und LoRAs in ComfyUI neu scannen">
         <span id="rescanIcon">🔄</span> <span data-i18n="btnRescan">Katalog-Scan</span>
       </button>
-      <button id="btnLaunchMovie" class="btn btn-accent btn-sm" data-i18n-title="btnLaunchTitle" title="Kommando zum Rendern anzeigen">
+      <button id="btnLaunchMovie" class="btn btn-accent btn-sm" data-i18n-title="btnLaunchTitle"
+        title="Kommando zum Rendern anzeigen">
         <span>⚡</span> <span data-i18n="btnLaunch">Film rendern</span>
       </button>
-      <button id="btnToggleVideoPlayer" class="btn btn-secondary btn-sm" data-i18n-title="btnVideoPlayerTitle" title="Video-Player öffnen / schließen">
+      <button id="btnToggleVideoPlayer" class="btn btn-secondary btn-sm" data-i18n-title="btnVideoPlayerTitle"
+        title="Video-Player öffnen / schließen">
         <span>🎬</span> <span data-i18n="btnVideoPlayer">Player</span>
       </button>
-      <button id="btnGuide" class="btn btn-secondary btn-sm" data-i18n-title="btnGuideTitle" title="Regie-Leitfaden, Szenen-Best-Practices & Optionen öffnen">
+      <button id="btnGuide" class="btn btn-secondary btn-sm" data-i18n-title="btnGuideTitle"
+        title="Regie-Leitfaden, Szenen-Best-Practices & Optionen öffnen">
         <span>📚</span> <span data-i18n="btnGuide">Anleitung</span>
       </button>
       <div class="lang-switch">
-        <button id="btnLangToggle" class="btn btn-ghost btn-sm" data-i18n-title="btnLangToggleTitle" title="Sprache wechseln / Switch Language">
+        <button id="btnLangToggle" class="btn btn-ghost btn-sm" data-i18n-title="btnLangToggleTitle"
+          title="Sprache wechseln / Switch Language">
           🌐 <span id="currentLangLabel">DE</span>
         </button>
       </div>
-      <button id="btnExit" class="btn btn-ghost btn-sm text-muted" data-i18n-title="btnExitTitle" title="Editor beenden und zum Hauptmenü zurückkehren">
+      <button id="btnExit" class="btn btn-ghost btn-sm text-muted" data-i18n-title="btnExitTitle"
+        title="Editor beenden und zum Hauptmenü zurückkehren">
         ✕
       </button>
     </div>
@@ -82,18 +94,21 @@
         </div>
         <div class="form-group">
           <label for="movieTitle" data-i18n="labelTitle">Filmtitel</label>
-          <input type="text" id="movieTitle" class="form-control" data-i18n-placeholder="placeholderTitle" placeholder="Titel des Films eingeben...">
+          <input type="text" id="movieTitle" class="form-control" data-i18n-placeholder="placeholderTitle"
+            placeholder="Titel des Films eingeben...">
         </div>
         <div class="form-group">
           <label for="movieFilename" data-i18n="labelFilename">Dateiname (.json)</label>
           <div class="input-with-suffix">
-            <input type="text" id="movieFilename" class="form-control" data-i18n-placeholder="placeholderFilename" placeholder="mein_film">
+            <input type="text" id="movieFilename" class="form-control" data-i18n-placeholder="placeholderFilename"
+              placeholder="mein_film">
             <span class="suffix">.json</span>
           </div>
         </div>
         <div class="form-group">
           <label for="movieDescription" data-i18n="labelDescription">Storyline & Logline</label>
-          <textarea id="movieDescription" class="form-control" rows="3" data-i18n-placeholder="placeholderDescription" placeholder="Worum geht es in diesem Film? (Wird von der KI für konsistente Zusammenhänge genutzt)"></textarea>
+          <textarea id="movieDescription" class="form-control" rows="3" data-i18n-placeholder="placeholderDescription"
+            placeholder="Worum geht es in diesem Film? (Wird von der KI für konsistente Zusammenhänge genutzt)"></textarea>
         </div>
       </section>
 
@@ -102,13 +117,16 @@
         <div class="section-header">
           <h2 class="section-title" data-i18n="sectionVariables">🏷️ Globale Variablen</h2>
           <div style="display:flex;gap:4px;flex-wrap:wrap;">
-            <button id="btnHarmonizeScript" class="btn btn-secondary btn-xs" data-i18n-title="btnHarmonizeScriptTitle" title="Outfits, Requisiten und Minimax-Tags für das gesamte Drehbuch automatisch abstimmen">
+            <button id="btnHarmonizeScript" class="btn btn-secondary btn-xs" data-i18n-title="btnHarmonizeScriptTitle"
+              title="Outfits, Requisiten und Minimax-Tags für das gesamte Drehbuch automatisch abstimmen">
               <span>✨</span> <span data-i18n="btnHarmonizeScript">Harmonisieren</span>
             </button>
-            <button id="btnAiExtractVars" class="btn btn-ai-magic btn-xs" data-i18n-title="btnAiExtractVarsTitle" title="Requisiten & Outfits mit KI aus der Storyline extrahieren">
+            <button id="btnAiExtractVars" class="btn btn-ai-magic btn-xs" data-i18n-title="btnAiExtractVarsTitle"
+              title="Requisiten & Outfits mit KI aus der Storyline extrahieren">
               <span class="ai-sparkle">🪄</span> <span data-i18n="btnAiExtractVars">Extrahieren</span>
             </button>
-            <button id="btnAddVariable" class="btn btn-ghost btn-xs" data-i18n-title="btnAddVariableTitle" title="Neue Variable definieren">
+            <button id="btnAddVariable" class="btn btn-ghost btn-xs" data-i18n-title="btnAddVariableTitle"
+              title="Neue Variable definieren">
               <span>➕</span> <span data-i18n="btnNewVar">Neu</span>
             </button>
           </div>
@@ -149,10 +167,12 @@
       <!-- Tab Navigation -->
       <nav class="content-tabs">
         <button class="tab-btn active" data-tab="characters">
-          <span class="tab-icon">🎭</span> <span data-i18n="tabCharacters">Charaktere</span> (<span id="tabBadgeChars">0</span>)
+          <span class="tab-icon">🎭</span> <span data-i18n="tabCharacters">Charaktere</span> (<span
+            id="tabBadgeChars">0</span>)
         </button>
         <button class="tab-btn" data-tab="scenes">
-          <span class="tab-icon">🎬</span> <span data-i18n="tabScenes">Storyboard & Szenen</span> (<span id="tabBadgeScenes">0</span>)
+          <span class="tab-icon">🎬</span> <span data-i18n="tabScenes">Storyboard & Szenen</span> (<span
+            id="tabBadgeScenes">0</span>)
         </button>
         <button class="tab-btn" data-tab="music">
           <span class="tab-icon">🎵</span> <span data-i18n="tabMusic">Music Studio</span>
@@ -167,7 +187,8 @@
         <div class="tab-actions-bar">
           <div class="tab-actions-left">
             <h2 class="tab-heading" data-i18n="headingCast">Schauspieler & Cast</h2>
-            <span class="tab-subheading" data-i18n="subheadingCast">Definiere Charaktere, wähle ihr Basis-Modell und füge optimierte LoRAs hinzu.</span>
+            <span class="tab-subheading" data-i18n="subheadingCast">Definiere Charaktere, wähle ihr Basis-Modell und
+              füge optimierte LoRAs hinzu.</span>
           </div>
           <button id="btnAddCharacter" class="btn btn-primary">
             <span>➕</span> <span data-i18n="btnAddCharacter">Charakter hinzufügen</span>
@@ -184,16 +205,20 @@
         <div class="tab-actions-bar">
           <div class="tab-actions-left">
             <h2 class="tab-heading" data-i18n="headingScenes">Szenen & Storyboard</h2>
-            <span class="tab-subheading" data-i18n="subheadingScenes">Gestalte die filmische Reihenfolge, Kameraanschlüsse und Handlungen.</span>
+            <span class="tab-subheading" data-i18n="subheadingScenes">Gestalte die filmische Reihenfolge,
+              Kameraanschlüsse und Handlungen.</span>
           </div>
           <div class="tab-actions-right" style="display:flex;gap:8px;">
-            <button id="btnStoryWizard" class="btn btn-secondary btn-sm" data-i18n-title="btnStoryWizardTitle" title="Schritt für Schritt interaktiv die Story entwickeln">
+            <button id="btnStoryWizard" class="btn btn-secondary btn-sm" data-i18n-title="btnStoryWizardTitle"
+              title="Schritt für Schritt interaktiv die Story entwickeln">
               <span>🧙‍♂️</span> <span data-i18n="btnStoryWizard">Story-Wizard</span>
             </button>
-            <button id="btnStoryGenerator" class="btn btn-ai-magic btn-sm" data-i18n-title="btnStoryGeneratorTitle" title="Komplette Szenensequenz aus einer Storyline generieren">
+            <button id="btnStoryGenerator" class="btn btn-ai-magic btn-sm" data-i18n-title="btnStoryGeneratorTitle"
+              title="Komplette Szenensequenz aus einer Storyline generieren">
               <span class="ai-sparkle">📖</span> <span data-i18n="btnStoryGenerator">Story-Generator</span>
             </button>
-            <button id="btnAiSuggestScene" class="btn btn-ghost btn-sm" data-i18n-title="btnAiSuggestSceneTitle" title="Nächste Szene mit KI brainstormen">
+            <button id="btnAiSuggestScene" class="btn btn-ghost btn-sm" data-i18n-title="btnAiSuggestSceneTitle"
+              title="Nächste Szene mit KI brainstormen">
               <span class="ai-sparkle">🪄</span> <span data-i18n="btnAiSuggestScene">Szene vorschlagen</span>
             </button>
             <button id="btnAddScene" class="btn btn-primary btn-sm">
@@ -211,7 +236,8 @@
               <span id="timelineStatsBadge" class="badge badge-subtle">0s • 0 Szenen</span>
             </div>
             <div class="timeline-header-right">
-              <button id="btnPlayFullMovie" class="btn btn-primary btn-xs" style="display:none;" data-i18n-title="timeline_play_movie">
+              <button id="btnPlayFullMovie" class="btn btn-primary btn-xs" style="display:none;"
+                data-i18n-title="timeline_play_movie">
                 <span>🎬</span> <span data-i18n="btn_preview_movie">Ganzen Film abspielen</span>
               </button>
             </div>
@@ -231,7 +257,8 @@
         <div class="tab-actions-bar">
           <div class="tab-actions-left">
             <h2 class="tab-heading" data-i18n="headingMusic">Soundtrack & Nachvertonung</h2>
-            <span class="tab-subheading" data-i18n="subheadingMusic">Komponiere einen passgenauen KI-Soundtrack mit Auto-Ducking (Sprache und Originalsound werden nie übertönt).</span>
+            <span class="tab-subheading" data-i18n="subheadingMusic">Komponiere einen passgenauen KI-Soundtrack mit
+              Auto-Ducking (Sprache und Originalsound werden nie übertönt).</span>
           </div>
         </div>
 
@@ -241,14 +268,16 @@
               <label class="toggle-switch-wrapper">
                 <input type="checkbox" id="chkMusicEnabled">
                 <span class="toggle-switch-slider"></span>
-                <span class="toggle-switch-label" data-i18n="musicEnableLabel">Soundtrack-Nachvertonung aktivieren</span>
+                <span class="toggle-switch-label" data-i18n="musicEnableLabel">Soundtrack-Nachvertonung
+                  aktivieren</span>
               </label>
             </div>
 
             <div class="music-card-body" id="musicSettingsBody">
               <!-- Model Selection -->
               <div class="form-group">
-                <label for="musicModelSelect" class="form-label" data-i18n="musicModelLabel">Musik-Modell (ComfyUI Checkpoint)</label>
+                <label for="musicModelSelect" class="form-label" data-i18n="musicModelLabel">Musik-Modell (ComfyUI
+                  Checkpoint)</label>
                 <select id="musicModelSelect" class="select-input">
                   <!-- Populated dynamically via /api/music/models -->
                 </select>
@@ -257,18 +286,25 @@
               <!-- Tags / Prompt -->
               <div class="form-group">
                 <div class="music-prompt-header">
-                  <label for="musicPromptInput" class="form-label" data-i18n="musicPromptLabel">Musik-Stil, Instrumente & Stimmung</label>
-                  <button id="btnSuggestMusicTags" class="btn btn-ai-magic btn-xs" data-i18n-title="btnMusicSuggestTagsTitle" title="Stimmung und Instrumentierung passend zur Story mit LM Studio generieren">
-                    <span class="ai-sparkle">🪄</span> <span data-i18n="btnMusicSuggestTags">Tags mit KI vorschlagen</span>
+                  <label for="musicPromptInput" class="form-label" data-i18n="musicPromptLabel">Musik-Stil, Instrumente
+                    & Stimmung</label>
+                  <button id="btnSuggestMusicTags" class="btn btn-ai-magic btn-xs"
+                    data-i18n-title="btnMusicSuggestTagsTitle"
+                    title="Stimmung und Instrumentierung passend zur Story mit LM Studio generieren">
+                    <span class="ai-sparkle">🪄</span> <span data-i18n="btnMusicSuggestTags">Tags mit KI
+                      vorschlagen</span>
                   </button>
                 </div>
-                <textarea id="musicPromptInput" class="form-control" rows="3" data-i18n-placeholder="musicPromptPlaceholder" placeholder="z.B. 'cinematic beach soundtrack, warm acoustic guitar, soft ocean pads, romantic gentle melody, instrumental'..."></textarea>
+                <textarea id="musicPromptInput" class="form-control" rows="3"
+                  data-i18n-placeholder="musicPromptPlaceholder"
+                  placeholder="z.B. 'cinematic beach soundtrack, warm acoustic guitar, soft ocean pads, romantic gentle melody, instrumental'..."></textarea>
               </div>
 
               <!-- Mixing Controls Grid -->
               <div class="music-grid-2col">
                 <div class="form-group">
-                  <label for="musicVolumeSelect" class="form-label" data-i18n="musicVolumeLabel">Soundtrack-Lautstärke (Unterordnung)</label>
+                  <label for="musicVolumeSelect" class="form-label" data-i18n="musicVolumeLabel">Soundtrack-Lautstärke
+                    (Unterordnung)</label>
                   <select id="musicVolumeSelect" class="select-input">
                     <option value="0.15" data-i18n="musicVolumeSubtle">Subtil leise (-18 dB / 0.15)</option>
                     <option value="0.22" selected data-i18n="musicVolumeBalanced">Ausgewogen (-14 dB / 0.22)</option>
@@ -277,10 +313,13 @@
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label" data-i18n="musicDuckingLabel">Smart Auto-Ducking (Sidechain-Kompression)</label>
+                  <label class="form-label" data-i18n="musicDuckingLabel">Smart Auto-Ducking
+                    (Sidechain-Kompression)</label>
                   <label class="checkbox-label" style="margin-top:6px;display:flex;align-items:flex-start;gap:8px;">
                     <input type="checkbox" id="chkMusicDucking" checked style="margin-top:2px;">
-                    <span style="font-size:12px;color:var(--text-main);" data-i18n="musicDuckingDesc">Senkt die Musiklautstärke bei Dialogen und Geräuschen automatisch um 6-8 dB ab, damit Sprache kristallklar bleibt.</span>
+                    <span style="font-size:12px;color:var(--text-main);" data-i18n="musicDuckingDesc">Senkt die
+                      Musiklautstärke bei Dialogen und Geräuschen automatisch um 6-8 dB ab, damit Sprache kristallklar
+                      bleibt.</span>
                   </label>
                 </div>
               </div>
@@ -311,7 +350,8 @@
         <div class="tab-actions-bar">
           <div class="tab-actions-left">
             <h2 class="tab-heading" data-i18n="headingJson">Live JSON Inspektor</h2>
-            <span class="tab-subheading" data-i18n="subheadingJson">Echtzeit-Vorschau des Drehbuchs. Kann kopiert oder direkt als Datei gespeichert werden.</span>
+            <span class="tab-subheading" data-i18n="subheadingJson">Echtzeit-Vorschau des Drehbuchs. Kann kopiert oder
+              direkt als Datei gespeichert werden.</span>
           </div>
           <div class="tab-actions-right">
             <button id="btnCopyJson" class="btn btn-secondary btn-sm">
@@ -338,7 +378,8 @@
       </div>
       <div class="modal-body">
         <div class="modal-search-bar">
-          <input type="text" id="loraSearchInput" class="form-control" data-i18n-placeholder="placeholderLoraSearch" placeholder="LoRA suchen (Name, Stil, Beschreibung)...">
+          <input type="text" id="loraSearchInput" class="form-control" data-i18n-placeholder="placeholderLoraSearch"
+            placeholder="LoRA suchen (Name, Stil, Beschreibung)...">
           <label class="filter-toggle">
             <input type="checkbox" id="chkShowAllLoras">
             <span data-i18n="chkShowAllLoras">Alle LoRAs anzeigen (auch andere Modelle)</span>
@@ -365,7 +406,8 @@
       </div>
       <div class="modal-body">
         <div class="modal-search-bar" style="flex-direction:column;align-items:stretch;gap:10px;">
-          <input type="text" id="modelSearchInput" class="form-control" data-i18n-placeholder="placeholderModelSearch" placeholder="Modell suchen (Name, Typ, Stil, Beschreibung)...">
+          <input type="text" id="modelSearchInput" class="form-control" data-i18n-placeholder="placeholderModelSearch"
+            placeholder="Modell suchen (Name, Typ, Stil, Beschreibung)...">
           <div class="model-filter-tabs" id="modelFilterTabs">
             <button type="button" class="btn-filter-pill active" data-filter="all" data-i18n="filterAll">Alle</button>
             <button type="button" class="btn-filter-pill" data-filter="anima">Anima</button>
@@ -397,7 +439,8 @@
         <button class="modal-close" id="btnCloseRenderModal">✕</button>
       </div>
       <div class="modal-body">
-        <p data-i18n="modalRenderDesc">Um diesen Film mit dem MovieGenerator zu produzieren, kannst du entweder das Terminal-Kommando ausführen oder die Datei auswählen:</p>
+        <p data-i18n="modalRenderDesc">Um diesen Film mit dem MovieGenerator zu produzieren, kannst du entweder das
+          Terminal-Kommando ausführen oder die Datei auswählen:</p>
         <div class="terminal-box">
           <code id="renderCliCommand">python master_regisseur.py Projects/film.json</code>
           <button id="btnCopyCli" class="btn btn-secondary btn-xs" data-i18n="btnCopy">Kopieren</button>
@@ -424,7 +467,8 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" id="btnDiscardAiModal" data-i18n="btnDiscard">Verwerfen</button>
-        <button class="btn btn-primary" id="btnApplyAiModal" data-i18n="btnApplySuggestion">Ins Storyboard übernehmen</button>
+        <button class="btn btn-primary" id="btnApplyAiModal" data-i18n="btnApplySuggestion">Ins Storyboard
+          übernehmen</button>
       </div>
     </div>
   </div>
@@ -435,14 +479,17 @@
       <div class="modal-header">
         <div>
           <h3 class="modal-title" data-i18n="storyGeneratorModalTitle">📖 KI-Story-Generator</h3>
-          <p class="modal-subtitle" data-i18n="storyGeneratorSubtitle" style="font-size:12px;color:var(--text-muted);margin-top:2px;">Zerlege eine Storyline automatisch in filmische Einzelszenen mit definierter Shot-Länge & Auto-Casting.</p>
+          <p class="modal-subtitle" data-i18n="storyGeneratorSubtitle"
+            style="font-size:12px;color:var(--text-muted);margin-top:2px;">Zerlege eine Storyline automatisch in
+            filmische Einzelszenen mit definierter Shot-Länge & Auto-Casting.</p>
         </div>
         <button class="modal-close" id="btnCloseStoryGenModal">✕</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
           <label for="storyGenPlot" data-i18n="storylineInputLabel">Storyline & Handlung</label>
-          <textarea id="storyGenPlot" class="form-control" rows="4" data-i18n-placeholder="storylineInputPlaceholder" placeholder="Beschreibe die Handlung, die in Szenen und Shots zerlegt werden soll..."></textarea>
+          <textarea id="storyGenPlot" class="form-control" rows="4" data-i18n-placeholder="storylineInputPlaceholder"
+            placeholder="Beschreibe die Handlung, die in Szenen und Shots zerlegt werden soll..."></textarea>
         </div>
 
         <div class="generator-controls-grid">
@@ -459,7 +506,8 @@
               <label for="storyGenMaxTokens" data-i18n="maxTokensLabel">Max. Tokens (Budget):</label>
               <span id="storyGenMaxTokensVal" class="badge-value">6.000</span>
             </div>
-            <input type="range" id="storyGenMaxTokens" min="2000" max="16000" step="1000" value="6000" class="range-slider">
+            <input type="range" id="storyGenMaxTokens" min="2000" max="16000" step="1000" value="6000"
+              class="range-slider">
           </div>
 
           <div class="form-group">
@@ -484,12 +532,14 @@
         </div>
 
         <!-- Generated Preview Container -->
-        <div id="storyGenPreviewContainer" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
+        <div id="storyGenPreviewContainer"
+          style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
           <!-- New Characters Alert/Badge Box if any -->
           <div id="storyGenNewCharsBox" style="display:none;margin-bottom:12px;" class="new-chars-alert-box"></div>
 
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <h4 style="font-size:13px;font-weight:600;color:var(--text);" data-i18n="storyShotsPreviewTitle">Generierte Shots:</h4>
+            <h4 style="font-size:13px;font-weight:600;color:var(--text);" data-i18n="storyShotsPreviewTitle">Generierte
+              Shots:</h4>
             <span id="storyGenSummaryBadge" class="summary-pill">0 Shots • 0s</span>
           </div>
           <div id="storyGenShotsList" class="story-preview-shots-list"></div>
@@ -497,7 +547,8 @@
       </div>
       <div class="modal-footer" id="storyGenFooter" style="display:none;">
         <button class="btn btn-secondary" id="btnCancelStoryGen" data-i18n="btnDiscard">Verwerfen</button>
-        <button class="btn btn-primary" id="btnApplyStoryGen" data-i18n="btnApplyStoryShots">In Drehbuch übernehmen</button>
+        <button class="btn btn-primary" id="btnApplyStoryGen" data-i18n="btnApplyStoryShots">In Drehbuch
+          übernehmen</button>
       </div>
     </div>
   </div>
@@ -519,23 +570,33 @@
           <div class="wizard-director-notice-box">
             <div class="wizard-notice-icon">🎬</div>
             <div class="wizard-notice-content">
-              <div class="wizard-notice-title" data-i18n="wizardNoticeTitle">🎬 Regie-Hinweis: Die KI liefert den Rohbau – die Regie führst du!</div>
+              <div class="wizard-notice-title" data-i18n="wizardNoticeTitle">🎬 Regie-Hinweis: Die KI liefert den Rohbau
+                – die Regie führst du!</div>
               <div class="wizard-notice-desc" data-i18n="wizardNoticeDesc">
-                Der Script Wizard generiert eine dramaturgische Ideenvorlage. Für einen flüssigen Film mit stimmigen Übergängen prüfe und verfeinere die generierten Szenen: passe Kameraperspektiven an, setze Match-Cuts bei kontinuierlichen Bewegungen und gleiche Outfits ab. Unbearbeitete KI-Entwürfe wirken im fertigen Video oft zusammenhanglos.
+                Der Script Wizard generiert eine dramaturgische Ideenvorlage. Für einen flüssigen Film mit stimmigen
+                Übergängen prüfe und verfeinere die generierten Szenen: passe Kameraperspektiven an, setze Match-Cuts
+                bei kontinuierlichen Bewegungen und gleiche Outfits ab. Unbearbeitete KI-Entwürfe wirken im fertigen
+                Video oft zusammenhanglos.
               </div>
               <button type="button" class="btn-guide-link" id="btnOpenGuideFromWizard">
-                <span>📚</span> <span data-i18n="btnReadBestPractices">Best Practices für zusammenhängende Szenen lesen</span> ↗
+                <span>📚</span> <span data-i18n="btnReadBestPractices">Best Practices für zusammenhängende Szenen
+                  lesen</span> ↗
               </button>
             </div>
           </div>
 
           <div class="form-group" style="margin-top:12px;">
             <label for="wizardPremiseInput" data-i18n="wizardPremiseLabel">Grundidee des Films:</label>
-            <textarea id="wizardPremiseInput" class="form-control" rows="3" data-i18n-placeholder="wizardPremisePlaceholder" placeholder="Worum geht es in deinem Film? Gib eine Ausgangsidee vor..."></textarea>
+            <textarea id="wizardPremiseInput" class="form-control" rows="3"
+              data-i18n-placeholder="wizardPremisePlaceholder"
+              placeholder="Worum geht es in deinem Film? Gib eine Ausgangsidee vor..."></textarea>
           </div>
           <div class="form-group" style="margin-top:10px;">
-            <label for="wizardProducerInstructions" data-i18n="wizardProducerInstructionsLabel">Produzenten-Anweisung & Filmstil (Genre, Look, Tempo):</label>
-            <textarea id="wizardProducerInstructions" class="form-control" rows="2" data-i18n-placeholder="wizardProducerInstructionsPlaceholder" placeholder="z.B. 'Cyberpunk Neo-Noir, düstere Gassen mit Neon-Reflexionen im Regen, langsamer Spannungsaufbau, Blade Runner 2049 Ästhetik'..."></textarea>
+            <label for="wizardProducerInstructions" data-i18n="wizardProducerInstructionsLabel">Produzenten-Anweisung &
+              Filmstil (Genre, Look, Tempo):</label>
+            <textarea id="wizardProducerInstructions" class="form-control" rows="2"
+              data-i18n-placeholder="wizardProducerInstructionsPlaceholder"
+              placeholder="z.B. 'Cyberpunk Neo-Noir, düstere Gassen mit Neon-Reflexionen im Regen, langsamer Spannungsaufbau, Blade Runner 2049 Ästhetik'..."></textarea>
           </div>
           <div class="generator-controls-grid" style="margin-top:10px;">
             <div class="form-group">
@@ -550,7 +611,8 @@
                 <label for="wizardMaxTokens" data-i18n="maxTokensLabel">Max. Tokens:</label>
                 <span id="wizardMaxTokensVal" class="badge-value">4.000</span>
               </div>
-              <input type="range" id="wizardMaxTokens" min="2000" max="8000" step="1000" value="4000" class="range-slider">
+              <input type="range" id="wizardMaxTokens" min="2000" max="8000" step="1000" value="4000"
+                class="range-slider">
             </div>
           </div>
           <div style="margin-top:16px;display:flex;justify-content:flex-end;">
@@ -566,7 +628,8 @@
           <div class="wizard-notice-compact">
             <span class="notice-compact-text">
               <strong style="color:var(--accent-gold);">🎬 Regie-Tipp:</strong>
-              <span data-i18n="wizardNoticeShort">KI liefert die Ideengrundlage – prüfe Schnitte & Kameraperspektiven vor dem Rendern.</span>
+              <span data-i18n="wizardNoticeShort">KI liefert die Ideengrundlage – prüfe Schnitte & Kameraperspektiven
+                vor dem Rendern.</span>
             </span>
             <button type="button" class="btn-guide-link" id="btnOpenGuideFromWizardInteractive">
               <span data-i18n="btnReadBestPracticesShort">Best Practices ↗</span>
@@ -575,16 +638,22 @@
 
           <!-- Collapsible Producer Instructions Bar -->
           <details class="wizard-producer-details" id="wizardProducerDetails">
-            <summary style="font-size:11px;font-weight:700;color:var(--accent-gold);cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;">
+            <summary
+              style="font-size:11px;font-weight:700;color:var(--accent-gold);cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;">
               <span data-i18n="wizardProducerToggleLabel">🎬 Produzenten-Anweisung & Filmstil anpassen</span>
             </summary>
-            <textarea id="wizardInteractiveProducerInstructions" class="form-control" rows="2" style="font-size:12px;margin-top:6px;line-height:1.4;" data-i18n-placeholder="wizardProducerInstructionsPlaceholder" placeholder="z.B. 'Cyberpunk Neo-Noir, düstere Gassen mit Neon-Reflexionen im Regen, langsamer Spannungsaufbau'..."></textarea>
+            <textarea id="wizardInteractiveProducerInstructions" class="form-control" rows="2"
+              style="font-size:12px;margin-top:6px;line-height:1.4;"
+              data-i18n-placeholder="wizardProducerInstructionsPlaceholder"
+              placeholder="z.B. 'Cyberpunk Neo-Noir, düstere Gassen mit Neon-Reflexionen im Regen, langsamer Spannungsaufbau'..."></textarea>
           </details>
 
           <!-- Compact Story Timeline of existing scenes with hint -->
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;margin-bottom:4px;">
-            <span style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;" data-i18n="wizardHistoryLabel">Bisherige Szenen (Verlauf):</span>
-            <span style="font-size:10px;color:var(--text-muted);" data-i18n="wizardTimelineEditHint">Klicke auf eine Szene zum Bearbeiten</span>
+            <span style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;"
+              data-i18n="wizardHistoryLabel">Bisherige Szenen (Verlauf):</span>
+            <span style="font-size:10px;color:var(--text-muted);" data-i18n="wizardTimelineEditHint">Klicke auf eine
+              Szene zum Bearbeiten</span>
           </div>
           <div class="wizard-timeline-container" id="wizardTimeline"></div>
 
@@ -598,26 +667,37 @@
 
           <!-- Direction & Prompt Guidance for this step -->
           <div class="form-group" style="margin-top:12px;">
-            <label for="wizardUserInstruction" data-i18n="wizardUserPromptLabel">Regie-Hinweis für diesen Shot (optional):</label>
-            <input type="text" id="wizardUserInstruction" class="form-control" data-i18n-placeholder="wizardUserPromptPlaceholder" placeholder="z.B. 'Lass die beiden in einen Hinterhalt geraten'...">
+            <label for="wizardUserInstruction" data-i18n="wizardUserPromptLabel">Regie-Hinweis für diesen Shot
+              (optional):</label>
+            <input type="text" id="wizardUserInstruction" class="form-control"
+              data-i18n-placeholder="wizardUserPromptPlaceholder"
+              placeholder="z.B. 'Lass die beiden in einen Hinterhalt geraten'...">
           </div>
 
           <!-- Suggested next story hooks -->
           <div id="wizardHooksBox" style="margin-top:10px;display:none;">
-            <label style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;" data-i18n="wizardHooksLabel">Mögliche Fortsetzungen:</label>
-            <div id="wizardHooksList" class="wizard-hooks-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;"></div>
+            <label style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;"
+              data-i18n="wizardHooksLabel">Mögliche Fortsetzungen:</label>
+            <div id="wizardHooksList" class="wizard-hooks-chips"
+              style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;"></div>
           </div>
         </div>
       </div>
 
       <div class="modal-footer" id="wizardFooter">
-        <button class="btn btn-danger-outline" id="btnWizardFinish" data-i18n="btnWizardFinish">Wizard beenden 🏁</button>
+        <button class="btn btn-danger-outline" id="btnWizardFinish" data-i18n="btnWizardFinish">Wizard beenden
+          🏁</button>
         <div style="display:flex;gap:8px;" id="wizardInteractiveActions">
-          <button class="btn btn-secondary" id="btnWizardRegenerate" data-i18n="btnWizardRegenerate">Neu generieren 🔄</button>
-          <button class="btn btn-primary" id="btnWizardApplyAndNext" data-i18n="btnWizardApplyAndNext">Szene anlegen & Weiter ➡️</button>
-          <button class="btn btn-secondary" id="btnWizardRecreateScene" style="display:none;" data-i18n="btnWizardRecreateScene">Szene mit KI neu generieren 🔄</button>
-          <button class="btn btn-primary" id="btnWizardSaveEdits" style="display:none;" data-i18n="btnWizardSaveEdits">Änderungen speichern 💾</button>
-          <button class="btn btn-ghost" id="btnWizardBackToNext" style="display:none;" data-i18n="btnWizardBackToNext">Weiter am Ende ➡️</button>
+          <button class="btn btn-secondary" id="btnWizardRegenerate" data-i18n="btnWizardRegenerate">Neu generieren
+            🔄</button>
+          <button class="btn btn-primary" id="btnWizardApplyAndNext" data-i18n="btnWizardApplyAndNext">Szene anlegen &
+            Weiter ➡️</button>
+          <button class="btn btn-secondary" id="btnWizardRecreateScene" style="display:none;"
+            data-i18n="btnWizardRecreateScene">Szene mit KI neu generieren 🔄</button>
+          <button class="btn btn-primary" id="btnWizardSaveEdits" style="display:none;"
+            data-i18n="btnWizardSaveEdits">Änderungen speichern 💾</button>
+          <button class="btn btn-ghost" id="btnWizardBackToNext" style="display:none;"
+            data-i18n="btnWizardBackToNext">Weiter am Ende ➡️</button>
         </div>
       </div>
     </div>
@@ -631,7 +711,8 @@
           <span style="font-size:26px;filter:drop-shadow(0 0 8px rgba(245,158,11,0.4));">📚</span>
           <div>
             <h3 class="modal-title" data-i18n="guideModalTitle">MovieGenerator • Regie-Anleitung & Best Practices</h3>
-            <span class="guide-modal-subtitle" data-i18n="guideModalSubtitle">Praxisnaher Leitfaden für kinoreife KI-Filme, visuelle Kontinuität und Regieeinstellungen</span>
+            <span class="guide-modal-subtitle" data-i18n="guideModalSubtitle">Praxisnaher Leitfaden für kinoreife
+              KI-Filme, visuelle Kontinuität und Regieeinstellungen</span>
           </div>
         </div>
         <button class="modal-close" id="btnCloseGuideModal">✕</button>
@@ -670,15 +751,17 @@
           <!-- Section 1: Workflow -->
           <div class="guide-section active" id="section-workflow">
             <h2 class="guide-section-title" data-i18n="guideSec1Title">🎬 1. Der MovieGenerator Produktionsablauf</h2>
-            <p class="guide-intro-text" data-i18n="guideSec1Intro">MovieGenerator verbindet modernste lokale KI-Modelle zu einer automatisierten Film-Pipeline.</p>
-            
+            <p class="guide-intro-text" data-i18n="guideSec1Intro">MovieGenerator verbindet modernste lokale KI-Modelle
+              zu einer automatisierten Film-Pipeline.</p>
+
             <div class="guide-timeline-steps">
               <div class="guide-step-card">
                 <div class="guide-step-header">
                   <span class="guide-step-badge">Phase 1</span>
                   <h4 data-i18n="guideSec1Phase1">Phase 1: Drehbuch & Prompt-Entwicklung (LM Studio)</h4>
                 </div>
-                <p data-i18n="guideSec1Phase1Desc">Das lokale Sprachmodell analysiert die Storyline, harmonisiert Charakter-Garderoben und schreibt präzise Minimax-Video-Prompts.</p>
+                <p data-i18n="guideSec1Phase1Desc">Das lokale Sprachmodell analysiert die Storyline, harmonisiert
+                  Charakter-Garderoben und schreibt präzise Minimax-Video-Prompts.</p>
               </div>
 
               <div class="guide-step-card">
@@ -686,7 +769,8 @@
                   <span class="guide-step-badge">Phase 2</span>
                   <h4 data-i18n="guideSec1Phase2">Phase 2: Schauspieler-Casting (ComfyUI T2I)</h4>
                 </div>
-                <p data-i18n="guideSec1Phase2Desc">Erzeugt neutrale, hochauflösende Referenz-Porträts für jeden Charakter. Alternativ kannst du eigene Fotos hochladen und automatisch per KI freistellen lassen.</p>
+                <p data-i18n="guideSec1Phase2Desc">Erzeugt neutrale, hochauflösende Referenz-Porträts für jeden
+                  Charakter. Alternativ kannst du eigene Fotos hochladen und automatisch per KI freistellen lassen.</p>
               </div>
 
               <div class="guide-step-card">
@@ -694,7 +778,8 @@
                   <span class="guide-step-badge">Phase 3</span>
                   <h4 data-i18n="guideSec1Phase3">Phase 3: Szenen-Dreh (Minimax Video I2V)</h4>
                 </div>
-                <p data-i18n="guideSec1Phase3Desc">Generiert die 3-8 Sekunden langen Videoclips. Verknüpft die Charakter-Porträts und bei Match-Cuts das exakte Endbild der vorherigen Szene.</p>
+                <p data-i18n="guideSec1Phase3Desc">Generiert die 3-8 Sekunden langen Videoclips. Verknüpft die
+                  Charakter-Porträts und bei Match-Cuts das exakte Endbild der vorherigen Szene.</p>
               </div>
 
               <div class="guide-step-card">
@@ -702,7 +787,8 @@
                   <span class="guide-step-badge">Phase 4</span>
                   <h4 data-i18n="guideSec1Phase4">Phase 4: KI-Upscaling (RealESRGAN)</h4>
                 </div>
-                <p data-i18n="guideSec1Phase4Desc">Skaliert die gerenderten Videoclips auf bis zu 1080p und schärft Texturen, Kanten und Details.</p>
+                <p data-i18n="guideSec1Phase4Desc">Skaliert die gerenderten Videoclips auf bis zu 1080p und schärft
+                  Texturen, Kanten und Details.</p>
               </div>
 
               <div class="guide-step-card">
@@ -710,7 +796,8 @@
                   <span class="guide-step-badge">Phase 5</span>
                   <h4 data-i18n="guideSec1Phase5">Phase 5: Schnitt & Musik-Nachvertonung (FFmpeg & ComfyUI)</h4>
                 </div>
-                <p data-i18n="guideSec1Phase5Desc">Fügt alle Szenen zu einem Masterfilm zusammen und mischt auf Wunsch einen zeit-synchronisierten ACE-Soundtrack mit Smart Auto-Ducking ein.</p>
+                <p data-i18n="guideSec1Phase5Desc">Fügt alle Szenen zu einem Masterfilm zusammen und mischt auf Wunsch
+                  einen zeit-synchronisierten ACE-Soundtrack mit Smart Auto-Ducking ein.</p>
               </div>
             </div>
           </div>
@@ -718,7 +805,8 @@
           <!-- Section 2: Continuity -->
           <div class="guide-section" id="section-continuity">
             <h2 class="guide-section-title" data-i18n="guideSec2Title">🔗 2. Kontinuität & Szenenanschlüsse</h2>
-            <p class="guide-intro-text" data-i18n="guideSec2Intro">Bild-zu-Video-Modelle erzeugen jeden Clip isoliert, wenn man sie nicht gezielt anleitet.</p>
+            <p class="guide-intro-text" data-i18n="guideSec2Intro">Bild-zu-Video-Modelle erzeugen jeden Clip isoliert,
+              wenn man sie nicht gezielt anleitet.</p>
 
             <div class="guide-rules-list">
               <div class="guide-rule-card">
@@ -726,9 +814,11 @@
                   <span class="guide-rule-icon">⚡</span>
                   <h4 data-i18n="guideSec2Rule1Title">Regel 1: Match-Cut (Nahtlose Bewegung)</h4>
                 </div>
-                <p data-i18n="guideSec2Rule1Desc">Aktiviere diesen Schalter, wenn eine physische Bewegung ohne Zeitsprung im nächsten Clip weiterläuft...</p>
+                <p data-i18n="guideSec2Rule1Desc">Aktiviere diesen Schalter, wenn eine physische Bewegung ohne
+                  Zeitsprung im nächsten Clip weiterläuft...</p>
                 <div class="guide-warning-box">
-                  <span data-i18n="guideSec2Rule1Warning">⚠️ Wichtig: Match-Cut nur am selben Ort und ohne Zeitsprung aktivieren!</span>
+                  <span data-i18n="guideSec2Rule1Warning">⚠️ Wichtig: Match-Cut nur am selben Ort und ohne Zeitsprung
+                    aktivieren!</span>
                 </div>
               </div>
 
@@ -737,7 +827,8 @@
                   <span class="guide-rule-icon">🎬</span>
                   <h4 data-i18n="guideSec2Rule2Title">Regel 2: Gleiche Szene (Winkel- & Perspektivwechsel)</h4>
                 </div>
-                <p data-i18n="guideSec2Rule2Desc">Setze 'same_scene' auf aktiv, wenn die Kamera den Blickwinkel oder die Einstellungsgröße im selben Raum ändert...</p>
+                <p data-i18n="guideSec2Rule2Desc">Setze 'same_scene' auf aktiv, wenn die Kamera den Blickwinkel oder die
+                  Einstellungsgröße im selben Raum ändert...</p>
               </div>
 
               <div class="guide-rule-card">
@@ -745,7 +836,8 @@
                   <span class="guide-rule-icon">📍</span>
                   <h4 data-i18n="guideSec2Rule3Title">Regel 3: Konsistente Sequenz- & Ortsnamen</h4>
                 </div>
-                <p data-i18n="guideSec2Rule3Desc">Zusammenhängende Szenen müssen identische Namen in 'Ort' und 'Sequenz' tragen...</p>
+                <p data-i18n="guideSec2Rule3Desc">Zusammenhängende Szenen müssen identische Namen in 'Ort' und 'Sequenz'
+                  tragen...</p>
               </div>
             </div>
           </div>
@@ -753,11 +845,13 @@
           <!-- Section 3: Prompting -->
           <div class="guide-section" id="section-prompting">
             <h2 class="guide-section-title" data-i18n="guideSec3Title">✍️ 3. Szenenaufbau & Minimax-Prompting</h2>
-            <p class="guide-intro-text" data-i18n="guideSec3Intro">Die Prompt-Formel für kinoreife Minimax-Szenen folgt einer klaren Struktur:</p>
-            
+            <p class="guide-intro-text" data-i18n="guideSec3Intro">Die Prompt-Formel für kinoreife Minimax-Szenen folgt
+              einer klaren Struktur:</p>
+
             <div class="guide-formula-box">
               <span class="formula-label">PROMPT-FORMEL:</span>
-              <code class="formula-code" data-i18n="guideSec3Formula">[Kameraeinstellung & Bewegung] + [&lt;Subject X&gt; (Name) in {Outfit-Variablen}] + [Physische Aktion & Blickrichtung] + [Licht / Atmosphäre] + [&lt;d&gt;"Dialog"&lt;/d&gt;]</code>
+              <code class="formula-code"
+                data-i18n="guideSec3Formula">[Kameraeinstellung & Bewegung] + [&lt;Subject X&gt; (Name) in {Outfit-Variablen}] + [Physische Aktion & Blickrichtung] + [Licht / Atmosphäre] + [&lt;d&gt;"Dialog"&lt;/d&gt;]</code>
             </div>
 
             <div class="guide-comparison-grid">
@@ -765,37 +859,44 @@
                 <div class="comparison-header">
                   <span class="comparison-badge badge-bad" data-i18n="guideSec3BadLabel">❌ Unpräziser Prompt:</span>
                 </div>
-                <p class="comparison-text" data-i18n="guideSec3BadExample">"Ein Mann und eine Frau stehen am Strand..."</p>
+                <p class="comparison-text" data-i18n="guideSec3BadExample">"Ein Mann und eine Frau stehen am Strand..."
+                </p>
               </div>
 
               <div class="comparison-card good">
                 <div class="comparison-header">
                   <span class="comparison-badge badge-good" data-i18n="guideSec3GoodLabel">✅ Regie-Prompt:</span>
                 </div>
-                <p class="comparison-text" data-i18n="guideSec3GoodExample">"Medium close-up, camera slowly tracks sideways..."</p>
+                <p class="comparison-text" data-i18n="guideSec3GoodExample">"Medium close-up, camera slowly tracks
+                  sideways..."</p>
               </div>
             </div>
 
             <div class="guide-key-points">
               <div class="key-point-item">
                 <span class="key-point-bullet">🎯</span>
-                <p data-i18n="guideSec3RuleSubject">Immer '&lt;Subject X&gt; (Name)' verwenden: Minimax bindet die Gesichter der Schauspieler nur an diese Tags!</p>
+                <p data-i18n="guideSec3RuleSubject">Immer '&lt;Subject X&gt; (Name)' verwenden: Minimax bindet die
+                  Gesichter der Schauspieler nur an diese Tags!</p>
               </div>
               <div class="key-point-item">
                 <span class="key-point-bullet">💬</span>
-                <p data-i18n="guideSec3RuleDialogue">Gesprochener Text gehört in '&lt;d&gt;...&lt;/d&gt;': Alles zwischen diesen Tags wird synchron gesprochen.</p>
+                <p data-i18n="guideSec3RuleDialogue">Gesprochener Text gehört in '&lt;d&gt;...&lt;/d&gt;': Alles
+                  zwischen diesen Tags wird synchron gesprochen.</p>
               </div>
               <div class="key-point-item">
                 <span class="key-point-bullet">🏷️</span>
-                <p data-i18n="guideSec3RuleVariables">Outfit-Variablen & Delta-Updates: Ändert sich Kleidung, passe die Variablen-Updates der Szene an.</p>
+                <p data-i18n="guideSec3RuleVariables">Outfit-Variablen & Delta-Updates: Ändert sich Kleidung, passe die
+                  Variablen-Updates der Szene an.</p>
               </div>
             </div>
           </div>
 
           <!-- Section 4: Director's Control -->
           <div class="guide-section" id="section-director">
-            <h2 class="guide-section-title" data-i18n="guideSec4Title">⚙️ 4. Director's Control: Turbo LoRA, Steps & Auflösung</h2>
-            <p class="guide-intro-text" data-i18n="guideSec4Intro">Mit den Regie-Einstellungen steuerst du Qualität, Rendergeschwindigkeit und Bildschärfe:</p>
+            <h2 class="guide-section-title" data-i18n="guideSec4Title">⚙️ 4. Director's Control: Turbo LoRA, Steps &
+              Auflösung</h2>
+            <p class="guide-intro-text" data-i18n="guideSec4Intro">Mit den Regie-Einstellungen steuerst du Qualität,
+              Rendergeschwindigkeit und Bildschärfe:</p>
 
             <div class="guide-controls-grid">
               <div class="guide-control-card">
@@ -824,8 +925,10 @@
 
           <!-- Section 5: Music Studio -->
           <div class="guide-section" id="section-music">
-            <h2 class="guide-section-title" data-i18n="guideSec5Title">🎵 5. Music Studio & Soundtrack-Nachvertonung</h2>
-            <p class="guide-intro-text" data-i18n="guideSec5Intro">MovieGenerator vertont deinen fertigen Film mit ComfyUI ACE-Step-Modellen.</p>
+            <h2 class="guide-section-title" data-i18n="guideSec5Title">🎵 5. Music Studio & Soundtrack-Nachvertonung
+            </h2>
+            <p class="guide-intro-text" data-i18n="guideSec5Intro">MovieGenerator vertont deinen fertigen Film mit
+              ComfyUI ACE-Step-Modellen.</p>
 
             <div class="guide-music-features">
               <div class="music-feature-card">
@@ -833,7 +936,8 @@
                   <span class="music-feature-icon">⏱️</span>
                   <h4 data-i18n="guideSec5TimingTitle">Szenen-Synchrones Scoring mit Zeitstempeln</h4>
                 </div>
-                <p data-i18n="guideSec5TimingDesc">Über 'Tags mit KI vorschlagen' analysiert LM Studio alle Szenen und erstellt einen zeit-kodierten Score...</p>
+                <p data-i18n="guideSec5TimingDesc">Über 'Tags mit KI vorschlagen' analysiert LM Studio alle Szenen und
+                  erstellt einen zeit-kodierten Score...</p>
               </div>
 
               <div class="music-feature-card">
@@ -841,18 +945,22 @@
                   <span class="music-feature-icon">🎛️</span>
                   <h4 data-i18n="guideSec5DuckingTitle">Smart Auto-Ducking (Sidechain-Kompression)</h4>
                 </div>
-                <p data-i18n="guideSec5DuckingDesc">FFmpeg senkt die Musik während gesprochener Dialoge automatisch um ca. 6-8 dB ab...</p>
+                <p data-i18n="guideSec5DuckingDesc">FFmpeg senkt die Musik während gesprochener Dialoge automatisch um
+                  ca. 6-8 dB ab...</p>
               </div>
             </div>
           </div>
 
           <!-- Section 6: Script Wizard -->
           <div class="guide-section" id="section-wizard">
-            <h2 class="guide-section-title" data-i18n="guideSec6Title">🧙‍♂️ 6. Script Wizard: KI als Co-Autor, der Mensch als Regisseur</h2>
-            <p class="guide-intro-text" data-i18n="guideSec6Intro">Der Script Wizard ist ein kreativer Partner im Writer's Room – aber er ersetzt nicht das Regie-Auge für Bildanschlüsse!</p>
+            <h2 class="guide-section-title" data-i18n="guideSec6Title">🧙‍♂️ 6. Script Wizard: KI als Co-Autor, der
+              Mensch als Regisseur</h2>
+            <p class="guide-intro-text" data-i18n="guideSec6Intro">Der Script Wizard ist ein kreativer Partner im
+              Writer's Room – aber er ersetzt nicht das Regie-Auge für Bildanschlüsse!</p>
 
             <div class="guide-checklist-container">
-              <h4 class="checklist-heading" data-i18n="guideSec6ChecklistTitle">Die 5-Schritte-Regie-Checkliste nach dem Wizard:</h4>
+              <h4 class="checklist-heading" data-i18n="guideSec6ChecklistTitle">Die 5-Schritte-Regie-Checkliste nach dem
+                Wizard:</h4>
               <ul class="guide-checklist">
                 <li class="checklist-item">
                   <span class="check-icon">✓</span>
@@ -902,8 +1010,10 @@
             <span id="videoMetaDuration" class="badge badge-subtle">6.0s</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
-            <a id="videoDownloadLink" href="#" download class="btn btn-secondary btn-xs">⬇️ <span data-i18n="video_modal_download">Herunterladen</span></a>
-            <button id="btnCloseVideoModalBtn" class="btn btn-ghost btn-xs" data-i18n="video_modal_close">Schließen</button>
+            <a id="videoDownloadLink" href="#" download class="btn btn-secondary btn-xs">⬇️ <span
+                data-i18n="video_modal_download">Herunterladen</span></a>
+            <button id="btnCloseVideoModalBtn" class="btn btn-ghost btn-xs"
+              data-i18n="video_modal_close">Schließen</button>
           </div>
         </div>
       </div>
@@ -915,4 +1025,5 @@
 
   <script src="app.js"></script>
 </body>
+
 </html>

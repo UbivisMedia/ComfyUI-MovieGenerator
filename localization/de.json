@@ -56,6 +56,7 @@
   "char_generated_saved": "   ✅ {name} neu generiert und gespeichert in '{file}'!",
   "phase3_start": "\n🎥 PHASE 3: Drehbeginn im Minimax-Studio...",
   "scene_shooting": "\n🎬 Drehe Szene {id}...",
+  "scene_shooting_settings": "   ⚙️ Regie-Parameter Szene {id}: Turbo={turbo} | Schritte={steps} | Auflösung={mp} MP | Upscale={upscale}",
   "scene_already_exists_skip": "   ♻️ Szene {id} bereits vorhanden ({file}) -> Rendern übersprungen!",
   "scene_linking_prev": "   🔗 Verknüpfe vorherige Szene als Umgebungsvorlage (optimiert auf 672x384)...",
   "scene_extracting_last_frame": "   📸 Extrahiere letzten Frame der vorherigen Szene als Startframe...",

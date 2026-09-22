@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-09-22
+
+### 🐛 Fixed
+- **Director's Control Settings in Single-Scene Re-Shoot (HQ / Steps)**: Fixed an issue where re-rendering a scene (e.g. via the single-scene reshoot button) fell back to the default 8-step Turbo mode despite the scene being configured for "HQ / Kein Turbo (20 Steps)". When `master_regisseur.py` loaded the project, it previously prioritized an existing subfolder copy (`Projects/<film>/<film>.json`) which contained stale default parameters from an earlier run, ignoring the master screenplay (`Projects/<film>.json`) saved by Script Agency.
+- **Master Screenplay Priority & Continuity**: `master_regisseur.py` now treats the specified screenplay path as the authoritative source of truth for all scene settings (`turbo`, `steps`, `megapixels`, `upscale`), borrows AI prompts from the project copy only when the master file lacks them, and keeps the project directory copy synchronized.
+- **Dual-Path Project Saving**: `POST /api/project` in `script_agency.py` now writes to both the root project file (`Projects/<name>.json`) and the project subfolder (`Projects/<name>/<name>.json`) if the directory exists, preventing stale state drift.
+- **Auto-Save Before Scene Re-Shoot**: Added automatic pre-flight screenplay saving in `web/app.js` prior to triggering `/api/scene/rerender` whenever changes are unsaved (`state.isDirty`).
+- **Missing Localization Key**: Added `scene_shooting_settings` to `localization/de.json` and `localization/en.json` to correctly log director render parameters in the console during Phase 3.
+
+---
+
 ## [1.2.1] - 2026-09-22
 
 ### 🐛 Fixed
