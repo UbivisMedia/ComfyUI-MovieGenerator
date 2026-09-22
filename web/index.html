@@ -71,6 +71,10 @@
         title="Regie-Leitfaden, Szenen-Best-Practices & Optionen öffnen">
         <span>📚</span> <span data-i18n="btnGuide">Anleitung</span>
       </button>
+      <button id="btnSettings" class="btn btn-secondary btn-sm" data-i18n-title="btnSettingsTitle"
+        title="Studio-Einstellungen (Minimax, Turbo, Musik, System) öffnen">
+        <span>⚙️</span> <span data-i18n="btnSettings">Einstellungen</span>
+      </button>
       <div class="lang-switch">
         <button id="btnLangToggle" class="btn btn-ghost btn-sm" data-i18n-title="btnLangToggleTitle"
           title="Sprache wechseln / Switch Language">
@@ -1015,6 +1019,248 @@
             <button id="btnCloseVideoModalBtn" class="btn btn-ghost btn-xs"
               data-i18n="video_modal_close">Schließen</button>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Studio Settings Modal -->
+  <div id="settingsModal" class="modal-backdrop">
+    <div class="modal-dialog modal-dialog-lg settings-modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">⚙️ <span data-i18n="settingsModalTitle">Studio-Einstellungen</span></h3>
+        <button class="modal-close" id="btnCloseSettingsModal" title="Schließen">✕</button>
+      </div>
+      <div class="settings-tabs-bar">
+        <button type="button" class="settings-tab-btn active" data-tab="minimax">
+          <span>🎬</span> <span data-i18n="tabSettingsMinimax">Minimax I2V</span>
+        </button>
+        <button type="button" class="settings-tab-btn" data-tab="music">
+          <span>🎵</span> <span data-i18n="tabSettingsMusic">Music Studio</span>
+        </button>
+        <button type="button" class="settings-tab-btn" data-tab="lmstudio">
+          <span>🤖</span> <span data-i18n="tabSettingsLms">LM Studio</span>
+        </button>
+        <button type="button" class="settings-tab-btn" data-tab="system">
+          <span>🖥️</span> <span data-i18n="tabSettingsSystem">System & ComfyUI</span>
+        </button>
+      </div>
+      <div class="modal-body settings-modal-body">
+        <!-- Minimax Tab Pane -->
+        <div class="settings-pane active" id="paneSettingsMinimax">
+          <div class="settings-section-desc" data-i18n="settingsMinimaxDesc">
+            Konfiguration des Minimax I2V-Generators für Video-Szenen und Turbo-LoRAs.
+          </div>
+
+          <div class="settings-form-group">
+            <label class="settings-label" for="settingMinimaxUnetSelect">
+              <span data-i18n="settingMinimaxUnetLabel">Minimax UNET / Diffusionsmodell</span>
+            </label>
+            <div class="settings-input-row">
+              <select id="settingMinimaxUnetSelect" class="select-input select-sm" style="flex:1;">
+                <option value="">Lade Modelle...</option>
+              </select>
+            </div>
+            <input type="text" id="settingMinimaxUnetInput" class="text-input text-xs" style="margin-top:6px;" placeholder="Relativer Pfad in models/diffusion_models oder models/unet">
+            <span class="settings-help-text" data-i18n="settingMinimaxUnetHelp">Das Basis-Diffusionsmodell für Minimax Video-Generation (z.B. fl2vaINT8Pruned oder flREF2VAPruned).</span>
+          </div>
+
+          <div class="settings-form-group">
+            <label class="settings-label" for="settingTurboLoraSelect">
+              <span data-i18n="settingTurboLoraLabel">Turbo-LoRA (Schnell-Render LoRA)</span>
+            </label>
+            <div class="settings-input-row">
+              <select id="settingTurboLoraSelect" class="select-input select-sm" style="flex:1;">
+                <option value="">Lade Turbo-LoRAs...</option>
+              </select>
+              <button type="button" id="btnPickTurboLora" class="btn btn-secondary btn-sm" title="Aus visuellem LoRA-Katalog wählen">
+                <span>➕</span> <span data-i18n="btnPickTurboLora">LoRA-Picker</span>
+              </button>
+            </div>
+            <input type="text" id="settingTurboLoraInput" class="text-input text-xs" style="margin-top:6px;" placeholder="Relativer Pfad in models/loras">
+            <span class="settings-help-text" data-i18n="settingTurboLoraHelp">Beschleunigt die Videoerstellung von 20 auf 4-8 Steps. Kann im Storyboard pro Szene übersteuert werden.</span>
+          </div>
+
+          <div class="settings-grid-2">
+            <div class="settings-form-group">
+              <label class="settings-label" for="settingTurboStrength">
+                <span data-i18n="settingTurboStrengthLabel">Turbo-LoRA Stärke</span>: <span id="settingTurboStrengthVal" class="settings-val-badge">1.0</span>
+              </label>
+              <input type="range" id="settingTurboStrength" min="0.1" max="2.0" step="0.05" value="1.0" class="range-slider">
+            </div>
+
+            <div class="settings-form-group">
+              <label class="settings-label" for="settingMinimaxSteps">
+                <span data-i18n="settingMinimaxStepsLabel">Standard Steps (Turbo)</span>
+              </label>
+              <input type="number" id="settingMinimaxSteps" min="1" max="50" value="8" class="text-input text-sm">
+            </div>
+          </div>
+
+          <div class="settings-form-group">
+            <label class="settings-label" for="settingMinimaxClip">
+              <span data-i18n="settingMinimaxClipLabel">Text-CLIP Modell</span>
+            </label>
+            <input type="text" id="settingMinimaxClip" class="text-input text-xs" placeholder="z.B. minimaxH3INT8INT4_fl2vaINT8Pruned_txt.safetensors">
+          </div>
+
+          <div class="settings-grid-2">
+            <div class="settings-form-group">
+              <label class="settings-label" for="settingVideoVae">
+                <span data-i18n="settingVideoVaeLabel">Video VAE Modell</span>
+              </label>
+              <input type="text" id="settingVideoVae" class="text-input text-xs" placeholder="z.B. minimax_h3_video_vae_int8_convrot.safetensors">
+            </div>
+
+            <div class="settings-form-group">
+              <label class="settings-label" for="settingAudioVae">
+                <span data-i18n="settingAudioVaeLabel">Audio VAE Modell</span>
+              </label>
+              <input type="text" id="settingAudioVae" class="text-input text-xs" placeholder="z.B. minimax_h3_audio_vae_fp32.safetensors">
+            </div>
+          </div>
+        </div>
+
+        <!-- Music Studio Tab Pane -->
+        <div class="settings-pane" id="paneSettingsMusic">
+          <div class="settings-section-desc" data-i18n="settingsMusicDesc">
+            Standard-Einstellungen für automatische Filmmusik-Generierung und Audio-Mixing.
+          </div>
+
+          <div class="settings-form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="settingMusicEnabled">
+              <span data-i18n="settingMusicEnabledLabel">Filmmusik standardmäßig im Music Studio aktivieren</span>
+            </label>
+          </div>
+
+          <div class="settings-form-group">
+            <label class="settings-label" for="settingMusicCheckpointSelect">
+              <span data-i18n="settingMusicCheckpointLabel">Musik Checkpoint (ACE-Step / Audio-Modell)</span>
+            </label>
+            <select id="settingMusicCheckpointSelect" class="select-input select-sm">
+              <option value="">Lade Modelle...</option>
+            </select>
+            <input type="text" id="settingMusicCheckpointInput" class="text-input text-xs" style="margin-top:6px;" placeholder="Relativer Pfad in models/checkpoints">
+          </div>
+
+          <div class="settings-grid-2">
+            <div class="settings-form-group">
+              <label class="settings-label" for="settingMusicSteps">
+                <span data-i18n="settingMusicStepsLabel">Standard Steps</span>
+              </label>
+              <input type="number" id="settingMusicSteps" min="10" max="100" value="40" class="text-input text-sm">
+            </div>
+
+            <div class="settings-form-group">
+              <label class="settings-label" for="settingMusicCfg">
+                <span data-i18n="settingMusicCfgLabel">CFG Scale</span>
+              </label>
+              <input type="number" id="settingMusicCfg" min="1.0" max="20.0" step="0.5" value="4.0" class="text-input text-sm">
+            </div>
+          </div>
+
+          <div class="settings-form-group">
+            <label class="settings-label" for="settingMusicVolume">
+              <span data-i18n="settingMusicVolumeLabel">Soundtrack-Lautstärke</span>: <span id="settingMusicVolumeVal" class="settings-val-badge">20%</span>
+            </label>
+            <input type="range" id="settingMusicVolume" min="0.0" max="1.0" step="0.05" value="0.20" class="range-slider">
+          </div>
+
+          <div class="settings-form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="settingMusicDucking" checked>
+              <span data-i18n="settingMusicDuckingLabel">Smart Auto-Ducking (Musik bei Sprache automatisch absenken)</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- LM Studio Tab Pane -->
+        <div class="settings-pane" id="paneSettingsLms">
+          <div class="settings-section-desc" data-i18n="settingsLmsDesc">
+            Verbindung zum lokalen LM Studio Sprachmodell für Story-Wizard, Drehbücher & Prompts.
+          </div>
+
+          <div class="settings-form-group">
+            <label class="settings-label" for="settingLmsUrl">
+              <span data-i18n="settingLmsUrlLabel">LM Studio API-URL</span>
+            </label>
+            <input type="text" id="settingLmsUrl" class="text-input text-sm" placeholder="http://127.0.0.1:1234/v1/chat/completions">
+          </div>
+
+          <div class="settings-form-group">
+            <label class="settings-label" for="settingLmsModelSelect">
+              <span data-i18n="settingLmsModelLabel">Aktives Sprachmodell</span>
+            </label>
+            <div class="settings-input-row">
+              <select id="settingLmsModelSelect" class="select-input select-sm" style="flex:1;">
+                <option value="">Lade Modelle...</option>
+              </select>
+              <button type="button" id="btnRefreshLmsModels" class="btn btn-secondary btn-sm" title="Modelle aus LM Studio abrufen">
+                <span>🔄</span> <span data-i18n="btnFetchModels">Abrufen</span>
+              </button>
+            </div>
+            <input type="text" id="settingLmsModelInput" class="text-input text-xs" style="margin-top:6px;" placeholder="Exakter Modell-Identifier in LM Studio">
+          </div>
+
+          <div class="settings-form-group">
+            <label class="settings-label" for="settingLmsTemp">
+              <span data-i18n="settingLmsTempLabel">Kreativität / Temperature</span>: <span id="settingLmsTempVal" class="settings-val-badge">0.7</span>
+            </label>
+            <input type="range" id="settingLmsTemp" min="0.1" max="1.5" step="0.05" value="0.7" class="range-slider">
+            <span class="settings-help-text" data-i18n="settingLmsTempHelp">0.3 - 0.5 für strikte Einhaltung, 0.7 für ausgewogene Kreativität, 1.0+ für freie Ideen.</span>
+          </div>
+        </div>
+
+        <!-- System & ComfyUI Tab Pane -->
+        <div class="settings-pane" id="paneSettingsSystem">
+          <div class="settings-section-desc" data-i18n="settingsSystemDesc">
+            Allgemeine Konfiguration für ComfyUI-Server, Pfade und Sprache.
+          </div>
+
+          <div class="settings-form-group">
+            <label class="settings-label" for="settingComfyServer">
+              <span data-i18n="settingComfyServerLabel">ComfyUI Server-Adresse</span>
+            </label>
+            <input type="text" id="settingComfyServer" class="text-input text-sm" placeholder="127.0.0.1:8188">
+          </div>
+
+          <div class="settings-form-group">
+            <label class="settings-label" for="settingComfyModelsDir">
+              <span data-i18n="settingComfyModelsDirLabel">ComfyUI Modelle-Verzeichnis (models_dir)</span>
+            </label>
+            <input type="text" id="settingComfyModelsDir" class="text-input text-sm" placeholder="D:\ComfyUI_windows_portable\ComfyUI\models">
+            <span class="settings-help-text" data-i18n="settingComfyModelsDirHelp">Wird zum Auffinden von Checkpoints, LoRAs und Diffusionsmodellen genutzt.</span>
+          </div>
+
+          <div class="settings-grid-2">
+            <div class="settings-form-group">
+              <label class="settings-label" for="settingLanguage">
+                <span data-i18n="settingLanguageLabel">Sprache / Language</span>
+              </label>
+              <select id="settingLanguage" class="select-input select-sm">
+                <option value="auto">Automatisch (System)</option>
+                <option value="de">Deutsch (DE)</option>
+                <option value="en">English (EN)</option>
+              </select>
+            </div>
+
+            <div class="settings-form-group">
+              <label class="checkbox-label" style="margin-top:24px;">
+                <input type="checkbox" id="settingExportWebm" checked>
+                <span data-i18n="settingExportWebmLabel">Zusätzlicher WebM-Export (Browser-optimiert)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;">
+        <span class="text-xs text-muted" id="settingsSavedStatusText">settings.json</span>
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="btn btn-secondary btn-sm" id="btnCloseSettingsModalBtn" data-i18n="close">Schließen</button>
+          <button type="button" class="btn btn-primary btn-sm" id="btnSaveSettings">
+            <span>💾</span> <span data-i18n="btnSaveSettings">Einstellungen speichern</span>
+          </button>
         </div>
       </div>
     </div>

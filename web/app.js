@@ -224,8 +224,44 @@
     btnWizardApplyAndNext: document.getElementById('btnWizardApplyAndNext'),
     btnWizardSaveEdits: document.getElementById('btnWizardSaveEdits'),
     btnWizardRecreateScene: document.getElementById('btnWizardRecreateScene'),
-    btnWizardBackToNext: document.getElementById('btnWizardBackToNext'),
-    btnHarmonizeScript: document.getElementById('btnHarmonizeScript')
+    btnHarmonizeScript: document.getElementById('btnHarmonizeScript'),
+
+    // Settings Modal Elements
+    btnSettings: document.getElementById('btnSettings'),
+    settingsModal: document.getElementById('settingsModal'),
+    btnCloseSettingsModal: document.getElementById('btnCloseSettingsModal'),
+    btnCloseSettingsModalBtn: document.getElementById('btnCloseSettingsModalBtn'),
+    btnSaveSettings: document.getElementById('btnSaveSettings'),
+    btnPickTurboLora: document.getElementById('btnPickTurboLora'),
+    btnRefreshLmsModels: document.getElementById('btnRefreshLmsModels'),
+
+    settingMinimaxUnetSelect: document.getElementById('settingMinimaxUnetSelect'),
+    settingMinimaxUnetInput: document.getElementById('settingMinimaxUnetInput'),
+    settingTurboLoraSelect: document.getElementById('settingTurboLoraSelect'),
+    settingTurboLoraInput: document.getElementById('settingTurboLoraInput'),
+    settingMinimaxSteps: document.getElementById('settingMinimaxSteps'),
+    settingTurboStrength: document.getElementById('settingTurboStrength'),
+    valTurboStrength: document.getElementById('valTurboStrength'),
+    settingMinimaxVae: document.getElementById('settingMinimaxVae'),
+    settingMinimaxClip: document.getElementById('settingMinimaxClip'),
+
+    settingMusicEnabled: document.getElementById('settingMusicEnabled'),
+    settingMusicModel: document.getElementById('settingMusicModel'),
+    settingMusicSteps: document.getElementById('settingMusicSteps'),
+    settingMusicCfg: document.getElementById('settingMusicCfg'),
+    settingMusicVolume: document.getElementById('settingMusicVolume'),
+    valMusicVolume: document.getElementById('valMusicVolume'),
+    settingMusicDucking: document.getElementById('settingMusicDucking'),
+
+    settingLmsUrl: document.getElementById('settingLmsUrl'),
+    settingLmsModel: document.getElementById('settingLmsModel'),
+    settingLmsTemp: document.getElementById('settingLmsTemp'),
+    valLmsTemp: document.getElementById('valLmsTemp'),
+
+    settingComfyUrl: document.getElementById('settingComfyUrl'),
+    settingModelsDir: document.getElementById('settingModelsDir'),
+    settingDefaultLang: document.getElementById('settingDefaultLang'),
+    settingWebmExport: document.getElementById('settingWebmExport')
   };
 
   // --- Language Switching Engine ---
@@ -450,6 +486,35 @@
         throw new Error(data.error || 'Fehler beim Starten des Szenen-Drehs');
       }
       return data;
+    },
+
+    async getSettings() {
+      const res = await fetch('/api/settings');
+      if (!res.ok) throw new Error('Fehler beim Laden der Einstellungen');
+      return await res.json();
+    },
+
+    async saveSettings(settingsData) {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settingsData)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Speichern der Einstellungen');
+      }
+      return data;
+    },
+
+    async getSettingsModels(lmUrl = '') {
+      let url = '/api/settings/models';
+      if (lmUrl) {
+        url += `?lm_studio_url=${encodeURIComponent(lmUrl)}`;
+      }
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Fehler beim Laden der Modell-Informationen');
+      return await res.json();
     }
   };
 
@@ -1654,6 +1719,22 @@
     el.loraModal.classList.add('open');
   }
 
+  function openLoraPickerModalForTurbo() {
+    state.activeLoraTarget = {
+      type: 'turbo',
+      model: 'minimax_h3'
+    };
+    const modalTitleElem = el.loraModal.querySelector('.modal-title');
+    if (modalTitleElem) {
+      modalTitleElem.textContent = t('btnPickTurboLora') || '⚡ Turbo-LoRA auswählen';
+    }
+    el.modalActiveModelName.textContent = 'Minimax H3 / Turbo';
+    el.loraSearchInput.value = '';
+    el.chkShowAllLoras.checked = false;
+    renderLoraModalCards();
+    el.loraModal.classList.add('open');
+  }
+
   function closeLoraPickerModal() {
     el.loraModal.classList.remove('open');
     state.activeLoraTarget = null;
@@ -1679,6 +1760,9 @@
       } else if (typeof raw === 'string' && raw) {
         currentAssignedLoras = raw.split(',').map(s => s.trim()).filter(Boolean);
       }
+    } else if (target.type === 'turbo') {
+      const cur = el.settingTurboLoraInput ? el.settingTurboLoraInput.value.toLowerCase().trim() : '';
+      if (cur) currentAssignedLoras = [cur];
     }
 
     const keys = Object.keys(loraPresets);
@@ -1730,6 +1814,17 @@
           lKeyLower.includes('mmh3') ||
           lNameLower.includes('video') ||
           lKeyLower.includes('video');
+      } else if (target.type === 'turbo') {
+        const isTurbo = turboExcludes.includes(lKeyLower) ||
+          lKeyLower.includes('turbo') ||
+          lNameLower.includes('turbo') ||
+          lKeyLower.includes('lightx2v') ||
+          lNameLower.includes('lightx2v') ||
+          lKeyLower.includes('step') ||
+          lNameLower.includes('step') ||
+          compatList.includes('minimax_h3') ||
+          lNameLower.includes('minimax');
+        isCompat = isTurbo;
       }
 
       if (!isCompat && !showAll) {
@@ -1742,16 +1837,22 @@
       }
 
       countShown++;
-      const isAlreadyAssigned = currentAssignedLoras.includes(lKey);
+      const isAlreadyAssigned = target.type === 'turbo'
+        ? (currentAssignedLoras.some(c => c && (c === lKeyLower || (lora.lora_name && c.includes(lora.lora_name.toLowerCase())) || lKeyLower.includes(c))))
+        : currentAssignedLoras.includes(lKey);
       const card = document.createElement('div');
       card.className = `lora-card-item ${isCompat ? 'compatible' : ''} ${isAlreadyAssigned ? 'selected' : ''}`;
 
       const strengthModel = lora.strength_model !== undefined ? lora.strength_model : (target.type === 'scene' ? 1.0 : 0.8);
       const triggers = lora.trigger_words ? `<div style="font-size:10px;color:var(--accent-cyan);margin-top:2px;">Triggers: <code>${escapeHtml(lora.trigger_words)}</code></div>` : '';
 
-      const compatBadgeText = target.type === 'scene'
-        ? (isCompat ? escapeHtml(t('videoCompatBadge')) : escapeHtml(t('otherModelBadge')))
-        : (isCompat ? escapeHtml(t('compatBadge')) : escapeHtml(t('otherModelBadge')));
+      const compatBadgeText = target.type === 'turbo'
+        ? (isCompat ? '⚡ Turbo LoRA' : escapeHtml(t('otherModelBadge')))
+        : target.type === 'scene'
+          ? (isCompat ? escapeHtml(t('videoCompatBadge')) : escapeHtml(t('otherModelBadge')))
+          : (isCompat ? escapeHtml(t('compatBadge')) : escapeHtml(t('otherModelBadge')));
+
+      const itemIcon = target.type === 'turbo' ? '⚡' : (target.type === 'scene' ? '🎬' : '✨');
 
       let mediaHtml = '';
       if (lora.preview_url) {
@@ -1774,7 +1875,7 @@
       } else {
         mediaHtml = `
           <div class="lora-card-media lora-media-placeholder">
-            <span class="lora-placeholder-icon">${target.type === 'scene' ? '🎬' : '✨'}</span>
+            <span class="lora-placeholder-icon">${itemIcon}</span>
             ${lora.published_at ? `<span class="lora-date-badge" title="${escapeHtml(t('loraPublishedDate') || 'Published:')} ${escapeHtml(lora.published_at)}">📅 ${escapeHtml(lora.published_at)}</span>` : ''}
           </div>
         `;
@@ -1784,7 +1885,7 @@
         ${mediaHtml}
         <div class="lora-card-body">
           <div class="lora-card-title">
-            <span>${target.type === 'scene' ? '🎬' : '✨'} ${escapeHtml(lKey)}</span>
+            <span>${itemIcon} ${escapeHtml(lKey)}</span>
             <span style="font-size:11px;">${isAlreadyAssigned ? escapeHtml(t('activeBadge')) : '➕'}</span>
           </div>
           <div class="lora-card-desc" title="${escapeHtml(lora.beschreibung || '')}">${escapeHtml(lora.beschreibung || '')}</div>
@@ -1810,6 +1911,37 @@
       }
 
       card.addEventListener('click', () => {
+        if (target.type === 'turbo') {
+          const selectedLoraPath = lora.lora_name || lKey;
+          if (el.settingTurboLoraInput) el.settingTurboLoraInput.value = selectedLoraPath;
+          if (el.settingTurboLoraSelect) {
+            let matched = false;
+            for (const opt of el.settingTurboLoraSelect.options) {
+              if (opt.value === selectedLoraPath || opt.value.toLowerCase().includes(lKey.toLowerCase()) || (lora.lora_name && opt.value.toLowerCase().includes(lora.lora_name.toLowerCase()))) {
+                el.settingTurboLoraSelect.value = opt.value;
+                matched = true;
+                break;
+              }
+            }
+            if (!matched && selectedLoraPath) {
+              const newOpt = document.createElement('option');
+              newOpt.value = selectedLoraPath;
+              newOpt.textContent = selectedLoraPath;
+              el.settingTurboLoraSelect.appendChild(newOpt);
+              el.settingTurboLoraSelect.value = selectedLoraPath;
+            }
+          }
+          // Auto-detect steps (4 or 8)
+          const combined = (lKey + ' ' + (lora.lora_name || '')).toLowerCase();
+          if (combined.includes('4step') || combined.includes('4_step') || combined.includes('4 step') || combined.includes('4-step') || combined.includes('4s')) {
+            if (el.settingMinimaxSteps) el.settingMinimaxSteps.value = 4;
+          } else if (combined.includes('8step') || combined.includes('8_step') || combined.includes('8 step') || combined.includes('8-step') || combined.includes('8s')) {
+            if (el.settingMinimaxSteps) el.settingMinimaxSteps.value = 8;
+          }
+          closeLoraPickerModal();
+          return;
+        }
+
         if (target.type === 'character') {
           const char = state.screenplay.characters[target.index];
           if (!char) return;
@@ -4169,6 +4301,283 @@
     }
   }
 
+  // --- Studio Settings Modal & Management ---
+  let cachedSettingsModels = null;
+
+  async function openSettingsModal() {
+    if (!el.settingsModal) return;
+    el.settingsModal.classList.add('open');
+    switchSettingsTab('minimax');
+    await loadSettingsData();
+  }
+
+  function closeSettingsModal() {
+    if (!el.settingsModal) return;
+    el.settingsModal.classList.remove('open');
+  }
+
+  function switchSettingsTab(tabName) {
+    const tabBtns = document.querySelectorAll('.settings-tab-btn');
+    const panes = document.querySelectorAll('.settings-pane');
+    tabBtns.forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-tab') === tabName);
+    });
+    panes.forEach(pane => {
+      pane.classList.toggle('active', pane.id === `settingsPane-${tabName}`);
+    });
+  }
+
+  async function loadSettingsData() {
+    try {
+      const [settingsRes, modelsRes] = await Promise.all([
+        API.getSettings().catch(err => {
+          console.error('Failed to load settings:', err);
+          return { success: false };
+        }),
+        API.getSettingsModels().catch(err => {
+          console.error('Failed to load settings models:', err);
+          return { success: false };
+        })
+      ]);
+
+      const s = (settingsRes && settingsRes.success && settingsRes.settings) ? settingsRes.settings : {};
+      cachedSettingsModels = (modelsRes && modelsRes.success) ? modelsRes : null;
+
+      populateSettingsModelDropdowns(cachedSettingsModels, s);
+
+      // Minimax
+      const mm = s.minimax_i2v || s.minimax || {};
+      const unetVal = mm.unet_name || mm.unet_model || '';
+      if (el.settingMinimaxUnetInput) el.settingMinimaxUnetInput.value = unetVal;
+      if (el.settingMinimaxUnetSelect) {
+        if (unetVal && !Array.from(el.settingMinimaxUnetSelect.options).some(o => o.value === unetVal)) {
+          const opt = document.createElement('option');
+          opt.value = unetVal;
+          opt.textContent = unetVal;
+          el.settingMinimaxUnetSelect.appendChild(opt);
+        }
+        el.settingMinimaxUnetSelect.value = unetVal;
+      }
+
+      const turboLoraVal = mm.turbo_lora || '';
+      if (el.settingTurboLoraInput) el.settingTurboLoraInput.value = turboLoraVal;
+      if (el.settingTurboLoraSelect) {
+        if (turboLoraVal && !Array.from(el.settingTurboLoraSelect.options).some(o => o.value === turboLoraVal)) {
+          const opt = document.createElement('option');
+          opt.value = turboLoraVal;
+          opt.textContent = turboLoraVal;
+          el.settingTurboLoraSelect.appendChild(opt);
+        }
+        el.settingTurboLoraSelect.value = turboLoraVal;
+      }
+
+      if (el.settingMinimaxSteps) el.settingMinimaxSteps.value = mm.steps !== undefined ? mm.steps : 8;
+      if (el.settingTurboStrength) {
+        el.settingTurboStrength.value = mm.turbo_strength !== undefined ? mm.turbo_strength : 1.0;
+        if (el.valTurboStrength) el.valTurboStrength.textContent = Number(el.settingTurboStrength.value).toFixed(2);
+      }
+      if (el.settingMinimaxVae) el.settingMinimaxVae.value = mm.video_vae_name || mm.vae || '';
+      if (el.settingMinimaxClip) el.settingMinimaxClip.value = mm.clip_name || '';
+
+      // Music
+      const music = s.music_studio || s.music || {};
+      if (el.settingMusicEnabled) el.settingMusicEnabled.checked = music.enabled !== false;
+      const ckptVal = music.checkpoint || '';
+      if (el.settingMusicModel) {
+        if (ckptVal && !Array.from(el.settingMusicModel.options).some(o => o.value === ckptVal)) {
+          const opt = document.createElement('option');
+          opt.value = ckptVal;
+          opt.textContent = ckptVal;
+          el.settingMusicModel.appendChild(opt);
+        }
+        el.settingMusicModel.value = ckptVal;
+      }
+      if (el.settingMusicSteps) el.settingMusicSteps.value = music.steps !== undefined ? music.steps : 25;
+      if (el.settingMusicCfg) el.settingMusicCfg.value = music.cfg !== undefined ? music.cfg : 4.0;
+      if (el.settingMusicVolume) {
+        const volPercent = music.volume !== undefined ? Math.round(music.volume * 100) : 35;
+        el.settingMusicVolume.value = volPercent;
+        if (el.valMusicVolume) el.valMusicVolume.textContent = `${volPercent}%`;
+      }
+      if (el.settingMusicDucking) el.settingMusicDucking.checked = music.ducking !== false;
+
+      // LM Studio
+      const lms = s.lm_studio || {};
+      if (el.settingLmsUrl) el.settingLmsUrl.value = lms.url || 'http://127.0.0.1:1234/v1/chat/completions';
+      const lmsModelVal = lms.model_name || lms.model || '';
+      if (el.settingLmsModel) {
+        if (lmsModelVal && !Array.from(el.settingLmsModel.options).some(o => o.value === lmsModelVal)) {
+          const opt = document.createElement('option');
+          opt.value = lmsModelVal;
+          opt.textContent = lmsModelVal;
+          el.settingLmsModel.appendChild(opt);
+        }
+        el.settingLmsModel.value = lmsModelVal;
+      }
+      if (el.settingLmsTemp) {
+        el.settingLmsTemp.value = lms.temperature !== undefined ? lms.temperature : 0.7;
+        if (el.valLmsTemp) el.valLmsTemp.textContent = Number(el.settingLmsTemp.value).toFixed(2);
+      }
+
+      // System
+      const comfy = s.comfyui || {};
+      if (el.settingComfyUrl) el.settingComfyUrl.value = comfy.server_address || s.comfyui_server_address || '127.0.0.1:8188';
+      if (el.settingModelsDir) el.settingModelsDir.value = comfy.models_dir || s.models_dir || '';
+      if (el.settingDefaultLang) el.settingDefaultLang.value = s.language || s.default_language || 'auto';
+      if (el.settingWebmExport) el.settingWebmExport.checked = s.export_webm !== false;
+
+    } catch (err) {
+      console.error('Error loading settings into modal:', err);
+      showToast(err.message || 'Fehler beim Laden der Einstellungen', 'error');
+    }
+  }
+
+  function populateSettingsModelDropdowns(modelsData, currentSettings) {
+    if (!modelsData) return;
+
+    if (el.settingMinimaxUnetSelect && Array.isArray(modelsData.minimax_unets)) {
+      const cur = el.settingMinimaxUnetInput ? el.settingMinimaxUnetInput.value : '';
+      el.settingMinimaxUnetSelect.innerHTML = `<option value="">-- ${escapeHtml(t('optSelectModel'))} --</option>`;
+      modelsData.minimax_unets.forEach(u => {
+        const opt = document.createElement('option');
+        const fn = typeof u === 'string' ? u : (u.filename || u.name);
+        const title = typeof u === 'string' ? u : (u.title || u.name);
+        opt.value = fn;
+        opt.textContent = title;
+        el.settingMinimaxUnetSelect.appendChild(opt);
+      });
+      if (cur) el.settingMinimaxUnetSelect.value = cur;
+    }
+
+    const turboList = modelsData.minimax_turbo_loras || modelsData.turbo_loras || [];
+    if (el.settingTurboLoraSelect && Array.isArray(turboList)) {
+      const cur = el.settingTurboLoraInput ? el.settingTurboLoraInput.value : '';
+      el.settingTurboLoraSelect.innerHTML = `<option value="">-- Kein Turbo / Standard --</option>`;
+      turboList.forEach(tl => {
+        const opt = document.createElement('option');
+        const fn = typeof tl === 'string' ? tl : (tl.filename || tl.name);
+        const title = typeof tl === 'string' ? tl : (tl.title || tl.name);
+        const steps = typeof tl === 'object' && (tl.steps !== undefined ? tl.steps : tl.detected_steps);
+        const stepLabel = steps ? ` [${steps} Steps]` : '';
+        opt.value = fn;
+        opt.textContent = title + stepLabel;
+        opt.dataset.steps = steps || '';
+        el.settingTurboLoraSelect.appendChild(opt);
+      });
+      if (cur) el.settingTurboLoraSelect.value = cur;
+    }
+
+    if (el.settingMusicModel && Array.isArray(modelsData.music_checkpoints)) {
+      const cur = el.settingMusicModel.value;
+      el.settingMusicModel.innerHTML = `<option value="">-- ${escapeHtml(t('optSelectModel'))} --</option>`;
+      modelsData.music_checkpoints.forEach(mc => {
+        const opt = document.createElement('option');
+        const fn = typeof mc === 'string' ? mc : (mc.filename || mc.name);
+        const title = typeof mc === 'string' ? mc : (mc.title || mc.name);
+        opt.value = fn;
+        opt.textContent = title;
+        el.settingMusicModel.appendChild(opt);
+      });
+      if (cur) el.settingMusicModel.value = cur;
+    }
+
+    if (el.settingLmsModel && Array.isArray(modelsData.lm_studio_models)) {
+      const cur = el.settingLmsModel.value;
+      el.settingLmsModel.innerHTML = `<option value="">-- ${escapeHtml(t('optSelectModel'))} --</option>`;
+      modelsData.lm_studio_models.forEach(m => {
+        const opt = document.createElement('option');
+        const mId = typeof m === 'string' ? m : (m.id || m.name);
+        opt.value = mId;
+        opt.textContent = mId;
+        el.settingLmsModel.appendChild(opt);
+      });
+      if (cur) el.settingLmsModel.value = cur;
+    }
+  }
+
+  async function refreshLmStudioModels() {
+    const url = el.settingLmsUrl ? el.settingLmsUrl.value.trim() : '';
+    try {
+      if (el.btnRefreshLmsModels) el.btnRefreshLmsModels.disabled = true;
+      const res = await API.getSettingsModels(url);
+      if (res && res.success && Array.isArray(res.lm_studio_models)) {
+        if (el.settingLmsModel) {
+          const currentVal = el.settingLmsModel.value;
+          el.settingLmsModel.innerHTML = `<option value="">-- ${escapeHtml(t('optSelectModel'))} --</option>`;
+          res.lm_studio_models.forEach(m => {
+            const opt = document.createElement('option');
+            const mId = typeof m === 'string' ? m : (m.id || m.name);
+            opt.value = mId;
+            opt.textContent = mId;
+            el.settingLmsModel.appendChild(opt);
+          });
+          el.settingLmsModel.value = currentVal;
+        }
+        showToast(t('lmModelsRefreshed') || `${res.lm_studio_models.length} LM Studio Modelle geladen`, 'success');
+      } else {
+        showToast('Keine Modelle von LM Studio gefunden oder LM Studio nicht erreichbar.', 'warning');
+      }
+    } catch (err) {
+      showToast(err.message || 'Fehler beim Abrufen der LM Studio Modelle', 'error');
+    } finally {
+      if (el.btnRefreshLmsModels) el.btnRefreshLmsModels.disabled = false;
+    }
+  }
+
+  async function saveSettingsData() {
+    try {
+      if (el.btnSaveSettings) el.btnSaveSettings.disabled = true;
+
+      const payload = {
+        language: el.settingDefaultLang ? el.settingDefaultLang.value : 'auto',
+        export_webm: el.settingWebmExport ? el.settingWebmExport.checked : true,
+        comfyui: {
+          server_address: el.settingComfyUrl ? el.settingComfyUrl.value.trim() : '127.0.0.1:8188',
+          models_dir: el.settingModelsDir ? el.settingModelsDir.value.trim() : '',
+          models_search_paths: [
+            "../ComfyUI/models",
+            "../ComfyUI_windows_portable/ComfyUI/models"
+          ]
+        },
+        minimax_i2v: {
+          unet_name: el.settingMinimaxUnetInput ? el.settingMinimaxUnetInput.value.trim() : '',
+          turbo_lora: el.settingTurboLoraInput ? el.settingTurboLoraInput.value.trim() : '',
+          turbo_strength: el.settingTurboStrength ? parseFloat(el.settingTurboStrength.value) || 1.0 : 1.0,
+          steps: el.settingMinimaxSteps ? parseInt(el.settingMinimaxSteps.value, 10) || 8 : 8,
+          clip_name: el.settingMinimaxClip ? el.settingMinimaxClip.value.trim() : '',
+          video_vae_name: el.settingMinimaxVae ? el.settingMinimaxVae.value.trim() : '',
+          audio_vae_name: 'minimax_h3_audio_vae_fp32.safetensors'
+        },
+        music_studio: {
+          enabled: el.settingMusicEnabled ? el.settingMusicEnabled.checked : false,
+          checkpoint: el.settingMusicModel ? el.settingMusicModel.value.trim() : '',
+          steps: el.settingMusicSteps ? parseInt(el.settingMusicSteps.value, 10) || 25 : 25,
+          cfg: el.settingMusicCfg ? parseFloat(el.settingMusicCfg.value) || 4.0 : 4.0,
+          volume: el.settingMusicVolume ? (parseInt(el.settingMusicVolume.value, 10) || 35) / 100.0 : 0.35,
+          ducking: el.settingMusicDucking ? el.settingMusicDucking.checked : true
+        },
+        lm_studio: {
+          url: el.settingLmsUrl ? el.settingLmsUrl.value.trim() : 'http://127.0.0.1:1234/v1/chat/completions',
+          model_name: el.settingLmsModel ? el.settingLmsModel.value.trim() : '',
+          temperature: el.settingLmsTemp ? parseFloat(el.settingLmsTemp.value) || 0.7 : 0.7
+        }
+      };
+
+      const res = await API.saveSettings(payload);
+      if (res && res.success) {
+        showToast(t('settingsSavedSuccess') || 'Einstellungen erfolgreich gespeichert!', 'success');
+        closeSettingsModal();
+      } else {
+        throw new Error((res && res.error) || 'Speichern fehlgeschlagen');
+      }
+    } catch (err) {
+      console.error('Failed to save settings:', err);
+      showToast(err.message || 'Fehler beim Speichern der Einstellungen', 'error');
+    } finally {
+      if (el.btnSaveSettings) el.btnSaveSettings.disabled = false;
+    }
+  }
+
   // --- Setup Event Listeners ---
   function setupEventListeners() {
     // Project Select
@@ -4506,6 +4915,94 @@
       });
     }
 
+    // Settings Modal Events
+    if (el.btnSettings) {
+      el.btnSettings.addEventListener('click', openSettingsModal);
+    }
+    if (el.btnCloseSettingsModal) {
+      el.btnCloseSettingsModal.addEventListener('click', closeSettingsModal);
+    }
+    if (el.btnCloseSettingsModalBtn) {
+      el.btnCloseSettingsModalBtn.addEventListener('click', closeSettingsModal);
+    }
+    if (el.btnSaveSettings) {
+      el.btnSaveSettings.addEventListener('click', saveSettingsData);
+    }
+    if (el.settingsModal) {
+      el.settingsModal.addEventListener('click', (e) => {
+        if (e.target === el.settingsModal) closeSettingsModal();
+      });
+    }
+
+    // Settings Tab Switching
+    document.querySelectorAll('.settings-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.getAttribute('data-tab');
+        if (tab) switchSettingsTab(tab);
+      });
+    });
+
+    // Settings Model/LoRA Picker & Refresh
+    if (el.btnPickTurboLora) {
+      el.btnPickTurboLora.addEventListener('click', openLoraPickerModalForTurbo);
+    }
+    if (el.btnRefreshLmsModels) {
+      el.btnRefreshLmsModels.addEventListener('click', refreshLmStudioModels);
+    }
+
+    // Minimax UNET Select & Input sync
+    if (el.settingMinimaxUnetSelect) {
+      el.settingMinimaxUnetSelect.addEventListener('change', () => {
+        if (el.settingMinimaxUnetInput) el.settingMinimaxUnetInput.value = el.settingMinimaxUnetSelect.value;
+      });
+    }
+    if (el.settingMinimaxUnetInput) {
+      el.settingMinimaxUnetInput.addEventListener('input', () => {
+        if (el.settingMinimaxUnetSelect) el.settingMinimaxUnetSelect.value = el.settingMinimaxUnetInput.value;
+      });
+    }
+
+    // Turbo LoRA Select & Input sync with auto-detection of steps
+    if (el.settingTurboLoraSelect) {
+      el.settingTurboLoraSelect.addEventListener('change', () => {
+        const selectedVal = el.settingTurboLoraSelect.value;
+        if (el.settingTurboLoraInput) el.settingTurboLoraInput.value = selectedVal;
+        const selectedOpt = el.settingTurboLoraSelect.options[el.settingTurboLoraSelect.selectedIndex];
+        if (selectedOpt && selectedOpt.dataset.steps) {
+          if (el.settingMinimaxSteps) el.settingMinimaxSteps.value = selectedOpt.dataset.steps;
+        } else if (selectedVal) {
+          const vLow = selectedVal.toLowerCase();
+          if (vLow.includes('4step') || vLow.includes('4_step') || vLow.includes('4 step') || vLow.includes('4-step') || vLow.includes('4s')) {
+            if (el.settingMinimaxSteps) el.settingMinimaxSteps.value = 4;
+          } else if (vLow.includes('8step') || vLow.includes('8_step') || vLow.includes('8 step') || vLow.includes('8-step') || vLow.includes('8s')) {
+            if (el.settingMinimaxSteps) el.settingMinimaxSteps.value = 8;
+          }
+        }
+      });
+    }
+    if (el.settingTurboLoraInput) {
+      el.settingTurboLoraInput.addEventListener('input', () => {
+        if (el.settingTurboLoraSelect) el.settingTurboLoraSelect.value = el.settingTurboLoraInput.value;
+      });
+    }
+
+    // Range Sliders Value Badges
+    if (el.settingTurboStrength) {
+      el.settingTurboStrength.addEventListener('input', () => {
+        if (el.valTurboStrength) el.valTurboStrength.textContent = Number(el.settingTurboStrength.value).toFixed(2);
+      });
+    }
+    if (el.settingMusicVolume) {
+      el.settingMusicVolume.addEventListener('input', () => {
+        if (el.valMusicVolume) el.valMusicVolume.textContent = `${el.settingMusicVolume.value}%`;
+      });
+    }
+    if (el.settingLmsTemp) {
+      el.settingLmsTemp.addEventListener('input', () => {
+        if (el.valLmsTemp) el.valLmsTemp.textContent = Number(el.settingLmsTemp.value).toFixed(2);
+      });
+    }
+
     // Keyboard Shortcuts (Ctrl+S to save, Escape to close modals)
     window.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -4516,6 +5013,7 @@
         closeLoraPickerModal();
         closeGuideModal();
         closeVideoPlayerModal();
+        closeSettingsModal();
       }
     });
   }

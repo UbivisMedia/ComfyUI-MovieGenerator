@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.3] - 2026-09-22
+
+### ✨ Added
+- **Studio Settings GUI (`settings.json` Editor)**: Added a comprehensive, comfortable visual settings editor accessible via the top navigation bar (`⚙️ Einstellungen` / `⚙️ Settings`).
+  - **Minimax I2V & Turbo**: Select detected Minimax diffusion UNET models from ComfyUI, configure Turbo LoRAs, steps, strength slider with live value indicator, and VAE/CLIP models.
+  - **Visual LoRA Picker for Turbo**: Integrated the rich visual LoRA picker modal (`⚡ LoRA-Picker`) directly into the settings editor, allowing users to browse cover thumbnails, descriptions, and trigger words to pick their preferred Turbo LoRA with automated step detection (3, 4, 8 steps).
+  - **Music Studio Settings**: Configure default soundtrack generation, select ACE-Step / audio checkpoints, set default steps, CFG scale, volume slider with live percentage badge, and smart auto-ducking.
+  - **LM Studio & System**: Configure LM Studio API endpoint, dynamically fetch and pick available language models via `Abrufen` / `Fetch`, set temperature/creativity slider, configure ComfyUI server address, models directory, and WebM export.
+- **Settings Backend API (`script_agency.py`)**:
+  - `GET /api/settings`: Returns merged settings with `DEFAULT_SETTINGS`.
+  - `POST /api/settings`: Saves new configuration to `settings.json` with automated `.bak` backup and live in-memory synchronization.
+  - `GET /api/settings/models`: Scans and enumerates local Minimax UNET models, Turbo LoRAs with auto-detected step recommendations, audio checkpoints, and queries LM Studio models via HTTP.
+- **Bilingual Studio Settings Localization**: Comprehensive German and English translation keys added to `localization/de.json` and `localization/en.json`.
+
+---
+
 ## [1.2.2] - 2026-09-22
 
 ### 🐛 Fixed

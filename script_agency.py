@@ -2307,6 +2307,56 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
             })
             return
 
+        # -------------------------------------------------------------
+        # GET /api/settings (Retrieve merged settings.json)
+        # -------------------------------------------------------------
+        if path == "/api/settings":
+            from master_regisseur import DEFAULT_SETTINGS, deep_merge_settings
+            current_cfg = load_settings()
+            merged_cfg, _ = deep_merge_settings(current_cfg, DEFAULT_SETTINGS)
+            self.send_json({
+                "success": True,
+                "settings": merged_cfg
+            })
+            return
+
+        # -------------------------------------------------------------
+        # GET /api/settings/models (Scan available models for settings UI)
+        # -------------------------------------------------------------
+        if path == "/api/settings/models":
+            models_dir = get_comfy_models_dir()
+            from master_regisseur import (
+                find_minimax_unets,
+                find_minimax_turbo_loras,
+                detect_steps_from_lora_name,
+                find_music_checkpoints,
+                fetch_lm_studio_models
+            )
+            settings = load_settings()
+            lm_url = query.get("lm_studio_url", query.get("lm_url", [settings.get("lm_studio", {}).get("url", "http://127.0.0.1:1234/v1/chat/completions")]))[0]
+
+            unets = find_minimax_unets(models_dir) if models_dir else []
+            turbo_loras = find_minimax_turbo_loras(models_dir) if models_dir else []
+            formatted_turbo = []
+            for tl in turbo_loras:
+                formatted_turbo.append({
+                    "filename": tl,
+                    "title": os.path.basename(tl),
+                    "steps": detect_steps_from_lora_name(tl)
+                })
+            music_ckpts = find_music_checkpoints(models_dir) if models_dir else []
+            lm_models = fetch_lm_studio_models(lm_url) if lm_url else []
+
+            self.send_json({
+                "success": True,
+                "models_dir": models_dir,
+                "minimax_unets": unets,
+                "minimax_turbo_loras": formatted_turbo,
+                "music_checkpoints": music_ckpts,
+                "lm_studio_models": lm_models
+            })
+            return
+
         if path == "/api/presets":
             presets = get_presets_data()
             self.send_json(presets)
@@ -2798,6 +2848,43 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.send_error_json(f"Ungültiges JSON im Request Body: {e}")
                 return
+
+        # -------------------------------------------------------------
+        # POST /api/settings (Save configuration to settings.json)
+        # -------------------------------------------------------------
+        if path == "/api/settings":
+            new_settings = payload.get("settings") if isinstance(payload.get("settings"), dict) else payload
+            if not isinstance(new_settings, dict):
+                self.send_error_json("Feld 'settings' als Objekt erforderlich")
+                return
+
+            if os.path.exists(SETTINGS_FILE):
+                try:
+                    with open(SETTINGS_FILE, "r", encoding="utf-8") as orig:
+                        bak = orig.read()
+                    with open(f"{SETTINGS_FILE}.bak", "w", encoding="utf-8") as bf:
+                        bf.write(bak)
+                except Exception:
+                    pass
+
+            try:
+                with open(SETTINGS_FILE, "w", encoding="utf-8") as sf:
+                    json.dump(new_settings, sf, indent=2, ensure_ascii=False)
+
+                try:
+                    import master_regisseur
+                    master_regisseur.SETTINGS = new_settings
+                except Exception:
+                    pass
+
+                self.send_json({
+                    "success": True,
+                    "message": "Einstellungen erfolgreich in settings.json gespeichert.",
+                    "settings": new_settings
+                })
+            except Exception as e:
+                self.send_error_json(f"Fehler beim Speichern der Einstellungen: {e}", status=500)
+            return
 
         # -------------------------------------------------------------
         # POST /api/music/suggest-tags
