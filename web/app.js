@@ -539,6 +539,11 @@
         if (locData && locData.active_lang) {
           initialLang = locData.active_lang;
         }
+        if (locData && locData.version) {
+          document.querySelectorAll('.version-tag').forEach(el => {
+            el.textContent = `v${locData.version}`;
+          });
+        }
       } catch (e) {
         console.warn('Backend localization load warning:', e);
       }

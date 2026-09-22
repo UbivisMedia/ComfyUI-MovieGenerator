@@ -2288,9 +2288,20 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
         # -------------------------------------------------------------
         # REST API Routes
         # -------------------------------------------------------------
+        if path == "/api/version":
+            from version import __version__, __title__
+            self.send_json({
+                "version": __version__,
+                "title": __title__
+            })
+            return
+
         if path == "/api/localization":
+            from version import __version__, __title__
             from localization import get_current_language, get_all_editor_translations
             self.send_json({
+                "version": __version__,
+                "title": __title__,
                 "active_lang": get_current_language(),
                 "translations": get_all_editor_translations()
             })
@@ -2754,6 +2765,14 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
         try:
             with open(local_file, "rb") as f:
                 content = f.read()
+
+            if local_file.endswith(".html"):
+                from version import __version__
+                content_str = content.decode("utf-8", errors="replace")
+                content_str = re.sub(r'class="version-tag">[^<]*<', f'class="version-tag">v{__version__}<', content_str)
+                content_str = content_str.replace("{{VERSION}}", __version__)
+                content = content_str.encode("utf-8")
+
             self.send_response(200)
             self.send_header("Content-Type", mime)
             self.send_header("Content-Length", str(len(content)))
@@ -3186,7 +3205,7 @@ def run_script_agency(port=None, host="127.0.0.1", open_browser=True, blocking=T
 
     url = f"http://{host}:{port}/"
     print("\n" + "=" * 60)
-    print(f"🎬 SCRIPT AGENCY v{__version__} • MovieGenerator Visual Screenplay Studio")
+    print(f"🎬 MOVIE STUDIO v{__version__} • MovieGenerator Visual Production Studio")
     print(f"👉 Web-Editor läuft unter: {url}")
     print("   [Tipp] Drücke Strg+C im Terminal oder klicke '✕' im Web, um zu beenden.")
     print("=" * 60 + "\n")
@@ -3198,7 +3217,7 @@ def run_script_agency(port=None, host="127.0.0.1", open_browser=True, blocking=T
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
-            print("\n🛑 Script Agency beendet.")
+            print("\n🛑 Movie Studio beendet.")
         finally:
             httpd.server_close()
     else:
@@ -3207,9 +3226,9 @@ def run_script_agency(port=None, host="127.0.0.1", open_browser=True, blocking=T
         return httpd
 
 
-if __name__ == "__main__":
+def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Script Agency - Visual Screenplay Editor")
+    parser = argparse.ArgumentParser(description="Movie Studio - Visual Production Studio")
     parser.add_argument("--port", type=int, default=None, help="Port für den Webserver (Standard: 7860)")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Host-Adresse (Standard: 127.0.0.1)")
     parser.add_argument("--no-browser", action="store_true", help="Browser nicht automatisch öffnen")
@@ -3221,3 +3240,7 @@ if __name__ == "__main__":
         open_browser=not args.no_browser,
         blocking=True
     )
+
+
+if __name__ == "__main__":
+    main()

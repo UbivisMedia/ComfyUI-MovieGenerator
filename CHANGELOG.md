@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Auto-Save Before Scene Re-Shoot**: Added automatic pre-flight screenplay saving in `web/app.js` prior to triggering `/api/scene/rerender` whenever changes are unsaved (`state.isDirty`).
 - **Missing Localization Key**: Added `scene_shooting_settings` to `localization/de.json` and `localization/en.json` to correctly log director render parameters in the console during Phase 3.
 
+### ✨ Added
+- **Dynamic GUI Versioning**: Removed hardcoded version numbers from the web interface. The version is now read dynamically from `version.py` (`__version__`), exposed via `/api/version` and `/api/localization`, and automatically injected into `.version-tag` elements both during static HTML delivery and upon client-side application initialization.
+- **Movie Studio Branding & Architecture**: Rebranded the web interface from "Script Agency" to **Movie Studio** (`MovieGenerator Visual Production Studio`) to reflect its evolution into a complete suite (scriptwriting, casting, directing, scoring, timeline, video player, and re-rendering).
+- **Dedicated `movie_studio.py` & `start_movie_studio.bat` Launchers**: Added `movie_studio.py` and `start_movie_studio.bat` as explicit GUI entry points, clarifying the clean separation between CLI/Worker (`master_regisseur.py` / `create_movie.bat`) and Web GUI (`movie_studio.py` / `start_movie_studio.bat`). Backward-compatibility aliases for `script_agency.py` remain fully intact.
+
 ---
 
 ## [1.2.1] - 2026-09-22

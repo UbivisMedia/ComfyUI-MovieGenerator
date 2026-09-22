@@ -2,11 +2,11 @@
 cd /d "%~dp0"
 
 echo ====================================================
-echo STARTING MOVIE STUDIO (FORMERLY SCRIPT AGENCY)
+echo STARTING MOVIE STUDIO (VISUAL PRODUCTION STUDIO)
 echo ====================================================
 echo.
 
-python script_agency.py
+python movie_studio.py
 
 echo.
 pause
