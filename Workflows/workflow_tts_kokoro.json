@@ -1,0 +1,25 @@
+{
+  "1": {
+    "inputs": {
+      "text": "Welcome to MovieGenerator Visual Production Studio.",
+      "speaker": "am_michael"
+    },
+    "class_type": "Kokoro TTS",
+    "_meta": {
+      "title": "Kokoro TTS"
+    }
+  },
+  "2": {
+    "inputs": {
+      "filename_prefix": "audio/voiceover",
+      "audio": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "SaveAudio",
+    "_meta": {
+      "title": "Save Audio"
+    }
+  }
+}

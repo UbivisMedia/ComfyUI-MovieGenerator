@@ -178,6 +178,18 @@ The pipeline provides four distinct levels of continuity between scenes:
 - **Use case**: Changing camera perspectives (e.g. wide shot to close-up, over-the-shoulder, reaction shot) while characters remain in the same physical position.
 - **Behavior**: Does not force a static initial frame (allowing full freedom of camera choreography), but strictly instructs LM Studio that characters are **ALREADY** in their established physical posture. Prevents redundant actions like characters repeatedly walking in, sitting down again, or re-initiating hugs across cuts.
 
+### Explicit Anchor Scene Target (`connect_to_scene` / `anschluss_an_szene`)
+By default, continuity Modes B and C attach to the immediately preceding scene (`scene_id - 1`). For **parallel storylines**, **cross-cutting**, or **B-plots**, you can explicitly specify any earlier anchor scene:
+- **Field**: `"connect_to_scene": 1` (or `"anschluss_an_szene": 1`, `"connect_to": 1`)
+- **Example Scenario**:
+  - Scene 1: Detective enters warehouse and draws weapon.
+  - Scenes 2–4: Parallel storyline with suspect across town in a car chase.
+  - Scene 5: Return to warehouse (`match_cut: true`, `connect_to_scene: 1`).
+- **Engine Execution**:
+  - **LLM Prompting**: LM Studio is explicitly instructed that characters resume their posture and dramatic action directly from Anchor Scene #1 (ignoring parallel scenes 2–4).
+  - **Video Rendering**: The rendering pipeline extracts the final frame of Scene 1's video (`Scenes/Szene_01.mp4`) as the initial guide frame (`frame_idx: 0`) and/or loads Scene 1's video for environmental styling (`ref_videos`), providing seamless cross-cutting continuity.
+  - **Bidirectional Bookending**: If Scene 1 is reshot while Scene 5 already exists, Scene 5's opening frame is correctly recognized as the future anchor for Scene 1!
+
 ### 5. Sequence Bundles (`sequence` / `sequenz`)
 When multiple consecutive shots belong to the same dramatic scene (e.g. shots 14 to 25 at a breakfast table), group them using `"sequence"`:
 ```json

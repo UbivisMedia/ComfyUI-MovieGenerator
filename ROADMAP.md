@@ -29,9 +29,11 @@ timeline
 ---
 
 ## 🚀 Phase 1: Workflow & Editing Comfort (v1.2.0) ✅ [Completed]
+
 *Focus: User ergonomics, rapid iteration loops, and cinematic pacing.*
 
 ### 1. Incremental Re-Rendering & Smart Cache ✅
+
 * **Challenge:** Modifying a single shot in Scene 4 previously required re-rendering the entire project or manually manipulating disk files.
 * **Solution Implemented:**
   * Added `--scene <id>` and `--only-scene <id>` selective generation in `master_regisseur.py`.
@@ -39,6 +41,7 @@ timeline
   * Fast re-stitching of the master film within seconds after any individual scene finishes, preserving existing match-cut anchor frames.
 
 ### 2. Visual Storyboard Timeline & In-Browser Video Preview ✅
+
 * **Challenge:** Directors had to review the final cut in an external media player rather than inspecting shots directly within Script Agency.
 * **Solution Implemented:**
   * **Interactive Filmstrip Timeline:** Horizontal scrubber bar displaying shot thumbnails, cumulative duration, and scene status badges.
@@ -46,6 +49,7 @@ timeline
   * **Instant Scene Card Navigation:** Clicking any filmstrip thumbnail auto-scrolls to and highlights the target scene card.
 
 ### 3. Cinematic Scene Transitions ✅
+
 * **Challenge:** All shots were previously joined via hard cuts or direct match-cuts.
 * **Solution Implemented:**
   * Transition selector per scene:
@@ -59,27 +63,54 @@ timeline
 
 ---
 
-## 🎨 Phase 2: Visual Aesthetics & Character Continuity (v1.3.0)
-*Focus: Peak visual fidelity, persistent character identity, and color harmony.*
+## 🎨 Phase 2: Visual Aesthetics & Dedicated Narration (v1.3.0) ✅
 
-### 1. Character Continuity 2.0 (IP-Adapter / FaceID)
+*Focus: Non-diegetic narration, multi-stem audio mixing, cinematic color grading, and analog film grain.*
+
+### 1. Dedicated Voiceover & Narration Engine ✅
+
+* **Challenge:** Minimax generates diegetic in-scene dialogue via `<d>...</d>` with automatic lip-sync, but non-diegetic voiceover narration, documentary voice, or internal monologue requires precise synchronization, stem isolation, and dedicated narrator timbres.
+* **Solution Implemented:**
+  * Dedicated `voiceover` / `narration` field and `voiceover_voice` selector per scene card in Movie Studio.
+  * Multi-engine TTS architecture (`lib/tts_manager.py`) supporting:
+    * **Edge-TTS:** 14 high-fidelity neural voices (German: Conrad, Katja, Killian, Amala; English: Christopher, Jenny, Guy, Aria, Sonia, Ryan) with instant in-browser audio preview (`GET /api/voiceover/preview`).
+    * **Kokoro ONNX:** Local zero-VRAM neural speech synthesis in ComfyUI (`workflow_tts_kokoro.json`).
+  * Automated stem mixing (`mix_voiceover_into_scene_clip`): Blends voiceover with original scene audio/foley using configurable volume and background attenuation (`sidechain` balance), which then feeds seamlessly into the master soundtrack auto-ducking pipeline.
+  * Studio Settings pane for default narrator voice, global volume, and scene audio attenuation.
+  * Visual `🎙️` badges in the Storyboard Filmstrip timeline for instant scene narration overview.
+
+### 2. Cinematic Color Grading, 3D LUTs & 35mm Film Grain ✅
+
+* **Challenge:** Independent diffusion seeds across scenes can introduce inconsistent color temperatures and an artificial "AI smooth" plastic finish.
+* **Solution Implemented:**
+  * Production-grade color management engine (`lib/color_manager.py`) with 7 curated looks:
+    * *Teal & Orange* (Modern cinema blockbuster aesthetic)
+    * *Bleach Bypass* (High contrast, gritty action & war look)
+    * *Warm Golden* (Golden hour, romantic & sunset warmth)
+    * *Film Noir* (Monochrome, deep shadows & high contrast)
+    * *Matrix Cyber* (High-tech green/cyan dystopia tint)
+    * *Vintage 1970s* (Warm nostalgic retro film look)
+    * *Custom .cube 3D LUTs* (User-loadable `.cube` LUT files)
+  * Analog 35mm Film Grain generator (`none`, `subtle`, `medium`, `heavy`) injecting organic texture to break AI smoothness.
+  * Cinemascope 21:9 aspect ratio letterbox filter (anamorphic cinema black bars).
+  * Global studio settings and per-scene overrides in the Storyboard with `🎨` visual badges.
+
+---
+
+## ⚡ Phase 3: Character Continuity & Motion Dynamics (v1.4.0)
+
+*Focus: Multi-angle actor reference, advanced identity locking, and AI frame interpolation.*
+
+### 1. Character Continuity 2.0 (IP-Adapter / Multi-Angle Studio)
+
 * **Challenge:** Rapid camera movements or novel angles can introduce subtle facial drift away from the master portrait.
 * **Solution:**
   * Optional **IP-Adapter FaceID / PuLID** pass inside the ComfyUI pipeline prior to I2V generation.
   * Extracts biometric and structural facial landmarks from `Characters/<Name>.png` to enforce strict identity consistency across all angles.
   * **Multi-Angle Portrait Studio:** Pre-render frontal, 3/4-view, and profile portraits per character to automatically inject the best starting perspective.
 
-### 2. Cinematic Color Grading & 3D LUTs
-* **Challenge:** Different diffusion seeds can produce inconsistent color temperatures (e.g., warm daytime in shot 1, cool tint in shot 2).
-* **Solution:**
-  * Post-processing 3D LUT (Cube LUT) pipeline via FFmpeg:
-    * *Teal & Orange* (Modern blockbuster aesthetic)
-    * *Bleach Bypass* (High contrast, gritty dramatic look)
-    * *Golden Hour / Warm Sunset* (Romantic & coastal warmth)
-    * *Noir / Monochrome*
-  * Subtle organic 35mm film grain overlay to blend diffusion artifacts and eliminate AI smoothness.
+### 2. Frame Interpolation & Slow Motion (RIFE / FILM)
 
-### 3. Frame Interpolation & Slow Motion (RIFE / FILM)
 * **Challenge:** Minimax generates at 16 fps or 24 fps. Action beats and emotional pauses benefit from higher frame rates or deliberate slow motion.
 * **Solution:**
   * Per-scene toggle: `Slow Motion (50% Speed)` using AI frame interpolation (RIFE / FILM).
@@ -87,30 +118,12 @@ timeline
 
 ---
 
-## 🎙️ Phase 3: Sound Design & Dedicated Narration (v1.4.0)
-*Focus: Multi-track stems, professional voiceover, and layered acoustic depth.*
+## 🚀 Phase 4: Studio Performance & Real-Time Monitoring (v2.0.0)
 
-### 1. Dedicated Voiceover & Narration Engine
-* **Challenge:** Minimax generates in-scene dialogue with `<d>...</d>`, but voiceover narration, internal monologue, or documentary-style voice requires precise timestamp synchronization.
-* **Solution:**
-  * Integration with local high-quality TTS engines (**F5-TTS**, **ChatterBox**, or **Coqui TTS**).
-  * Dedicated `voiceover` field per scene: Generates isolated audio stems perfectly mapped to the scene window.
-
-### 2. Multi-Track Audio Mixer in Web Editor
-* **Challenge:** Sound effects, dialogue, and music are combined directly into a single master mix.
-* **Solution:**
-  * Interactive 3-channel mixer in the Script Agency web UI:
-    1. **Channel 1: Production Audio** (Minimax dialogue & environmental foley)
-    2. **Channel 2: Voiceover / Narration**
-    3. **Channel 3: Score / BGM** (with configurable auto-ducking sensitivity)
-  * Visual waveform preview with real-time compression ducking curves.
-
----
-
-## ⚡ Phase 4: Studio Performance & Real-Time Monitoring (v2.0.0)
 *Focus: Live feedback loops, multi-format delivery, and resource optimization.*
 
 ### 1. Live ComfyUI Render Queue & Latent Preview
+
 * **Challenge:** Progress monitoring currently requires checking terminal logs.
 * **Solution:**
   * WebSocket bridge connecting ComfyUI execution events directly to the browser UI:
@@ -119,13 +132,14 @@ timeline
     * Live ETA countdown and emergency `Cancel Generation` button.
 
 ### 2. Multi-Format Social Media Deliverables
+
 * **Solution:**
   * One-click aspect ratio export profiles:
     * **16:9** Widescreen (Cinema & YouTube standard)
     * **9:16** Vertical (TikTok, Instagram Reels, YouTube Shorts) featuring AI smart-crop face tracking to keep actors centered.
-    * **21:9** Cinemascope with anamorphic letterboxing.
 
 ### 3. Dynamic VRAM & Resource Management
+
 * **Solution:**
   * Automatic checkpoint unload (e.g., Minimax UNet) upon video generation completion to reclaim VRAM for ACE Music generation.
   * Dual-GPU balancing (e.g., GPU 0 dedicated to video diffusion, GPU 1 dedicated to audio & LLM inference).
@@ -134,15 +148,16 @@ timeline
 
 ## 📋 Prioritization Matrix
 
-| Feature | Impact & Value | Complexity | Recommended Order |
+| Feature | Impact & Value | Complexity | Status |
 | :--- | :--- | :--- | :--- |
-| **Incremental Scene Re-Rendering** | 🔴 Critical (Massive time saver) | 🟡 Medium | **#1 (v1.2)** |
-| **Scene Transitions (`xfade` Dissolve/Fade)** | 🔴 High (Polished cinematic flow) | 🟢 Low | **#2 (v1.2)** |
-| **In-Browser Video Player & Filmstrip Timeline** | 🟡 High (Ergonomics) | 🟡 Medium | **#3 (v1.2)** |
-| **Cinematic Color Grading & LUTs** | 🟡 High (Visual coherence) | 🟢 Low | **#4 (v1.3)** |
-| **Dedicated Voiceover / Narration Engine** | 🟡 High (New narrative formats) | 🟡 Medium | **#5 (v1.3)** |
-| **Character Continuity 2.0 (IP-Adapter)** | 🔴 Critical (Facial fidelity) | 🔴 Complex | **#6 (v2.0)** |
-| **Live ComfyUI Queue & Latents in Browser** | 🟡 High (Studio UX Polish) | 🟡 Medium | **#7 (v2.0)** |
+| **Incremental Scene Re-Rendering** | 🔴 Critical (Massive time saver) | 🟡 Medium | ✅ **Done (v1.2)** |
+| **Scene Transitions (`xfade` Dissolve/Fade)** | 🔴 High (Polished cinematic flow) | 🟢 Low | ✅ **Done (v1.2)** |
+| **In-Browser Video Player & Filmstrip Timeline** | 🟡 High (Ergonomics) | 🟡 Medium | ✅ **Done (v1.2)** |
+| **Dedicated Voiceover & Narration Engine** | 🔴 Critical (Non-diegetic audio) | 🟡 Medium | ✅ **Done (v1.3)** |
+| **Cinematic Color Grading & 3D LUTs / Grain** | 🟡 High (Visual coherence) | 🟢 Low | ✅ **Done (v1.3)** |
+| **Character Continuity 2.0 (IP-Adapter)** | 🔴 Critical (Facial fidelity) | 🔴 Complex | **Next (v1.4)** |
+| **Frame Interpolation & Slow Motion (RIFE)** | 🟡 High (Cinematic motion) | 🟡 Medium | **Next (v1.4)** |
+| **Live ComfyUI Queue & Latents in Browser** | 🟡 High (Studio UX Polish) | 🟡 Medium | **Planned (v2.0)** |
 
 ---
 *Roadmap created September 19, 2026 for MovieGenerator Studio.*

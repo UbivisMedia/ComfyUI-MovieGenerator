@@ -46,6 +46,16 @@ from lib.llm_manager import (
     call_lm_studio,
     fetch_lm_studio_models
 )
+from lib.color_manager import (
+    get_color_catalog,
+    COLOR_LOOKS,
+    GRAIN_PRESETS,
+    LETTERBOX_PRESETS
+)
+from lib.tts_manager import (
+    get_available_voices,
+    generate_voiceover_stem
+)
 
 # Set terminal UTF-8 encoding on Windows
 if sys.platform == "win32":
@@ -70,6 +80,7 @@ os.makedirs(WEB_DIR, exist_ok=True)
 
 _LORA_COMPANION_CACHE = {}
 _ACTIVE_RESHOOTS = {}  # key: f"{project}_{scene_id}" -> dict
+_ACTIVE_PRODUCTIONS = {}  # key: safe_project -> dict
 IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
 VIDEO_EXTS = (".mp4", ".webm")
 
@@ -638,6 +649,8 @@ def ai_elaborate_scene(payload):
     lora_presets = presets.get("lora_presets", {})
     avail_loras = []
     for k, v in lora_presets.items():
+        if v.get("available") is False:
+            continue
         comp = v.get("kompatible_modelle", [])
         lname = v.get("lora_name", "").lower()
         if any(m in comp for m in ["minimax_h3", "minimax_h3_video"]) or "minimax" in lname or "mmh3" in k:
@@ -646,7 +659,22 @@ def ai_elaborate_scene(payload):
                 avail_loras.append(f"- {k}: {desc}")
     avail_loras_text = "\n".join(avail_loras[:15]) if avail_loras else "None."
 
-    # Documentation knowledge base loaded from docs/
+    connect_to_scene_id = (
+        payload.get("connect_to_scene") or 
+        scene_obj.get("connect_to_scene") or 
+        (continuity.get("connect_to_scene") if isinstance(continuity, dict) else None)
+    )
+    anchor_note = ""
+    if connect_to_scene_id:
+        anchor_s = None
+        for ps in preceding_scenes:
+            if str(ps.get("id")) == str(connect_to_scene_id):
+                anchor_s = ps
+                break
+        if anchor_s:
+            a_idea = (anchor_s.get("idea", "") or "").strip()
+            anchor_note = f"\n- CRITICAL STORYLINE CONTINUATION: This shot connects directly to Shot #{connect_to_scene_id} ({anchor_s.get('sequence', '')} - {anchor_s.get('location', '')}). Action, posture, and match-cut motion resume directly from Shot #{connect_to_scene_id}: \"{a_idea}\" (cross-cutting / parallel storyline continuity)."
+
     docs_knowledge = load_screenplay_docs_knowledge()
 
     messages = [
@@ -670,7 +698,7 @@ Screenplay Context & Continuity:
 - Sequence / Scene Group: {sequence or 'Not specified'}
 - Same Scene Camera Angle Cut: {continuity.get('same_scene', False)}
 - Direct Motion Match-Cut: {continuity.get('match_cut', False)}
-- Environmental Reference: {continuity.get('use_previous_scene', False)}
+- Environmental Reference: {continuity.get('use_previous_scene', False)}{anchor_note}
 
 Preceding Shots in the Screenplay (Maintain seamless posture and action continuity from these previous shots):
 {preceding_text}
@@ -696,8 +724,13 @@ Task:
 Output format MUST be strictly structured as follows:
 summary: [one concise sentence describing the continuous scene action in English]
 detailed_description:
-[Shot 1]: [cinematic medium/close shot framing the action in 2-3 concise sentences using <Subject X> tags alongside character names. If live-action, specify 35mm cinematic film aesthetics.]
-overall_soundscape: [realistic ambient environment sounds, foley, and spoken dialogue. Strictly NO music.]
+[Shot 1]: [Comprehensive, multi-sentence (4-6 sentences) immersive cinematic description in English establishing camera framing, lighting atmosphere, tactile environmental interaction, subject tension, anatomy, micro-movements, and textures using <Subject X> tags alongside character names. If live-action, specify photorealistic 35mm cinematic film footage, real life camera shot, hyperrealistic textures.]
+
+Cinematic details: [Shallow depth of field (DOF), rim lighting, volumetric light rays, shutter effect, bokeh background blur]
+
+[Camera Movement Suggestion]: [Precise camera movement direction, e.g. slow steady tracking shot, gentle dolly zoom / push-in, smooth orbit, or dynamic pan/tilt]
+
+overall_soundscape: [realistic diegetic ambient environment sounds, foley, and spoken dialogue. Strictly NO background music, soundtrack, or score.]
 non_diegetic_music: None
 DURATION: 6
 LORAS: None
@@ -784,45 +817,80 @@ VARIABLES_UPDATE: {{}}"""
 
 
 def ai_suggest_next_scene(payload):
-    """Brainstorms and suggests the next logical scene for the screenplay."""
+    """Brainstorms and suggests the next logical scene for the screenplay with comprehensive cinematic depth."""
     sp = payload.get("screenplay") or payload
     title = sp.get("title") or payload.get("title") or "Film"
     description = sp.get("description") or payload.get("description") or ""
     characters = sp.get("characters") or payload.get("characters") or []
     scenes = sp.get("scenes") or payload.get("scenes") or []
     variables = sp.get("variables") or payload.get("variables") or {}
+    producer_instructions = (sp.get("producer_instructions") or payload.get("producer_instructions") or "").strip()
 
-    char_names = [c.get("name") if isinstance(c, dict) else str(c) for c in characters]
+    # Format character bindings (<Subject X>)
+    chars_text, char_names, char_id_map, dominant_model = format_character_bindings(characters)
     char_list_str = ", ".join(char_names) if char_names else "Hero, Antagonist"
 
+    # Compute running cumulative variables up to this next scene
+    active_vars = dict(variables)
+    for ps in scenes:
+        ps_upd = ps.get("variables_update") or ps.get("variablen_update") or {}
+        if isinstance(ps_upd, str) and ps_upd.strip():
+            try:
+                ps_upd = json.loads(ps_upd)
+            except Exception:
+                pass
+        if isinstance(ps_upd, dict):
+            active_vars.update(ps_upd)
+
     preceding = []
-    for idx, s in enumerate(scenes[-4:]):
+    for idx, s in enumerate(scenes[-5:]):
         s_id = s.get("id", idx + 1)
         s_seq = s.get("sequence", "")
         s_loc = s.get("location", "")
-        s_idea = (s.get("idea", "") or "")[:120]
-        preceding.append(f"Scene #{s_id} [{s_seq} - {s_loc}]: {s_idea}")
-    preceding_str = "\n".join(preceding) if preceding else "No preceding scenes yet (opening scene)."
+        s_idea = (s.get("idea", "") or "").strip()
+        s_upd = s.get("variables_update") or s.get("variablen_update") or {}
+        upd_str = f" [State: {json.dumps(s_upd)}]" if (isinstance(s_upd, dict) and s_upd) else ""
+        preceding.append(f"Shot #{s_id} [{s_seq} - {s_loc}]:\n  {s_idea}{upd_str}")
+    preceding_str = "\n".join(preceding) if preceding else "No preceding scenes yet (opening shot of the film)."
 
-    var_str = ", ".join([f"{k}='{v}'" for k, v in variables.items()]) if variables else "None"
+    wisdom_rules = get_llm_wisdom()
+    producer_block = f"\nProducer Directing / Visual Style Notes:\n\"{producer_instructions}\"\n" if producer_instructions else ""
 
-    prompt = f"""Movie Title: {title}
-Storyline & Logline: {description}
-Cast: {char_list_str}
-Story Props/Variables: {var_str}
+    prompt = f"""You are an expert cinematic director and prompt engineer for MovieGenerator (Minimax Video).
+Task: Propose the next logical, visually stunning cinematic scene for this film.
 
-Preceding Scenes:
+{wisdom_rules}
+
+Movie Title: {title}
+Storyline & Logline: {description}{producer_block}
+
+Cast & Minimax Character Bindings:
+{chars_text}
+
+Active Cumulative Story & Wardrobe Variables entering this scene:
+{json.dumps(active_vars, indent=2, ensure_ascii=False) if active_vars else "None"}
+
+Preceding Scenes (Story context & continuous action):
 {preceding_str}
 
-Task:
-Create the next logical, engaging scene in this film in 2 to 3 concise sentences.
+CRITICAL SCENE PROMPT QUALITY & DEPTH REQUIREMENTS:
+The 'idea' field MUST be comprehensive and immersive (resembling a professional National Geographic or cinematic film director's shot description):
+1. Opening sentence defines camera shot scale, angle, and perspective (e.g. 'A wide, low-angle shot of...', 'An extreme close-up shot focusing on...', 'A dynamic mid-shot capturing...').
+2. Multi-sentence description of the physical action, anatomical tension, gaze, micro-expressions, and tactile interaction with the environment (ground kick-up, dust clouds, rain, volumetric lighting, deep shadows, rim lighting).
+3. In 'idea', refer to characters using their '<Subject X> (Name)' tags matching the cast bindings above!
+4. Append a dedicated 'Cinematic details:' line (specifying shallow depth of field, rim lighting, volumetric light rays, shutter effect, bokeh background blur).
+5. Append a dedicated '[Camera Movement Suggestion]:' line (specifying precise camera trajectory: slow tracking shot, gentle dolly zoom / push-in, subtle 360-degree orbit, dynamic whip pan or tilt).
+6. STRICT AUDIO RULE: Absolutely NO background music, soundtrack, score, or instrument names! (Music is handled by a separate audio system; putting music in video prompts ruins the video).
+7. If the scene explicitly alters character clothing or gear state, record it in 'variables_update'. Otherwise, use {{}}.
+
 Return ONLY a single valid JSON object without markdown wrapping or preamble, in exactly this JSON structure:
 {{
-  "sequence": "Sequence or Beat title (e.g. Confrontation in Alley)",
-  "location": "Location setting (e.g. Neon-lit back alley)",
+  "sequence": "Sequence or Beat title (e.g. The Hunt & Confrontation)",
+  "location": "Vivid location setting (e.g. Vast African Savanna during Golden Hour)",
   "duration": 6,
   "characters": ["{char_names[0] if char_names else 'Hero'}"],
-  "idea": "Vivid concise cinematic description of what happens in this scene...",
+  "idea": "A wide, low-angle shot of... Detailed multi-sentence description with <Subject X> tags, tactile environment, and lighting.\\n\\nCinematic details: Shallow depth of field (DOF), golden hour glow, volumetric rays, rim lighting.\\n\\n[Camera Movement Suggestion]: Slow, steady tracking shot following <Subject 1> from behind as distance closes.",
+  "same_scene": false,
   "variables_update": {{}}
 }}"""
 
@@ -835,6 +903,26 @@ Return ONLY a single valid JSON object without markdown wrapping or preamble, in
             raw_clean = re.sub(r'^```[a-zA-Z]*\n?', '', raw_out.strip())
             raw_clean = re.sub(r'\n?```$', '', raw_clean.strip())
             parsed = json.loads(raw_clean)
+
+        # Ensure idea and prompt are populated with the rich cinematic description
+        raw_idea = str(parsed.get("idea") or parsed.get("idee") or parsed.get("prompt") or "").strip()
+        parsed["idea"] = raw_idea
+        parsed["prompt"] = raw_idea
+
+        # Ensure <Subject X> tags are present in idea for referenced characters if missing
+        scene_chars_list = parsed.get("characters") or []
+        if isinstance(scene_chars_list, str):
+            scene_chars_list = [scene_chars_list] if scene_chars_list.strip() else []
+        for c_name_raw in scene_chars_list:
+            c_key = c_name_raw.strip().lower()
+            if c_key in char_id_map:
+                cid = char_id_map[c_key]
+                subj_tag = f"<Subject {cid}>"
+                if subj_tag not in raw_idea:
+                    raw_idea = re.sub(rf'\b{re.escape(c_name_raw)}\b', f"{subj_tag} ({c_name_raw})", raw_idea, count=1, flags=re.IGNORECASE)
+                    parsed["idea"] = raw_idea
+                    parsed["prompt"] = raw_idea
+
         return {
             "success": True,
             "scene": parsed,
@@ -1249,13 +1337,15 @@ def get_t2i_catalog_summary():
     loras_dict = presets_data.get("lora_presets", {})
 
     models = []
-    valid_model_keys = list(presets_dict.keys())
+    valid_model_keys = []
     for k, v in presets_dict.items():
+        if v.get("available") is False:
+            continue
+        valid_model_keys.append(k)
         desc = v.get("beschreibung", "") or k
         models.append(f"- '{k}': {desc}")
 
-    loras = []
-    valid_lora_keys = list(loras_dict.keys())
+    valid_lora_keys = [k for k, v in loras_dict.items() if v.get("available") is not False]
 
     # Categorize top LoRAs for clarity
     detail_loras = ["realskin", "anima_detailer", "il_detailer", "anima_masterpiece", "anima_eop_realism", "anima_semi_realistic"]
@@ -1265,20 +1355,21 @@ def get_t2i_catalog_summary():
     curated_keys = []
     for group in [detail_loras, style_loras, motion_loras]:
         for k in group:
-            if k in loras_dict and k not in curated_keys:
+            if k in loras_dict and loras_dict[k].get("available") is not False and k not in curated_keys:
                 curated_keys.append(k)
 
-    # Add other top LoRAs up to 25
+    # Add other top LoRAs up to 28
     for k in valid_lora_keys:
         if k not in curated_keys and len(curated_keys) < 28:
             curated_keys.append(k)
 
+    loras = []
     for k in curated_keys:
         desc = loras_dict.get(k, {}).get("beschreibung", "") or k
         loras.append(f"- '{k}': {desc}")
 
     default_model = presets_data.get("default", "anima_cyberrealistic")
-    if default_model not in valid_model_keys and valid_model_keys:
+    if (default_model not in valid_model_keys or presets_dict.get(default_model, {}).get("available") is False) and valid_model_keys:
         default_model = valid_model_keys[0]
 
     return "\n".join(models), valid_model_keys, "\n".join(loras), valid_lora_keys, default_model
@@ -1477,7 +1568,7 @@ REQUIRED JSON STRUCTURE:
       "location": "Location setting",
       "duration": {min(6, max_shot_duration)},
       "characters": ["Name of character in shot"],
-      "idea": "<Subject 1> (CharacterName) in {{hero_top}} and {{hero_bottom}} performs cinematic action...",
+      "idea": "<Subject 1> (CharacterName) in {{hero_top}} and {{hero_bottom}}... Multi-sentence cinematic description with camera framing, environment, physical dynamics, followed by 'Cinematic details: ...' and '[Camera Movement Suggestion]: ...' (Strictly NO background music descriptions)",
       "same_scene": false,
       "variables_update": {{}}
     }}
@@ -1721,7 +1812,7 @@ REQUIRED JSON STRUCTURE:
     "location": "Location Setting",
     "duration": {min(6, max_shot_duration)},
     "characters": ["{char_names[0] if char_names else 'Hero'}"],
-    "idea": "Cinematic shot description with varied opening. DO NOT robotically start with '<Subject 1> in her outfit' if already undressed or continuous.",
+    "idea": "Comprehensive, highly detailed cinematic shot description (camera framing, environment, physical dynamics, micro-details/tension, followed by 'Cinematic details: ...' and '[Camera Movement Suggestion]: ...'). Strictly NO background music descriptions!",
     "same_scene": false,
     "variables_update": {{}}
   }},
@@ -2133,6 +2224,12 @@ def normalize_screenplay_data(data, filename=""):
             scene_dict["same_scene"] = True
         if s_ref_prev:
             scene_dict["use_previous_scene"] = True
+        s_connect_to = s.get("connect_to_scene") or s.get("connect_to") or s.get("anschluss_an_szene") or s.get("match_cut_scene") or s.get("continuation_scene")
+        if s_connect_to is not None and str(s_connect_to).strip():
+            try:
+                scene_dict["connect_to_scene"] = int(s_connect_to)
+            except (ValueError, TypeError):
+                scene_dict["connect_to_scene"] = str(s_connect_to).strip()
         if s_var_upd:
             scene_dict["variables_update"] = s_var_upd
         if s_loras:
@@ -2230,6 +2327,53 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
                 "active_lang": get_current_language(),
                 "translations": get_all_editor_translations()
             })
+            return
+
+        # -------------------------------------------------------------
+        # GET /api/voices (List available TTS voices)
+        # -------------------------------------------------------------
+        if path == "/api/voices":
+            voices = get_available_voices()
+            self.send_json({
+                "success": True,
+                "voices": voices
+            })
+            return
+
+        # -------------------------------------------------------------
+        # GET /api/color/catalog (List color grading looks and film grain presets)
+        # -------------------------------------------------------------
+        if path == "/api/color/catalog":
+            catalog = get_color_catalog()
+            self.send_json({
+                "success": True,
+                "catalog": catalog
+            })
+            return
+
+        # -------------------------------------------------------------
+        # GET /api/voiceover/audio (Serve temporary preview voiceover audio)
+        # -------------------------------------------------------------
+        if path == "/api/voiceover/audio":
+            fname = query.get("file", [""])[0].strip()
+            if not fname or not re.match(r'^vo_preview_[a-zA-Z0-9_\-]+\.wav$', fname):
+                self.send_error(400, "Ungültiger Dateiname")
+                return
+            tpath = os.path.join(BASE_DIR, "Projects", ".preview_audio", fname)
+            if not os.path.exists(tpath):
+                self.send_error(404, "Audio nicht gefunden")
+                return
+            try:
+                with open(tpath, "rb") as af:
+                    adata = af.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/wav")
+                self.send_header("Content-Length", str(len(adata)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(adata)
+            except Exception as e:
+                self.send_error(500, str(e))
             return
 
         # -------------------------------------------------------------
@@ -2749,6 +2893,68 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
             return
 
         # -------------------------------------------------------------
+        # GET /api/movie/render/status (Return status and logs of full movie production)
+        # -------------------------------------------------------------
+        if path == "/api/movie/render/status":
+            project_param = query.get("project", [""])[0].strip()
+            if not project_param:
+                self.send_error_json("Parameter 'project' erforderlich")
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            prod_entry = _ACTIVE_PRODUCTIONS.get(safe_project)
+
+            cand_movie_dirs = [
+                os.path.join(PROJECTS_DIR, safe_project, "Movie"),
+                os.path.join(PROJECTS_DIR, "Movie")
+            ]
+            final_movie_path = None
+            for mdir in cand_movie_dirs:
+                if not os.path.exists(mdir):
+                    continue
+                tf = os.path.join(mdir, f"{safe_project}_FINAL.mp4")
+                if os.path.exists(tf):
+                    final_movie_path = tf
+                    break
+                for f in os.listdir(mdir):
+                    if f.endswith(".mp4") and not f.endswith("_RAW.mp4"):
+                        final_movie_path = os.path.join(mdir, f)
+                        break
+                if final_movie_path:
+                    break
+
+            has_final_movie = final_movie_path is not None and os.path.exists(final_movie_path)
+            movie_mtime = int(os.path.getmtime(final_movie_path)) if has_final_movie else 0
+
+            status = prod_entry.get("status", "idle") if prod_entry else "idle"
+            start_time = prod_entry.get("start_time") if prod_entry else None
+            finished_at = prod_entry.get("finished_at") if prod_entry else None
+            elapsed = 0.0
+            if start_time:
+                end_t = finished_at if finished_at else time.time()
+                elapsed = max(0.0, end_t - start_time)
+
+            logs = prod_entry.get("logs", []) if prod_entry else []
+            last_log = prod_entry.get("last_log") if prod_entry else None
+            error = prod_entry.get("error") if prod_entry else None
+
+            self.send_json({
+                "success": True,
+                "project": safe_project,
+                "status": status,
+                "start_time": start_time,
+                "finished_at": finished_at,
+                "elapsed": round(elapsed, 1),
+                "error": error,
+                "last_log": last_log,
+                "logs": logs[-100:],
+                "movie_ready": has_final_movie,
+                "movie_url": f"/api/movie/video?project={urllib.parse.quote(safe_project)}&t={movie_mtime}" if has_final_movie else None,
+                "movie_file": os.path.basename(final_movie_path) if has_final_movie else None
+            })
+            return
+
+        # -------------------------------------------------------------
         # GET /api/scenes/status (Return render state & media URLs for storyboard timeline)
         # -------------------------------------------------------------
         if path == "/api/scenes/status":
@@ -2872,12 +3078,16 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
             movie_mtime = int(os.path.getmtime(final_movie_path)) if has_final_movie else 0
             active_rendering = [s["id"] for s in scene_results if s["is_rendering"]]
 
+            prod_job = _ACTIVE_PRODUCTIONS.get(safe_project)
+            is_movie_rendering = bool(prod_job and prod_job.get("status") == "running")
+
             self.send_json({
                 "success": True,
                 "project": safe_project,
                 "scenes": scene_results,
-                "any_rendering": len(active_rendering) > 0,
+                "any_rendering": len(active_rendering) > 0 or is_movie_rendering,
                 "active_rendering_scenes": active_rendering,
+                "movie_rendering": is_movie_rendering,
                 "movie_ready": has_final_movie,
                 "movie_url": f"/api/movie/video?project={urllib.parse.quote(safe_project)}&t={movie_mtime}" if has_final_movie else None,
                 "movie_file": os.path.basename(final_movie_path) if has_final_movie else None
@@ -2978,6 +3188,34 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
                 "success": True,
                 "message": "Einstellungen erfolgreich in settings.json gespeichert.",
                 "settings": new_settings
+            })
+            return
+
+        # -------------------------------------------------------------
+        # POST /api/voiceover/preview (Generate and stream a voiceover preview audio)
+        # -------------------------------------------------------------
+        if path == "/api/voiceover/preview":
+            text = payload.get("text", "").strip()
+            voice = payload.get("voice", "de-DE-ConradNeural").strip()
+            if not text:
+                self.send_error_json("Feld 'text' erforderlich")
+                return
+
+            tmp_dir = os.path.join(BASE_DIR, "Projects", ".preview_audio")
+            os.makedirs(tmp_dir, exist_ok=True)
+            safe_hash = abs(hash(text + voice)) % 100000000
+            out_file = os.path.join(tmp_dir, f"vo_preview_{safe_hash}.wav")
+
+            ok, out_path, dur, err = generate_voiceover_stem(text, voice=voice, output_wav_path=out_file)
+            if not ok or not os.path.exists(out_path):
+                self.send_error_json(f"Fehler bei Voiceover-Vorschau: {err}", status=500)
+                return
+
+            self.send_json({
+                "success": True,
+                "audio_url": f"/api/voiceover/audio?file={os.path.basename(out_path)}",
+                "duration": round(dur, 2),
+                "voice": voice
             })
             return
 
@@ -3304,10 +3542,17 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
                 target_presets = os.path.join(PRESETS_DIR, "t2i_presets.json")
                 stats = build_or_update_catalog(models_dir, presets_path=target_presets)
                 _LORA_COMPANION_CACHE.clear()
+                _MODEL_COMPANION_CACHE.clear()
+                unavail_info = []
+                if stats.get('unavailable_loras', 0) > 0:
+                    unavail_info.append(f"{stats['unavailable_loras']} LoRAs nicht verfügbar")
+                if stats.get('unavailable_presets', 0) > 0:
+                    unavail_info.append(f"{stats['unavailable_presets']} Modelle nicht verfügbar")
+                unavail_text = f" ({', '.join(unavail_info)})" if unavail_info else ""
                 self.send_json({
                     "success": True,
                     "stats": stats,
-                    "message": f"Katalog aktualisiert: {stats['total_loras']} LoRAs ({stats['new_loras']} neu) und {stats['total_presets']} Modell-Presets."
+                    "message": f"Katalog aktualisiert: {stats['total_loras']} LoRAs ({stats['new_loras']} neu) und {stats['total_presets']} Modell-Presets.{unavail_text}"
                 })
             except Exception as e:
                 self.send_error_json(f"Fehler beim Katalog-Scan: {e}", status=500)
@@ -3388,6 +3633,152 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
                 "success": True,
                 "message": f"Dreh für Szene {scene_id} wurde im Hintergrund gestartet.",
                 "scene_id": scene_id,
+                "project": safe_project
+            })
+            return
+
+        # -------------------------------------------------------------
+        # POST /api/movie/render (Launch full movie production in background)
+        # -------------------------------------------------------------
+        if path == "/api/movie/render":
+            project_param = payload.get("project", "").strip()
+            if not project_param:
+                self.send_error_json("Parameter 'project' erforderlich")
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            proj_json = os.path.join(PROJECTS_DIR, f"{safe_project}.json")
+            if not os.path.exists(proj_json):
+                proj_json = os.path.join(PROJECTS_DIR, safe_project, f"{safe_project}.json")
+
+            if not os.path.exists(proj_json):
+                self.send_error_json(f"Projekt-Drehbuch '{safe_project}' nicht gefunden")
+                return
+
+            existing_prod = _ACTIVE_PRODUCTIONS.get(safe_project)
+            if existing_prod and existing_prod.get("status") == "running":
+                self.send_json({
+                    "success": False,
+                    "error": f"Produktion für '{safe_project}' läuft bereits.",
+                    "already_running": True,
+                    "project": safe_project
+                }, status=409)
+                return
+
+            prod_entry = {
+                "project": safe_project,
+                "status": "running",
+                "start_time": time.time(),
+                "finished_at": None,
+                "error": None,
+                "logs": [f"🎬 Starte vollständige Filmproduktion für '{safe_project}'..."],
+                "last_log": "Filmproduktion wird initialisiert...",
+                "process": None
+            }
+            _ACTIVE_PRODUCTIONS[safe_project] = prod_entry
+
+            def run_full_production():
+                import subprocess
+                cmd = [
+                    sys.executable,
+                    "-u",
+                    os.path.join(BASE_DIR, "master_regisseur.py"),
+                    proj_json
+                ]
+                print(f"🎬 [Movie-Produktion] Starte vollständige Filmproduktion für '{safe_project}'...")
+                try:
+                    proc = subprocess.Popen(
+                        cmd,
+                        cwd=BASE_DIR,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        bufsize=1,
+                        encoding="utf-8",
+                        errors="replace"
+                    )
+                    prod_entry["process"] = proc
+                    for line in iter(proc.stdout.readline, ''):
+                        clean = line.rstrip()
+                        if clean:
+                            print(f"🎬 [{safe_project}] {clean}")
+                            prod_entry["logs"].append(clean)
+                            if len(prod_entry["logs"]) > 500:
+                                prod_entry["logs"] = prod_entry["logs"][-500:]
+                            prod_entry["last_log"] = clean
+                    proc.wait()
+                    if proc.returncode == 0:
+                        print(f"✅ [Movie-Produktion] Produktion für '{safe_project}' erfolgreich abgeschlossen!")
+                        prod_entry["status"] = "completed"
+                        prod_entry["finished_at"] = time.time()
+                        prod_entry["last_log"] = "Filmproduktion erfolgreich abgeschlossen!"
+                    else:
+                        if prod_entry.get("status") != "cancelled":
+                            print(f"❌ [Movie-Produktion] Fehler bei Filmproduktion für '{safe_project}': Exit {proc.returncode}")
+                            prod_entry["status"] = "error"
+                            prod_entry["error"] = f"Prozess mit Code {proc.returncode} beendet"
+                            prod_entry["finished_at"] = time.time()
+                            prod_entry["last_log"] = f"Fehler: Beendet mit Code {proc.returncode}"
+                except Exception as ex:
+                    print(f"❌ [Movie-Produktion] Ausnahme bei Filmproduktion für '{safe_project}': {ex}")
+                    if prod_entry.get("status") != "cancelled":
+                        prod_entry["status"] = "error"
+                        prod_entry["error"] = str(ex)
+                        prod_entry["finished_at"] = time.time()
+                        prod_entry["last_log"] = f"Fehler: {ex}"
+
+            t_thread = threading.Thread(target=run_full_production, daemon=True)
+            t_thread.start()
+
+            self.send_json({
+                "success": True,
+                "message": f"Vollständige Produktion für '{safe_project}' wurde im Hintergrund gestartet.",
+                "project": safe_project
+            })
+            return
+
+        # -------------------------------------------------------------
+        # POST /api/movie/render/cancel (Cancel ongoing full movie production)
+        # -------------------------------------------------------------
+        if path == "/api/movie/render/cancel":
+            project_param = payload.get("project", "").strip()
+            if not project_param:
+                self.send_error_json("Parameter 'project' erforderlich")
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            prod_entry = _ACTIVE_PRODUCTIONS.get(safe_project)
+            if not prod_entry or prod_entry.get("status") != "running":
+                self.send_json({
+                    "success": False,
+                    "message": "Keine laufende Produktion für dieses Projekt gefunden.",
+                    "project": safe_project
+                })
+                return
+
+            prod_entry["status"] = "cancelled"
+            prod_entry["finished_at"] = time.time()
+            prod_entry["last_log"] = "Produktion wurde vom Benutzer abgebrochen."
+            prod_entry["logs"].append("🛑 Produktion wurde vom Benutzer abgebrochen.")
+
+            proc = prod_entry.get("process")
+            if proc:
+                try:
+                    import subprocess
+                    if sys.platform == "win32":
+                        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
+                    else:
+                        proc.terminate()
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+                print(f"🛑 [Movie-Produktion] Produktion für '{safe_project}' wurde abgebrochen.")
+
+            self.send_json({
+                "success": True,
+                "message": f"Produktion für '{safe_project}' wurde abgebrochen.",
                 "project": safe_project
             })
             return

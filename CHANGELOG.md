@@ -5,6 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-09-24
+
+### ✨ Added
+
+- **Target Scene Continuity & Non-Linear Match Cuts (`connect_to_scene` / `anschluss_an_szene`)**:
+  - Implemented configurable anchor scene targeting for parallel storylines, cross-cutting, and B-plots. Instead of being locked strictly to the immediately preceding shot (`id - 1`), scenes can now specify any prior anchor scene to connect to (e.g. Scene 5 picking up seamlessly from Scene 1 after Scenes 2–4 covered a parallel sequence).
+  - Storyboard UI: Added dynamic target scene selector (`🔗 Anschluss an Szene #X`) in each scene card's continuity bar when Match Cut or Environment continuity is active.
+  - LLM Prompting: Updated `script_agency.py` and `master_regisseur.py` so the LM Studio prompt director understands explicit anchor scenes, ensuring physical postures, actions, and camera angles pick up directly from the anchor shot.
+  - Video Generation: Forward match cuts extract the final frame of the designated anchor video file from disk as `frame_idx: 0` (`MiniMaxH3AddGuide`), while backward match cuts scan across scenes to find whichever shot continues from this one.
+
+- **Direct In-GUI Full Film Production Hub**:
+  - Transformed the top-bar **"Film rendern"** (`#btnLaunchMovie`) modal from a pure terminal command display into a complete interactive **Production Hub**.
+  - Direct execution: Added **"Vollständige Produktion starten"** (`POST /api/movie/render`) to trigger the end-to-end film production pipeline directly from Movie Studio without requiring an external terminal window.
+  - Background process management: Real-time worker thread tracking in `script_agency.py` (`_ACTIVE_PRODUCTIONS`), live output log streaming (`GET /api/movie/render/status`), elapsed time tracking, and clean process termination / cancellation (`POST /api/movie/render/cancel`).
+  - Interactive UI: Status banners (`status-idle`, `status-running`, `status-completed`, `status-error`), auto-scroll live log console, one-click **"Fertigen Film abspielen"** button upon completion, automatic screenplay pre-flight saving, and top navbar pulsing indicator while production runs.
+  - Preserved terminal commands: Kept the CLI snippet and batch launch alternatives accessible via a dedicated manual alternative section.
+
+- **Dedicated Voiceover & Narration Engine (`lib/tts_manager.py`)**:
+  - Solves the critical distinction between diegetic in-scene dialogue (rendered with automatic lip-sync via MiniMax `<d>...</d>`) and non-diegetic voiceover, internal monologues, or documentary narration.
+  - Multi-engine TTS architecture supporting:
+    - **Edge-TTS**: 14 high-fidelity neural voices across German (Conrad, Katja, Killian, Amala) and English (Christopher, Jenny, Guy, Aria, Sonia, Ryan).
+    - **Kokoro ONNX**: Local neural speech synthesis executed in ComfyUI via `workflow_tts_kokoro.json` (zero extra VRAM).
+  - Dedicated `voiceover` / `narration` text field and per-scene `voiceover_voice` dropdown directly in each scene card.
+  - Instant in-browser voiceover audio preview (`POST /api/voiceover/preview` & `GET /api/voiceover/audio`) with live generation state indicator.
+  - Multi-stem audio mixing (`mix_voiceover_into_scene_clip`): Automatically mixes voiceover narration into the scene clip with configurable narrator volume and scene foley attenuation before feeding into the master soundtrack auto-ducking pipeline.
+  - Studio Settings (`⚙️ Studio-Einstellungen`) Voiceover tab (`tabSettingsVoiceover`): Global toggle, default narrator voice selection, narrator volume slider, and scene foley attenuation slider.
+  - Storyboard Filmstrip timeline badge: Visual `🎙️` icon on cards with active voiceover narration.
+
+- **Cinematic Color Grading, 3D LUTs & Analog 35mm Film Grain (`lib/color_manager.py`)**:
+  - Eliminates color temperature drift and AI plastic smoothness across scenes.
+  - 7 curated cinematic looks:
+    - *Teal & Orange* (Modern cinema blockbuster aesthetic)
+    - *Bleach Bypass* (High contrast, gritty action & war look)
+    - *Warm Golden* (Golden hour, romantic & sunset warmth)
+    - *Film Noir* (Monochrome, deep shadows & high contrast)
+    - *Matrix Cyber* (High-tech green/cyan dystopia tint)
+    - *Vintage 1970s* (Warm nostalgic retro film look)
+    - *Custom .cube 3D LUTs* (Dynamic `.cube` LUT file loading via FFmpeg `lut3d`)
+  - Analog 35mm Film Grain generator with 4 intensity levels (`none`, `subtle`, `medium`, `heavy`) injecting organic analog texture via FFmpeg `noise`.
+  - Cinemascope 21:9 aspect ratio letterbox filter (anamorphic cinema black bars).
+  - Studio Settings Color tab (`tabSettingsColor`): Configure global look, film grain, and letterboxing.
+  - Per-scene overrides in Storyboard scene cards (`scene.color_grade`, `scene.film_grain`) with visual `🎨` badges in the timeline.
+
+- **Centralized Engine Extensions (`lib/`)**:
+  - `lib/tts_manager.py`: Complete TTS catalog discovery, speech synthesis, 44.1kHz stereo WAV normalization, and FFmpeg audio stem mixing.
+  - `lib/color_manager.py`: Complete FFmpeg video filtergraph generation for color looks, grain textures, letterboxing, and LUT files.
+  - `lib/settings_manager.py`: Added default configuration blocks for `voiceover` and `color_grading`.
+  - `lib/__init__.py`: Exported `color_manager` and `tts_manager`.
+
+- **Bilingual Localization**:
+  - Comprehensive English (`localization/en.json`) and German (`localization/de.json`) translations for all new Voiceover, Color Grading, and Director controls.
+  - Enhanced `localization/__init__.py` to merge root and editor translation dictionaries for complete web UI coverage.
+
+---
+
 ## [1.2.4] - 2026-09-23
 
 ### ✨ Added

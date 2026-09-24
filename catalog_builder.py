@@ -511,10 +511,62 @@ def scan_diffusion_models(models_dir):
     return discovered_presets
 
 
+def check_lora_file_present(lora_name, loras_dir, models_dir=None):
+    """Checks if a LoRA file exists on disk."""
+    if not lora_name:
+        return False
+    if os.path.isabs(lora_name) and os.path.isfile(lora_name):
+        return True
+    if loras_dir:
+        direct = os.path.join(loras_dir, lora_name)
+        if os.path.isfile(direct):
+            return True
+        norm_cand = os.path.join(loras_dir, os.path.normpath(lora_name))
+        if os.path.isfile(norm_cand):
+            return True
+    if models_dir:
+        c1 = os.path.join(models_dir, "loras", lora_name)
+        c2 = os.path.join(models_dir, lora_name)
+        if os.path.isfile(c1) or os.path.isfile(c2):
+            return True
+        c1_norm = os.path.join(models_dir, "loras", os.path.normpath(lora_name))
+        c2_norm = os.path.join(models_dir, os.path.normpath(lora_name))
+        if os.path.isfile(c1_norm) or os.path.isfile(c2_norm):
+            return True
+    return False
+
+
+def check_preset_file_present(preset_cfg, models_dir):
+    """Checks if a diffusion model / checkpoint preset file exists on disk."""
+    if not preset_cfg or not isinstance(preset_cfg, dict):
+        return False
+    targets = [t for t in [preset_cfg.get("unet_name"), preset_cfg.get("checkpoint")] if t]
+    if not targets:
+        return False
+    subdirs = ["diffusion_models", "checkpoints", "unet"]
+    for target in targets:
+        if os.path.isabs(target) and os.path.isfile(target):
+            return True
+        if models_dir:
+            for s in subdirs:
+                cand = os.path.join(models_dir, s, target)
+                if os.path.isfile(cand):
+                    return True
+                norm_cand = os.path.join(models_dir, s, os.path.normpath(target))
+                if os.path.isfile(norm_cand):
+                    return True
+            cand_direct = os.path.join(models_dir, target)
+            cand_direct_norm = os.path.join(models_dir, os.path.normpath(target))
+            if os.path.isfile(cand_direct) or os.path.isfile(cand_direct_norm):
+                return True
+    return False
+
+
 def build_or_update_catalog(models_dir, presets_path=None, dry_run=False, filter_nsfw=False):
     """
     Scans models_dir and updates or creates presets_path.
     Preserves existing user configurations and custom strength tweaks.
+    Marks models and LoRAs that are no longer present on disk with available=False.
     Returns stats dict.
     """
     if presets_path is None:
@@ -555,12 +607,23 @@ def build_or_update_catalog(models_dir, presets_path=None, dry_run=False, filter
     new_loras_count = 0
     updated_loras_count = 0
 
+    # Build map of discovered LoRAs with normalized path keys
+    discovered_loras_norm = {os.path.normpath(p).lower(): cfg for p, cfg in discovered_loras.items()}
+
     for rel_path, lora_cfg in discovered_loras.items():
         norm_path = os.path.normpath(rel_path).lower()
         if norm_path in file_to_existing_key:
             # Already in catalog: preserve key and custom user tweaks
             matched_key = file_to_existing_key[norm_path]
             existing_entry = existing_loras[matched_key]
+            
+            # Check availability change
+            if existing_entry.get("available") is False:
+                existing_entry["available"] = True
+                updated_loras_count += 1
+            else:
+                existing_entry["available"] = True
+
             # Backfill missing triggers or description if empty
             changed = False
             if not existing_entry.get("trigger_words") and lora_cfg.get("trigger_words"):
@@ -587,14 +650,41 @@ def build_or_update_catalog(models_dir, presets_path=None, dry_run=False, filter
                 "strength_model": lora_cfg["strength_model"],
                 "strength_clip": lora_cfg["strength_clip"],
                 "trigger_words": lora_cfg["trigger_words"],
+                "available": True,
             }
             file_to_existing_key[norm_path] = final_key
             new_loras_count += 1
 
+    # Check availability of all existing LoRAs
+    unavailable_loras_count = 0
+    for k, v in existing_loras.items():
+        lname = v.get("lora_name")
+        is_avail = False
+        if lname:
+            norm_l = os.path.normpath(lname).lower()
+            if norm_l in discovered_loras_norm:
+                is_avail = True
+            elif check_lora_file_present(lname, loras_dir, models_dir):
+                is_avail = True
+
+        v["available"] = is_avail
+        if not is_avail:
+            unavailable_loras_count += 1
+
     # 2. Scan Diffusion Models
     discovered_presets = scan_diffusion_models(models_dir)
     new_presets_count = 0
+    unavailable_presets_count = 0
+
+    # Build set of discovered unet/ckpt relative paths
+    discovered_diff_norm = set()
+    for p_cfg in discovered_presets.values():
+        u = p_cfg.get("unet_name") or p_cfg.get("checkpoint")
+        if u:
+            discovered_diff_norm.add(os.path.normpath(u).lower())
+
     for p_key, p_cfg in discovered_presets.items():
+        p_cfg["available"] = True
         if p_key not in existing_presets:
             existing_presets[p_key] = p_cfg
             new_presets_count += 1
@@ -602,6 +692,23 @@ def build_or_update_catalog(models_dir, presets_path=None, dry_run=False, filter
             # Update missing unet_name or checkpoint if local file found
             if not existing_presets[p_key].get("unet_name") and p_cfg.get("unet_name"):
                 existing_presets[p_key]["unet_name"] = p_cfg["unet_name"]
+            existing_presets[p_key]["available"] = True
+
+    # Check availability of all existing Presets
+    for p_key, p_val in existing_presets.items():
+        is_avail = False
+        u = p_val.get("unet_name")
+        c = p_val.get("checkpoint")
+        if u and os.path.normpath(u).lower() in discovered_diff_norm:
+            is_avail = True
+        elif c and os.path.normpath(c).lower() in discovered_diff_norm:
+            is_avail = True
+        elif check_preset_file_present(p_val, models_dir):
+            is_avail = True
+
+        p_val["available"] = is_avail
+        if not is_avail:
+            unavailable_presets_count += 1
 
     existing_catalog["presets"] = existing_presets
     existing_catalog["lora_presets"] = existing_loras
@@ -616,8 +723,10 @@ def build_or_update_catalog(models_dir, presets_path=None, dry_run=False, filter
         "total_loras": len(existing_loras),
         "new_loras": new_loras_count,
         "updated_loras": updated_loras_count,
+        "unavailable_loras": unavailable_loras_count,
         "total_presets": len(existing_presets),
         "new_presets": new_presets_count,
+        "unavailable_presets": unavailable_presets_count,
     }
 
 
@@ -632,5 +741,5 @@ if __name__ == "__main__":
     stats = build_or_update_catalog(target_models_dir)
     print("\nScan completed successfully!")
     print(f"Catalog: {stats['presets_path']}")
-    print(f"Total LoRAs in catalog: {stats['total_loras']} (New: {stats['new_loras']}, Updated: {stats['updated_loras']})")
-    print(f"Total Base Model Presets: {stats['total_presets']} (New: {stats['new_presets']})")
+    print(f"Total LoRAs in catalog: {stats['total_loras']} (New: {stats['new_loras']}, Updated: {stats['updated_loras']}, Unavailable: {stats['unavailable_loras']})")
+    print(f"Total Base Model Presets: {stats['total_presets']} (New: {stats['new_presets']}, Unavailable: {stats['unavailable_presets']})")

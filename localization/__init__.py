@@ -138,8 +138,9 @@ def get_all_editor_translations():
                 f_path = os.path.join(LOCALIZATION_DIR, fname)
                 data = _load_json_file(f_path)
                 editor_dict = data.get("editor", {})
-                if editor_dict:
-                    translations[lang_code] = editor_dict
+                merged = {k: v for k, v in data.items() if k != "editor"}
+                merged.update(editor_dict)
+                translations[lang_code] = merged
     return translations
 
 # Automatische Initialisierung beim Modulimport

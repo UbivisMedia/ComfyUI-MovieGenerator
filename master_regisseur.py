@@ -53,6 +53,18 @@ from lib.llm_manager import (
     lms_load as lms_cli_load,
     lms_unload as lms_cli_unload,
 )
+from lib.color_manager import (
+    COLOR_LOOKS,
+    GRAIN_PRESETS,
+    LETTERBOX_PRESETS,
+    build_color_filter,
+    get_color_catalog,
+)
+from lib.tts_manager import (
+    generate_voiceover_stem,
+    mix_voiceover_into_scene_clip,
+    get_available_voices,
+)
 
 # Base directories
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -723,6 +735,25 @@ def extract_video_frame(video_path, time_offset="00:00:01.000"):
         pass
     return None
 
+def find_scene_video_file(scenes_dir, scene_id):
+    """Finds an existing rendered video file (.mp4 or .webm) for a specific scene id."""
+    if not scenes_dir or not os.path.exists(scenes_dir) or scene_id is None:
+        return None
+    try:
+        s_id_int = int(scene_id)
+        candidates = [
+            f"Szene_{s_id_int:02d}.mp4", f"Szene_{s_id_int}.mp4",
+            f"szene_{s_id_int:02d}.mp4", f"szene_{s_id_int}.mp4",
+            f"Szene_{s_id_int:02d}.webm", f"Szene_{s_id_int}.webm"
+        ]
+    except (ValueError, TypeError):
+        candidates = [f"Szene_{scene_id}.mp4", f"szene_{scene_id}.mp4"]
+    for c_name in candidates:
+        c_p = os.path.join(scenes_dir, c_name)
+        if os.path.exists(c_p):
+            return c_p
+    return None
+
 def create_preview_image_with_metadata(video_path, preview_png_path, a1111_params_text="", prompt_workflow=None, time_offset="00:00:01.000"):
     """Extracts a frame from a video and saves it as a PNG with Civitai-compatible metadata (parameters & prompt)."""
     frame_bytes = extract_video_frame(video_path, time_offset=time_offset)
@@ -1270,6 +1301,8 @@ def get_available_scene_loras(t2i_presets):
     available = {}
     excluded = {"mmh3_fl2v_lightx2v_turbo", "mmh3_turbo_ckpt850", "mmh3_turbo_4step"}
     for k, v in lora_presets.items():
+        if v.get("available") is False:
+            continue
         if k in excluded:
             continue
         compat = v.get("kompatible_modelle", [])
@@ -1332,10 +1365,12 @@ def ask_lm_studio(
         prev_summary = previous_shot_context.get("summary", "").strip()
         is_same_seq = previous_shot_context.get("same_sequence", False)
         is_same_scene = previous_shot_context.get("same_scene", False) or same_scene
+        is_explicit_anchor = previous_shot_context.get("is_explicit_anchor", False)
 
-        if is_same_seq or is_same_scene or direct_continuation or use_previous_scene:
+        if is_same_seq or is_same_scene or direct_continuation or use_previous_scene or is_explicit_anchor:
+            anchor_title = f"ANCHOR SCENE #{prev_id} (Parallel storyline / Cross-cutting return)" if is_explicit_anchor else f"PRECEDING SHOT #{prev_id}"
             continuity_rules.append(
-                f"- PRECEDING SHOT #{prev_id} ACTION: \"{prev_summary}\"\n"
+                f"- {anchor_title} ACTION: \"{prev_summary}\"\n"
                 "- PHYSICAL CONTINUITY (CRITICAL):\n"
                 f"  * Characters are ALREADY in the physical posture, position, and proximity established at the end of Shot #{prev_id}.\n"
                 "  * DO NOT REPEAT ACTIONS: Never have characters walk up again, sit down again, or reach across if they already completed that action in the preceding shot!\n"
@@ -1344,18 +1379,30 @@ def ask_lm_studio(
             )
 
     if direct_continuation:
-        matchcut_snippet = load_prompt_template(
-            "continuity_matchcut.txt",
-            "CRITICAL CONTINUITY: This scene is a DIRECT SEAMLESS CONTINUATION (match cut) starting from the exact final frame of the previous scene. The action and character motion must immediately pick up where the previous scene ended without resetting posture or changing camera angle abruptly."
-        )
-        continuity_rules.append(f"- MATCH CUT: {matchcut_snippet.strip()}")
+        if previous_shot_context and previous_shot_context.get("is_explicit_anchor"):
+            prev_id = previous_shot_context.get("id", "?")
+            continuity_rules.append(
+                f"- MATCH CUT: CRITICAL CONTINUITY: This scene is a DIRECT SEAMLESS CONTINUATION (match cut) picking up directly from the exact final frame of Anchor Scene #{prev_id} (returning from a parallel storyline/cross-cut). The action and character motion must immediately resume where Scene #{prev_id} ended without resetting posture or changing camera angle abruptly."
+            )
+        else:
+            matchcut_snippet = load_prompt_template(
+                "continuity_matchcut.txt",
+                "CRITICAL CONTINUITY: This scene is a DIRECT SEAMLESS CONTINUATION (match cut) starting from the exact final frame of the previous scene. The action and character motion must immediately pick up where the previous scene ended without resetting posture or changing camera angle abruptly."
+            )
+            continuity_rules.append(f"- MATCH CUT: {matchcut_snippet.strip()}")
 
     if use_previous_scene:
-        env_snippet = load_prompt_template(
-            "continuity_environment.txt",
-            "The user wants to keep the continuity from the previous scene. You MUST include '<Video 1> establishes the environment' in your detailed description so the model knows to use the previous video as a reference for the location/setting."
-        )
-        continuity_rules.append(f"- ENVIRONMENT: {env_snippet.strip()}")
+        if previous_shot_context and previous_shot_context.get("is_explicit_anchor"):
+            prev_id = previous_shot_context.get("id", "?")
+            continuity_rules.append(
+                f"- ENVIRONMENT: The user wants to keep the continuity directly from Anchor Scene #{prev_id}. You MUST include '<Video 1> establishes the environment' in your detailed description so the model knows to use Scene #{prev_id}'s video as a reference for the location/setting."
+            )
+        else:
+            env_snippet = load_prompt_template(
+                "continuity_environment.txt",
+                "The user wants to keep the continuity from the previous scene. You MUST include '<Video 1> establishes the environment' in your detailed description so the model knows to use the previous video as a reference for the location/setting."
+            )
+            continuity_rules.append(f"- ENVIRONMENT: {env_snippet.strip()}")
 
     continuity_instruction = "\n".join(continuity_rules) if continuity_rules else "Independent shot. Standard scene staging."
     video_instruction = f"\n\nIMPORTANT CONTINUITY INSTRUCTIONS:\n{continuity_instruction}" if continuity_rules else ""
@@ -1380,6 +1427,14 @@ CRITICAL CHARACTER WARDROBE & STATE CONTINUITY:
 - MANDATORY SUBJECT TAGGING: In 'detailed_description' under [Shot 1], you MUST refer to characters exclusively by their tag '<Subject X>' (e.g. '<Subject 1>') alongside their action, NEVER solely by their character name. Minimax models rely on '<Subject X>' to bind the description to '<Picture X>'.
 - CRITICAL VISUAL STYLE: State the visual medium clearly in [Shot 1]: If live-action, specify 'photorealistic 35mm cinematic film footage, real life camera shot, hyperrealistic textures'. If animated/anime, specify 'cel-shaded vibrant anime style, expressive animation aesthetics'.
 
+CRITICAL DETAILED CINEMATIC DESCRIPTION STANDARD:
+In 'detailed_description' under [Shot 1], do NOT write short, superficial summaries. Provide an immersive, multi-sentence cinematic description covering:
+1. Exact Camera Framing & Staging: Shot scale (wide, medium, extreme close-up, low-angle, over-the-shoulder), perspective, lighting atmosphere (volumetric light, golden hour, deep shadows, rim lighting).
+2. Physical Dynamics & Environmental Tactility: Muscle tension, gaze, micro-expressions, ground interaction (dust kicking up, debris, rain, water), surface textures (skin, hair/fur, fabric, sheen).
+3. Dedicated 'Cinematic details:' line specifying depth of field (DOF), rim lighting, lens bokeh, shutter effect, contrast.
+4. Dedicated '[Camera Movement Suggestion]:' line specifying exact camera motion (e.g. slow tracking shot, gentle dolly zoom / push-in, 360-degree orbit, fast whip pan / tilt).
+5. Strictly NO background music, soundtrack, or instrument names!
+
 CRITICAL SCENE & SHOT CONTINUITY:
 {continuity_instruction}
 
@@ -1395,7 +1450,11 @@ summary:
 [reference generation] <1 sentence summary of the action in English>
 
 detailed_description:
-[Shot 1]: A medium shot frames ... Detailed cinematic description of the action in English.{video_instruction}
+[Shot 1]: <Multi-sentence immersive cinematic description in English specifying camera framing, subject action with <Subject X> tags, anatomy/tension, environmental lighting, and tactile physics>{video_instruction}
+
+Cinematic details: <Shallow depth of field (DOF), volumetric lighting, dramatic rim light, focal sharpness, bokeh>
+
+[Camera Movement Suggestion]: <Precise camera motion direction, e.g. slow steady tracking shot, gentle dolly zoom, smooth orbit, dynamic pan/tilt>
 
 overall_soundscape:
 <Realistic diegetic environmental noise, foley, and spoken dialogue if any. Strictly NO background music>
@@ -1571,12 +1630,14 @@ def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_
             s_id_str = f"{int(s_id):02d}" if str(s_id).isdigit() else str(s_id)
             s_dur = s.get("dauer") or s.get("dauer_sekunden") or s.get("duration") or 5
             s_cont_parts = []
+            conn_target = s.get("connect_to_scene")
+            conn_suffix = f" -> #{conn_target}" if conn_target is not None else ""
             if s.get("direkter_anschluss") or s.get("direct_continuation") or s.get("match_cut"):
-                s_cont_parts.append("[Match Cut]")
+                s_cont_parts.append(f"[Match Cut{conn_suffix}]")
             elif s.get("gleiche_szene") or s.get("same_scene") or s.get("angle_change"):
-                s_cont_parts.append("[Same Scene Angle]")
+                s_cont_parts.append(f"[Same Scene Angle{conn_suffix}]")
             elif s.get("nutze_vorherige_szene") or s.get("anschluss_an_vorherige_szene") or s.get("continuity_environment") or s.get("continuity"):
-                s_cont_parts.append("[Environment Ref]")
+                s_cont_parts.append(f"[Environment Ref{conn_suffix}]")
                 
             s_seq = s.get("sequenz") or s.get("sequence") or s.get("ort") or s.get("location")
             if s_seq:
@@ -1674,6 +1735,22 @@ def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_
         "circlecrop": "circlecrop",
     }
 
+    # Resolve Color Grading, Film Grain & Letterbox settings (v1.3)
+    global_color_cfg = (screenplay.get("color_grading") if isinstance(screenplay, dict) else None) or SETTINGS.get("color_grading", {})
+    global_look = str(screenplay.get("color_grade") or global_color_cfg.get("look") or "none").strip().lower()
+    global_grain = str(screenplay.get("film_grain") or global_color_cfg.get("film_grain") or "none").strip().lower()
+    global_letterbox = str(screenplay.get("letterbox") or global_color_cfg.get("letterbox") or "none").strip().lower()
+    custom_lut = screenplay.get("lut_file") if isinstance(screenplay, dict) else None
+
+    # Check for scene-specific color grading overrides
+    has_scene_color_override = False
+    for sc in scene_lookup.values():
+        if sc.get("color_grade") or sc.get("film_grain"):
+            has_scene_color_override = True
+            break
+
+    has_color_filter = (global_look != "none" or global_grain != "none" or global_letterbox != "none" or bool(custom_lut) or has_scene_color_override)
+
     transitions_to_apply = []
     has_custom_transition = False
     for i in range(len(scene_files) - 1):
@@ -1691,7 +1768,7 @@ def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_
         if t_type is not None:
             has_custom_transition = True
 
-    if not has_custom_transition or len(scene_files) <= 1:
+    if not has_custom_transition and not has_color_filter and len(scene_files) > 1:
         # Fast lossless stream concatenation via ffmpeg_list.txt
         cmd = [
             "ffmpeg", "-y",
@@ -1702,8 +1779,12 @@ def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_
             final_video_path
         ]
     else:
-        # Cinematic transition assembly via FFmpeg xfade + acrossfade filter complex
-        print("   🎬 Wende filmische Szenenübergänge (xfade) an...")
+        # Filter complex assembly: transitions, color grading, film grain & letterboxing
+        if has_color_filter:
+            print(f"   🎨 Wende filmisches Color Grading an: Look='{global_look}', Körnung='{global_grain}', Framing='{global_letterbox}'...")
+        if has_custom_transition:
+            print("   🎬 Wende filmische Szenenübergänge (xfade) an...")
+
         inputs_cmd = []
         filter_steps = []
         durations = []
@@ -1717,7 +1798,19 @@ def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_
             has_a = has_audio_stream(spath)
             has_audios.append(has_a)
 
-            filter_steps.append(f"[{i}:v]format=yuv420p[v_in_{i}]")
+            # Check for scene-specific color grade
+            m_s = re.search(r'(\d+)', sfile)
+            sid_s = str(int(m_s.group(1))) if m_s else str(i + 1)
+            sc_info = scene_lookup.get(sid_s, {})
+            sc_look = sc_info.get("color_grade")
+            sc_grain = sc_info.get("film_grain")
+
+            if sc_look or sc_grain:
+                sc_f = build_color_filter(look=sc_look or global_look, grain=sc_grain or "none")
+                filter_steps.append(f"[{i}:v]format=yuv420p{',' + sc_f if sc_f else ''}[v_in_{i}]")
+            else:
+                filter_steps.append(f"[{i}:v]format=yuv420p[v_in_{i}]")
+
             if has_a:
                 filter_steps.append(f"[{i}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo[a_in_{i}]")
             else:
@@ -1752,6 +1845,18 @@ def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_
 
             cur_v = out_v
             cur_a = out_a
+
+        # Apply global master color grading, film grain & letterboxing if not already applied per-scene
+        if not has_scene_color_override and (global_look != "none" or global_grain != "none" or global_letterbox != "none" or custom_lut):
+            master_cf = build_color_filter(look=global_look, grain=global_grain, letterbox=global_letterbox, custom_lut_path=custom_lut)
+            if master_cf:
+                filter_steps.append(f"[{cur_v}]{master_cf}[v_graded]")
+                cur_v = "v_graded"
+        elif global_letterbox != "none":
+            lb_f = build_color_filter(letterbox=global_letterbox)
+            if lb_f:
+                filter_steps.append(f"[{cur_v}]{lb_f}[v_graded]")
+                cur_v = "v_graded"
 
         meta_input_idx = len(scene_files)
         inputs_cmd.extend(["-i", "ffmetadata.txt"])
@@ -2402,6 +2507,20 @@ def main():
                 scene.get("continuity")
             )
 
+            # Anchor scene target for match cuts / continuity (e.g. for parallel storylines)
+            raw_connect = (
+                scene.get("connect_to_scene") or 
+                scene.get("connect_to") or 
+                scene.get("anschluss_an_szene") or 
+                scene.get("match_cut_scene")
+            )
+            connect_to_scene_id = None
+            if raw_connect not in (None, "", False):
+                try:
+                    connect_to_scene_id = int(raw_connect)
+                except (ValueError, TypeError):
+                    connect_to_scene_id = str(raw_connect).strip()
+
             # Detect if this shot belongs to the same ongoing sequence/scene
             is_same_seq = False
             if previous_shot_info:
@@ -2447,16 +2566,62 @@ def main():
             raw_scene_idea = scene.get("idee") or scene.get("idea") or scene.get("prompt") or ""
             scene_idea = interpolate_variables(raw_scene_idea, active_variables)
 
-            # Build context of the previous shot for LM Studio
+            # Build context of the previous / anchor shot for LM Studio
             prev_shot_ctx = None
-            if previous_shot_info:
+            explicit_anchor_scene = None
+            if connect_to_scene_id is not None:
+                # Look in prepared_scenes first (which have the generated summaries)
+                for ps in prepared_scenes:
+                    if is_matching_scene_id(ps.get("id"), connect_to_scene_id):
+                        explicit_anchor_scene = ps
+                        break
+                # Fallback to scenes_list if not in prepared_scenes
+                if not explicit_anchor_scene:
+                    for s_prev in scenes_list[:idx]:
+                        if is_matching_scene_id(s_prev.get("id"), connect_to_scene_id):
+                            explicit_anchor_scene = s_prev
+                            break
+
+            if explicit_anchor_scene:
+                anchor_id = explicit_anchor_scene.get("id", connect_to_scene_id)
+                anchor_summary = (
+                    explicit_anchor_scene.get("summary") or 
+                    explicit_anchor_scene.get("idee") or 
+                    explicit_anchor_scene.get("idea") or 
+                    explicit_anchor_scene.get("prompt") or 
+                    ""
+                ).strip()
+                if "summary:" in anchor_summary.lower():
+                    m_s = re.search(r'summary:\s*([^\n]+(?:\n[^\n]+)?)', anchor_summary, re.IGNORECASE)
+                    if m_s:
+                        anchor_summary = m_s.group(1).strip()
+                anchor_seq = (
+                    explicit_anchor_scene.get("sequenz") or 
+                    explicit_anchor_scene.get("sequence") or 
+                    explicit_anchor_scene.get("scene_group")
+                )
+                anchor_loc = (
+                    explicit_anchor_scene.get("ort") or 
+                    explicit_anchor_scene.get("location")
+                )
+                prev_shot_ctx = {
+                    "id": anchor_id,
+                    "summary": anchor_summary,
+                    "same_sequence": bool(seq_name and anchor_seq and str(seq_name).strip().lower() == str(anchor_seq).strip().lower()),
+                    "same_scene": same_scene,
+                    "sequence": seq_name or anchor_seq,
+                    "location": loc_name or anchor_loc,
+                    "is_explicit_anchor": True
+                }
+            elif previous_shot_info:
                 prev_shot_ctx = {
                     "id": previous_shot_info["id"],
                     "summary": previous_shot_info["summary"],
                     "same_sequence": is_same_seq,
                     "same_scene": same_scene,
                     "sequence": seq_name or previous_shot_info.get("sequence"),
-                    "location": loc_name or previous_shot_info.get("location")
+                    "location": loc_name or previous_shot_info.get("location"),
+                    "is_explicit_anchor": False
                 }
 
             seq_info = {
@@ -2563,6 +2728,8 @@ def main():
                 scene["sequence"] = seq_name
             if loc_name and "ort" not in scene and "location" not in scene:
                 scene["location"] = loc_name
+            if connect_to_scene_id is not None:
+                scene["connect_to_scene"] = connect_to_scene_id
 
             prepared_scenes.append({
                 "id": scene_id,
@@ -2574,6 +2741,7 @@ def main():
                 "characters": scene_chars,
                 "nutze_vorherige_szene": use_previous_scene,
                 "direkter_anschluss": direct_continuation,
+                "connect_to_scene": connect_to_scene_id,
                 "gleiche_szene": same_scene,
                 "sequenz": seq_name,
                 "ort": loc_name,
@@ -2586,12 +2754,13 @@ def main():
             })
 
             continuity_badges = []
+            conn_badge_suffix = f" (🔗 #{connect_to_scene_id})" if connect_to_scene_id is not None else ""
             if direct_continuation:
-                continuity_badges.append(t("scene_continuity_seamless"))
+                continuity_badges.append(t("scene_continuity_seamless") + conn_badge_suffix)
             elif same_scene:
-                continuity_badges.append(t("scene_continuity_same_scene"))
+                continuity_badges.append(t("scene_continuity_same_scene") + conn_badge_suffix)
             elif use_previous_scene:
-                continuity_badges.append(t("scene_continuity_ref"))
+                continuity_badges.append(t("scene_continuity_ref") + conn_badge_suffix)
             if seq_name:
                 continuity_badges.append(t("scene_sequence_badge", seq=seq_name))
 
@@ -3183,8 +3352,28 @@ def main():
 
 
             
-        if scene_data["nutze_vorherige_szene"] and last_video_data is not None:
-            uploaded_video = upload_file(last_video_data, "previous_scene.mp4", "video/mp4")
+        # Resolve anchor scene video for continuity & match cut
+        conn_target_id = scene_data.get("connect_to_scene")
+        anchor_video_path = None
+        anchor_video_data = None
+
+        if conn_target_id is not None:
+            anchor_found = find_scene_video_file(scenes_dir, conn_target_id)
+            if anchor_found and os.path.exists(anchor_found):
+                anchor_video_path = anchor_found
+                try:
+                    with open(anchor_video_path, "rb") as vf:
+                        anchor_video_data = vf.read()
+                except Exception as e:
+                    print(f"   ⚠️ Could not read anchor video file '{anchor_video_path}': {e}")
+            else:
+                print(f"   ⚠️ Specified anchor scene #{conn_target_id} video not found in '{scenes_dir}'")
+        else:
+            anchor_video_path = last_video_path
+            anchor_video_data = last_video_data
+
+        if scene_data["nutze_vorherige_szene"] and anchor_video_data is not None:
+            uploaded_video = upload_file(anchor_video_data, f"ref_scene_{conn_target_id or 'prev'}.mp4", "video/mp4")
             # Limit reference video to 672x384 and 33 frames (VAE encoding <45s)
             wf_i2v["9100"] = {
                 "inputs": {
@@ -3199,12 +3388,18 @@ def main():
                 "class_type": "VHS_LoadVideo"
             }
             wf_i2v["136"]["inputs"]["ref_videos.ref_video_0"] = ["9100", 0]
-            print(t("scene_linking_prev"))
+            if conn_target_id is not None:
+                print(f"   🔗 Environment reference linked from Anchor Scene #{conn_target_id}")
+            else:
+                print(t("scene_linking_prev"))
 
         # 1. Forward direct match cut via MiniMaxH3AddGuide (first_frame, frame_idx: 0)
-        if scene_data.get("direkter_anschluss") and last_video_path is not None:
-            print(t("scene_extracting_last_frame"))
-            last_frame_bytes = extract_last_frame(last_video_path)
+        if scene_data.get("direkter_anschluss") and anchor_video_path is not None:
+            if conn_target_id is not None:
+                print(f"   🎬 Extracting final frame from Anchor Scene #{conn_target_id} ({os.path.basename(anchor_video_path)})...")
+            else:
+                print(t("scene_extracting_last_frame"))
+            last_frame_bytes = extract_last_frame(anchor_video_path)
             if last_frame_bytes:
                 uploaded_frame_name = upload_file(last_frame_bytes, f"last_frame_scene_{szene_id}.png", "image/png")
                 wf_i2v["9200"] = {
@@ -3226,17 +3421,30 @@ def main():
             else:
                 print(t("scene_extract_last_frame_failed"))
 
-        # 2. Backward direct match cut: If next scene already exists and requested match cut, anchor its start frame as our last frame (frame_idx: -1)
-        if idx + 1 < len(prepared_scenes):
-            next_scene_data = prepared_scenes[idx + 1]
-            next_id = next_scene_data.get("id", idx + 2)
-            next_match_cut = bool(
-                next_scene_data.get("direkter_anschluss") or 
-                next_scene_data.get("direct_continuation") or 
-                next_scene_data.get("match_cut")
+        # 2. Backward direct match cut: If a connecting scene already exists and requested match cut, anchor its start frame as our last frame (frame_idx: -1)
+        connecting_subsequent_scene = None
+        for sub_idx in range(idx + 1, len(prepared_scenes)):
+            cand = prepared_scenes[sub_idx]
+            cand_conn = cand.get("connect_to_scene")
+            cand_match_cut = bool(
+                cand.get("direkter_anschluss") or 
+                cand.get("direct_continuation") or 
+                cand.get("match_cut")
             )
-            next_target_file = os.path.join(scenes_dir, f"Szene_{next_id:02d}.mp4")
-            if next_match_cut and os.path.exists(next_target_file):
+            if not cand_match_cut:
+                continue
+            if cand_conn is not None:
+                if is_matching_scene_id(cand_conn, szene_id):
+                    connecting_subsequent_scene = cand
+                    break
+            elif sub_idx == idx + 1:
+                connecting_subsequent_scene = cand
+                break
+
+        if connecting_subsequent_scene:
+            next_id = connecting_subsequent_scene.get("id", idx + 2)
+            next_target_file = find_scene_video_file(scenes_dir, next_id)
+            if next_target_file and os.path.exists(next_target_file):
                 print(t("scene_extracting_next_first_frame", next_id=next_id))
                 next_first_frame_bytes = extract_video_frame(next_target_file, time_offset="00:00:00.000")
                 if next_first_frame_bytes:
@@ -3299,6 +3507,26 @@ def main():
                                     vf.write(vid_data)
                                 last_video_data = vid_data
                                 last_video_path = target_path
+
+                                # Check for Scene Voiceover Narration (v1.3)
+                                vo_text = str(scene_data.get("voiceover") or scene_data.get("narration") or scene_data.get("voice_over") or "").strip()
+                                if vo_text:
+                                    vo_voice = str(scene_data.get("voiceover_voice") or scene_data.get("voice") or SETTINGS.get("voiceover", {}).get("default_voice", "de-DE-ConradNeural")).strip()
+                                    vo_stem_path = os.path.join(scenes_dir, f"Szene_{s_id_num:02d}_vo.wav")
+                                    print(f"   🎙️ Generiere Voiceover für Szene {s_id_num:02d} ({vo_voice})...")
+                                    ok_vo, _, vo_dur, err_vo = generate_voiceover_stem(vo_text, voice=vo_voice, output_wav_path=vo_stem_path)
+                                    if ok_vo:
+                                        print(f"   ✔ Voiceover generiert ({vo_dur:.1f}s). Mische Voiceover in Szenen-Clip...")
+                                        temp_mixed_mp4 = target_path + ".vo.mp4"
+                                        vo_vol = float(SETTINGS.get("voiceover", {}).get("volume", 1.0))
+                                        foley_vol = float(SETTINGS.get("voiceover", {}).get("foley_volume", 0.85))
+                                        if mix_voiceover_into_scene_clip(target_path, vo_stem_path, temp_mixed_mp4, vo_volume=vo_vol, foley_volume=foley_vol):
+                                            try:
+                                                os.replace(temp_mixed_mp4, target_path)
+                                            except Exception:
+                                                shutil.move(temp_mixed_mp4, target_path)
+                                    else:
+                                        print(f"   ⚠️ Voiceover-Generierung fehlgeschlagen: {err_vo}")
                                 
                                 # Inject Civitai-compatible metadata tags into the scene MP4
                                 scene_meta_desc = (

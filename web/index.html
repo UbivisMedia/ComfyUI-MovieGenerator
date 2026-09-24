@@ -469,21 +469,91 @@
 
   <!-- Launch / Render Modal -->
   <div id="renderModal" class="modal-backdrop">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-lg render-modal-dialog">
       <div class="modal-header">
         <h3 class="modal-title" data-i18n="modalRenderTitle">⚡ Film rendern & starten</h3>
         <button class="modal-close" id="btnCloseRenderModal">✕</button>
       </div>
       <div class="modal-body">
-        <p data-i18n="modalRenderDesc">Um diesen Film mit dem MovieGenerator zu produzieren, kannst du entweder das
-          Terminal-Kommando ausführen oder die Datei auswählen:</p>
-        <div class="terminal-box">
-          <code id="renderCliCommand">python master_regisseur.py Projects/film.json</code>
-          <button id="btnCopyCli" class="btn btn-secondary btn-xs" data-i18n="btnCopy">Kopieren</button>
+        <!-- Direct Production Panel -->
+        <div class="render-direct-panel">
+          <div class="render-project-header">
+            <div class="render-project-info">
+              <span class="render-project-badge" id="renderProjectBadge" data-i18n="productionSummary">Projekt</span>
+              <h4 id="renderProjectTitle" class="render-project-name">Mein Film</h4>
+              <span id="renderProjectFilename" class="render-project-file">film.json</span>
+            </div>
+            <div class="render-project-meta" id="renderProjectMeta">
+              <span id="renderMetaScenes" class="badge badge-subtle">0 Szenen</span>
+              <span id="renderMetaChars" class="badge badge-subtle">0 Charaktere</span>
+            </div>
+          </div>
+
+          <!-- Status Banner -->
+          <div id="renderStatusBanner" class="render-status-banner status-idle">
+            <div class="render-status-icon-wrap">
+              <span id="renderStatusIcon" class="render-status-icon">🎬</span>
+            </div>
+            <div class="render-status-content">
+              <div class="render-status-title-row">
+                <h5 id="renderStatusTitle" class="render-status-title" data-i18n="renderReadyTitle">Bereit zur Filmproduktion</h5>
+                <span id="renderElapsedTime" class="render-elapsed-time" style="display:none;">⏱ 00:00</span>
+              </div>
+              <p id="renderStatusDesc" class="render-status-desc" data-i18n="renderReadyDesc">
+                Startet die vollständige Produktion: Prompt-Optimierung, Charakter-Casting (T2I), Szenen-Rendering (I2V) und finale Film-Assemblierung.
+              </p>
+              <div id="renderStatusDetail" class="render-status-detail" style="display:none;"></div>
+            </div>
+          </div>
+
+          <!-- Action Buttons Row -->
+          <div class="render-action-row">
+            <button class="btn btn-primary btn-lg" id="btnStartFullProduction">
+              <span class="btn-icon">⚡</span>
+              <span id="btnStartFullProductionText" data-i18n="btnStartFullProduction">Vollständige Produktion starten</span>
+            </button>
+            <button class="btn btn-danger btn-lg" id="btnCancelFullProduction" style="display:none;">
+              <span class="btn-icon">🛑</span>
+              <span data-i18n="btnCancelProduction">Produktion abbrechen</span>
+            </button>
+            <button class="btn btn-success btn-lg" id="btnPlayProducedMovie" style="display:none;">
+              <span class="btn-icon">▶</span>
+              <span data-i18n="btnPlayProducedMovie">Fertigen Film abspielen</span>
+            </button>
+          </div>
+
+          <!-- Live Log Console -->
+          <div class="render-log-section" id="renderLogSection">
+            <div class="render-log-header">
+              <div class="render-log-title">
+                <span class="log-indicator-dot" id="logIndicatorDot"></span>
+                <span>📋</span> <span data-i18n="renderLiveLog">Live-Produktionsprotokoll</span>
+              </div>
+              <div class="render-log-controls">
+                <button type="button" class="btn btn-secondary btn-xs" id="btnToggleRenderLog" data-i18n="btnHideLogs">Einklappen</button>
+                <button type="button" class="btn btn-secondary btn-xs" id="btnClearRenderLog" data-i18n="btnClearLogs">Leeren</button>
+              </div>
+            </div>
+            <div class="render-log-console" id="renderLogConsole">
+              <div class="log-placeholder" data-i18n="renderLogsEmpty">Noch keine Protokollausgaben. Klicke auf 'Vollständige Produktion starten'.</div>
+            </div>
+          </div>
         </div>
-        <div class="render-instructions">
-          <p data-i18n="modalRenderAlt">Alternativ: Starte start_movie_studio.bat und wähle Menüpunkt [2] oder ziehe die
-            JSON-Datei direkt auf die Datei.</p>
+
+        <!-- Terminal Alternative Section -->
+        <div class="render-modal-divider">
+          <span data-i18n="renderDividerOr">ODER MANUELL IM TERMINAL AUSFÜHREN</span>
+        </div>
+
+        <div class="render-terminal-section">
+          <p data-i18n="modalRenderDesc" class="render-terminal-desc">Um diesen Film alternativ über die Befehlszeile zu produzieren:</p>
+          <div class="terminal-box">
+            <code id="renderCliCommand">python master_regisseur.py Projects/film.json</code>
+            <button id="btnCopyCli" class="btn btn-secondary btn-xs" data-i18n="btnCopy">Kopieren</button>
+          </div>
+          <div class="render-instructions">
+            <p data-i18n="modalRenderAlt">Alternativ: Starte start_movie_studio.bat und wähle Menüpunkt [2] oder ziehe die JSON-Datei direkt auf die Datei.</p>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -1071,6 +1141,12 @@
         <button type="button" class="settings-tab-btn" data-tab="music">
           <span>🎵</span> <span data-i18n="tabSettingsMusic">Music Studio</span>
         </button>
+        <button type="button" class="settings-tab-btn" data-tab="voiceover">
+          <span>🎙️</span> <span data-i18n="tabSettingsVoiceover">Voiceover & TTS</span>
+        </button>
+        <button type="button" class="settings-tab-btn" data-tab="color">
+          <span>🎨</span> <span data-i18n="tabSettingsColor">Color & Film-Look</span>
+        </button>
         <button type="button" class="settings-tab-btn" data-tab="lmstudio">
           <span>🤖</span> <span data-i18n="tabSettingsLms">LM Studio</span>
         </button>
@@ -1238,6 +1314,111 @@
               <span data-i18n="settingMusicDuckingLabel">Smart Auto-Ducking (Musik bei Sprache automatisch
                 absenken)</span>
             </label>
+          </div>
+        </div>
+
+        <!-- Voiceover Tab Pane -->
+        <div class="settings-pane" id="paneSettingsVoiceover">
+          <div class="settings-section-desc" data-i18n="settingsVoiceoverDesc">
+            Konfiguration für automatische Voiceover-Narration, Sprecherstimmen und Audio-Abmischung.
+          </div>
+
+          <div class="settings-form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="settingVoEnabled" checked>
+              <span data-i18n="settingVoEnabledLabel">Voiceover-Generierung standardmäßig aktivieren</span>
+            </label>
+          </div>
+
+          <div class="settings-form-group">
+            <label class="settings-label" for="settingVoDefaultVoice">
+              <span data-i18n="settingVoDefaultVoiceLabel">Standard-Erzählerstimme (Voice)</span>
+            </label>
+            <select id="settingVoDefaultVoice" class="select-input select-sm">
+              <optgroup label="Deutsch (DE)">
+                <option value="de-DE-ConradNeural">Conrad (DE - Tiefer Doku-/Trailer-Sprecher)</option>
+                <option value="de-DE-KatjaNeural">Katja (DE - Klare, warme Erzählerin)</option>
+                <option value="de-DE-KillianNeural">Killian (DE - Dynamisch / Modern)</option>
+                <option value="de-DE-AmalaNeural">Amala (DE - Sanft / Emotional)</option>
+              </optgroup>
+              <optgroup label="English (US/UK)">
+                <option value="en-US-ChristopherNeural">Christopher (US - Cinematic Storyteller)</option>
+                <option value="en-US-JennyNeural">Jenny (US - Warm Narrator)</option>
+                <option value="en-GB-RyanNeural">Ryan (UK - British Documentary)</option>
+                <option value="en-GB-SoniaNeural">Sonia (UK - Elegant Narrator)</option>
+              </optgroup>
+              <optgroup label="Kokoro ONNX (Local)">
+                <option value="am_michael">Michael (Kokoro - US Male)</option>
+                <option value="am_adam">Adam (Kokoro - US Deep Male)</option>
+                <option value="af_sarah">Sarah (Kokoro - US Female)</option>
+                <option value="af_bella">Bella (Kokoro - US Soft Female)</option>
+              </optgroup>
+            </select>
+            <span class="settings-help-text" data-i18n="settingVoDefaultVoiceHelp">Die gewählte Stimme wird für Szenen-Voiceovers verwendet, sofern nicht in der Szene übersteuert.</span>
+          </div>
+
+          <div class="settings-grid-2">
+            <div class="settings-form-group">
+              <label class="settings-label" for="settingVoVolume">
+                <span data-i18n="settingVoVolumeLabel">Voiceover-Lautstärke</span>: <span id="settingVoVolumeVal" class="settings-val-badge">100%</span>
+              </label>
+              <input type="range" id="settingVoVolume" min="0.1" max="2.0" step="0.05" value="1.0" class="range-slider">
+            </div>
+
+            <div class="settings-form-group">
+              <label class="settings-label" for="settingVoFoley">
+                <span data-i18n="settingVoFoleyLabel">Hintergrund-Foley Lautstärke</span>: <span id="settingVoFoleyVal" class="settings-val-badge">85%</span>
+              </label>
+              <input type="range" id="settingVoFoley" min="0.1" max="1.5" step="0.05" value="0.85" class="range-slider">
+            </div>
+          </div>
+        </div>
+
+        <!-- Color Grading Tab Pane -->
+        <div class="settings-pane" id="paneSettingsColor">
+          <div class="settings-section-desc" data-i18n="settingsColorDesc">
+            Filmische Farbstimmungen (3D LUTs), organische 35mm-Filmkörnung und Letterboxing für Kinoästhetik.
+          </div>
+
+          <div class="settings-form-group">
+            <label class="settings-label" for="settingColorLook">
+              <span data-i18n="settingColorLookLabel">Standard Film-Look / Farbkorrektur</span>
+            </label>
+            <select id="settingColorLook" class="select-input select-sm">
+              <option value="none">Natürlich (Original ohne Grading)</option>
+              <option value="teal_orange">Teal & Orange (Moderner Blockbuster-Look)</option>
+              <option value="warm_golden">Goldene Stunde (Warm Sunset / Romantisch)</option>
+              <option value="bleach_bypass">Bleach Bypass (Harter Kontrast / Gritty Drama)</option>
+              <option value="film_noir">Film Noir (Klassisches Schwarz-Weiß)</option>
+              <option value="matrix_cyber">Matrix / Cyber Green (Kühles Sci-Fi-Grün)</option>
+              <option value="vintage_film">Vintage 1970s (Nostalgisches Zelluloid)</option>
+            </select>
+            <span class="settings-help-text" data-i18n="settingColorLookHelp">Verleiht allen Szenen eine einheitliche cineastische Farbpalette.</span>
+          </div>
+
+          <div class="settings-grid-2">
+            <div class="settings-form-group">
+              <label class="settings-label" for="settingColorGrain">
+                <span data-i18n="settingColorGrainLabel">Organische 35mm Filmkörnung</span>
+              </label>
+              <select id="settingColorGrain" class="select-input select-sm">
+                <option value="none">Keine Körnung (Glatt)</option>
+                <option value="subtle">Dezent (35mm Feinkorn - Empfohlen)</option>
+                <option value="medium">Mittel (35mm Klassisch)</option>
+                <option value="heavy">Stark (16mm Vintage / Rau)</option>
+              </select>
+              <span class="settings-help-text" data-i18n="settingColorGrainHelp">Beseitigt künstliche KI-Glätte und Texturbrüche.</span>
+            </div>
+
+            <div class="settings-form-group">
+              <label class="settings-label" for="settingColorLetterbox">
+                <span data-i18n="settingColorLetterboxLabel">Format & Kinobalken (Letterbox)</span>
+              </label>
+              <select id="settingColorLetterbox" class="select-input select-sm">
+                <option value="none">16:9 Standard Vollbild</option>
+                <option value="cinemascope">Cinemascope 21:9 (2.39:1 Kinobalken)</option>
+              </select>
+            </div>
           </div>
         </div>
 

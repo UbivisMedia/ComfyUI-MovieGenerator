@@ -159,6 +159,25 @@
     btnCloseRenderModalBtn: document.getElementById('btnCloseRenderModalBtn'),
     renderCliCommand: document.getElementById('renderCliCommand'),
     btnCopyCli: document.getElementById('btnCopyCli'),
+    renderProjectTitle: document.getElementById('renderProjectTitle'),
+    renderProjectFilename: document.getElementById('renderProjectFilename'),
+    renderMetaScenes: document.getElementById('renderMetaScenes'),
+    renderMetaChars: document.getElementById('renderMetaChars'),
+    renderStatusBanner: document.getElementById('renderStatusBanner'),
+    renderStatusIcon: document.getElementById('renderStatusIcon'),
+    renderStatusTitle: document.getElementById('renderStatusTitle'),
+    renderStatusDesc: document.getElementById('renderStatusDesc'),
+    renderStatusDetail: document.getElementById('renderStatusDetail'),
+    renderElapsedTime: document.getElementById('renderElapsedTime'),
+    btnStartFullProduction: document.getElementById('btnStartFullProduction'),
+    btnStartFullProductionText: document.getElementById('btnStartFullProductionText'),
+    btnCancelFullProduction: document.getElementById('btnCancelFullProduction'),
+    btnPlayProducedMovie: document.getElementById('btnPlayProducedMovie'),
+    renderLogSection: document.getElementById('renderLogSection'),
+    renderLogConsole: document.getElementById('renderLogConsole'),
+    btnToggleRenderLog: document.getElementById('btnToggleRenderLog'),
+    btnClearRenderLog: document.getElementById('btnClearRenderLog'),
+    logIndicatorDot: document.getElementById('logIndicatorDot'),
 
     // In-App Guide Modal Elements
     btnGuide: document.getElementById('btnGuide'),
@@ -276,7 +295,18 @@
     settingComfyServer: document.getElementById('settingComfyServer'),
     settingComfyModelsDir: document.getElementById('settingComfyModelsDir'),
     settingLanguage: document.getElementById('settingLanguage'),
-    settingExportWebm: document.getElementById('settingExportWebm')
+    settingExportWebm: document.getElementById('settingExportWebm'),
+
+    // Voiceover & Color Settings Elements (v1.3)
+    settingVoEnabled: document.getElementById('settingVoEnabled'),
+    settingVoDefaultVoice: document.getElementById('settingVoDefaultVoice'),
+    settingVoVolume: document.getElementById('settingVoVolume'),
+    valVoVolume: document.getElementById('settingVoVolumeVal'),
+    settingVoFoley: document.getElementById('settingVoFoley'),
+    valVoFoley: document.getElementById('settingVoFoleyVal'),
+    settingColorLook: document.getElementById('settingColorLook'),
+    settingColorGrain: document.getElementById('settingColorGrain'),
+    settingColorLetterbox: document.getElementById('settingColorLetterbox')
   };
 
   // --- Language Switching Engine ---
@@ -503,6 +533,38 @@
       return data;
     },
 
+    async startMovieProduction(project) {
+      const res = await fetch('/api/movie/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Starten der Filmproduktion');
+      }
+      return data;
+    },
+
+    async getMovieProductionStatus(project) {
+      const res = await fetch(`/api/movie/render/status?project=${encodeURIComponent(project)}`);
+      if (!res.ok) throw new Error('Fehler beim Abrufen des Produktionsstatus');
+      return await res.json();
+    },
+
+    async cancelMovieProduction(project) {
+      const res = await fetch('/api/movie/render/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Abbrechen der Produktion');
+      }
+      return data;
+    },
+
     async getSettings() {
       const res = await fetch('/api/settings');
       if (!res.ok) throw new Error('Fehler beim Laden der Einstellungen');
@@ -684,6 +746,18 @@
     }
   }
 
+  function getDefaultModel() {
+    const presets = (state.presetsData && state.presetsData.presets) || {};
+    const def = state.presetsData && state.presetsData.default;
+    if (def && presets[def] && presets[def].available !== false) {
+      return def;
+    }
+    for (const [k, v] of Object.entries(presets)) {
+      if (v && v.available !== false) return k;
+    }
+    return def || 'anima_catpony';
+  }
+
   // --- Normalize Legacy Screenplay Data ---
   function normalizeScreenplay(data, filename = '') {
     if (!data || typeof data !== 'object') data = {};
@@ -718,7 +792,7 @@
       rawChars = [];
     }
 
-    const defaultModel = (state.presetsData && state.presetsData.default) || 'anima_catpony';
+    const defaultModel = getDefaultModel();
     norm.characters = rawChars.map((c, idx) => {
       if (!c || typeof c !== 'object') c = { name: String(c) };
       const cId = c.id || (idx + 1);
@@ -845,6 +919,11 @@
       if (sMatchCut) sceneObj.match_cut = true;
       if (sSameScene) sceneObj.same_scene = true;
       if (sRefPrev) sceneObj.use_previous_scene = true;
+      const sConnectTo = s.connect_to_scene || s.connect_to || s.anschluss_an_szene || s.match_cut_scene || s.continuation_scene;
+      if (sConnectTo !== undefined && sConnectTo !== null && String(sConnectTo).trim() !== '') {
+        const parsedC = parseInt(sConnectTo, 10);
+        sceneObj.connect_to_scene = !isNaN(parsedC) ? parsedC : String(sConnectTo).trim();
+      }
       if (Object.keys(sVarUpd).length > 0) sceneObj.variables_update = sVarUpd;
       if (sLoras.length > 0) sceneObj.loras = sLoras;
 
@@ -903,7 +982,7 @@
       return;
     }
 
-    const defaultModel = state.presetsData.default || 'anima_catpony';
+    const defaultModel = getDefaultModel();
     state.currentFilename = 'mein_neuer_film.json';
     state.screenplay = {
       title: state.lang === 'en' ? 'My New Movie' : 'Mein neuer Film',
@@ -1185,9 +1264,10 @@
 
     const charId = char.id || (idx + 1);
     const charName = char.name || `actor_${charId}`;
-    const selectedModel = char.model || char.modell || char.preset || state.presetsData.default || 'anima_catpony';
+    const selectedModel = char.model || char.modell || char.preset || getDefaultModel();
     const presets = state.presetsData.presets || {};
     const currentModelInfo = presets[selectedModel] || {};
+    const isModelUnavailable = !presets[selectedModel] || presets[selectedModel].available === false;
     const modelDesc = currentModelInfo.beschreibung || t('charModelDefaultDesc');
 
     // First appearance scene (continuity check)
@@ -1209,21 +1289,29 @@
     // Model options list
     let modelOptionsHtml = '';
     for (const [mKey, mVal] of Object.entries(presets)) {
-      const isSel = mKey === selectedModel ? 'selected' : '';
+      const isSel = mKey === selectedModel;
+      const isUnavail = mVal.available === false;
+      if (isUnavail && !isSel) {
+        continue;
+      }
+      const unavailMark = isUnavail ? ` [⚠️ ${t('unavailableBadge') || 'Nicht verfügbar'}]` : '';
       const descPart = mVal.beschreibung ? ` — ${mVal.beschreibung.substring(0, 65)}${mVal.beschreibung.length > 65 ? '...' : ''}` : '';
-      const label = `${mKey}${descPart}`;
+      const label = `${mKey}${unavailMark}${descPart}`;
       modelOptionsHtml += `<option value="${mKey}" ${isSel}>${escapeHtml(label)}</option>`;
     }
 
     // LoRA Badges HTML
     let lorasHtml = '';
+    let hasUnavailableLoras = false;
     for (const loraKey of charLoras) {
       const loraData = state.presetsData.lora_presets && state.presetsData.lora_presets[loraKey];
+      const isUnavailable = !loraData || loraData.available === false;
+      if (isUnavailable) hasUnavailableLoras = true;
       const desc = loraData ? loraData.beschreibung : '';
       const strength = loraData && loraData.strength_model ? ` [${loraData.strength_model}]` : '';
       lorasHtml += `
-        <div class="lora-pill" title="${escapeHtml(desc)}">
-          <span>✨ ${escapeHtml(loraKey)}${strength}</span>
+        <div class="lora-pill ${isUnavailable ? 'lora-pill-unavailable' : ''}" title="${escapeHtml(isUnavailable ? (t('loraUnavailableTitle') || 'LoRA lokal nicht mehr vorhanden!') : desc)}">
+          <span>${isUnavailable ? '⚠️' : '✨'} ${escapeHtml(loraKey)}${strength}${isUnavailable ? ` (${escapeHtml(t('unavailableBadge') || 'Nicht verfügbar')})` : ''}</span>
           <span class="btn-remove-lora" data-lora="${escapeHtml(loraKey)}" title="${escapeHtml(t('removeVarTitle'))}">✕</span>
         </div>
       `;
@@ -1306,7 +1394,7 @@
             <span>🎨</span> <span>${escapeHtml(t('btnPickModel') || 'Modell wählen')}</span>
           </button>
         </div>
-        <div class="char-selected-model-card" title="${escapeHtml(t('btnPickModelTitle') || 'Klicken, um Modell zu wechseln')}">
+        <div class="char-selected-model-card ${isModelUnavailable ? 'model-card-unavailable' : ''}" title="${escapeHtml(t('btnPickModelTitle') || 'Klicken, um Modell zu wechseln')}">
           ${currentModelInfo.preview_url ? `
             <div class="char-selected-model-thumb-box">
               ${currentModelInfo.media_type === 'video' ? `
@@ -1321,14 +1409,20 @@
           <div class="char-selected-model-details">
             <div class="char-selected-model-top">
               <span class="char-selected-model-title">${escapeHtml(selectedModel)}</span>
-              <span class="badge-base-family">${escapeHtml(extractModelFamily(selectedModel, currentModelInfo))}</span>
+              ${isModelUnavailable ? `<span class="badge badge-unavailable">⚠️ ${escapeHtml(t('unavailableBadge') || 'Nicht verfügbar')}</span>` : `<span class="badge-base-family">${escapeHtml(extractModelFamily(selectedModel, currentModelInfo))}</span>`}
             </div>
             <div class="char-model-desc">${escapeHtml(modelDesc)}</div>
-            <div class="char-model-specs">
-              <span class="spec-tag">⚡ ${currentModelInfo.steps || 30} Steps</span>
-              <span class="spec-tag">🎯 CFG ${currentModelInfo.cfg || 4.0}</span>
-              <span class="spec-tag">📐 ${escapeHtml(currentModelInfo.aspect_ratio || '3:4')}</span>
-            </div>
+            ${isModelUnavailable ? `
+              <div class="char-model-unavailable-warning">
+                <span>⚠️ ${escapeHtml(t('charModelUnavailableMsg') || 'Dieses Modell ist lokal nicht mehr vorhanden. Bitte wähle ein anderes Modell.')}</span>
+              </div>
+            ` : `
+              <div class="char-model-specs">
+                <span class="spec-tag">⚡ ${currentModelInfo.steps || 30} Steps</span>
+                <span class="spec-tag">🎯 CFG ${currentModelInfo.cfg || 4.0}</span>
+                <span class="spec-tag">📐 ${escapeHtml(currentModelInfo.aspect_ratio || '3:4')}</span>
+              </div>
+            `}
           </div>
         </div>
       </div>
@@ -1344,6 +1438,11 @@
         <div class="char-loras-list">
           ${lorasHtml}
         </div>
+        ${hasUnavailableLoras ? `
+          <div class="char-loras-unavailable-warning">
+            <span>⚠️ ${escapeHtml(t('charLorasUnavailableWarning') || 'Eine oder mehrere zugewiesene LoRAs sind nicht mehr lokal vorhanden.')}</span>
+          </div>
+        ` : ''}
       </div>
 
       <!-- Referenz Charakter (I2I) -->
@@ -1659,7 +1758,7 @@
       if (c.id && typeof c.id === 'number' && c.id > maxId) maxId = c.id;
     }
     const newId = maxId + 1;
-    const defaultModel = state.presetsData.default || 'anima_catpony';
+    const defaultModel = getDefaultModel();
 
     const newChar = {
       id: newId,
@@ -1801,6 +1900,9 @@
 
     for (const lKey of keys) {
       const lora = loraPresets[lKey];
+      if (lora && lora.available === false) {
+        continue;
+      }
       const compatList = Array.isArray(lora.kompatible_modelle) ? lora.kompatible_modelle : [];
       const lNameLower = (lora.lora_name || '').toLowerCase();
       const lKeyLower = lKey.toLowerCase();
@@ -2372,6 +2474,9 @@
 
     for (const mKey of keys) {
       const mVal = presets[mKey] || {};
+      if (mVal && mVal.available === false) {
+        continue;
+      }
       const family = extractModelFamily(mKey, mVal);
       const mKeyLower = mKey.toLowerCase();
       const descLower = (mVal.beschreibung || '').toLowerCase();
@@ -2546,13 +2651,16 @@
     }
 
     let sceneLorasHtml = '';
+    let hasUnavailableSceneLoras = false;
     for (const lKey of sceneLoras) {
       const loraData = state.presetsData.lora_presets && state.presetsData.lora_presets[lKey];
+      const isUnavailable = !loraData || loraData.available === false;
+      if (isUnavailable) hasUnavailableSceneLoras = true;
       const desc = loraData ? loraData.beschreibung : '';
       const strength = loraData && loraData.strength_model ? ` [${loraData.strength_model}]` : '';
       sceneLorasHtml += `
-        <div class="lora-pill lora-pill-video" title="${escapeHtml(desc)}">
-          <span>🎬 ${escapeHtml(lKey)}${strength}</span>
+        <div class="lora-pill lora-pill-video ${isUnavailable ? 'lora-pill-unavailable' : ''}" title="${escapeHtml(isUnavailable ? (t('loraUnavailableTitle') || 'LoRA lokal nicht mehr vorhanden!') : desc)}">
+          <span>${isUnavailable ? '⚠️' : '🎬'} ${escapeHtml(lKey)}${strength}${isUnavailable ? ` (${escapeHtml(t('unavailableBadge') || 'Nicht verfügbar')})` : ''}</span>
           <span class="btn-remove-scene-lora" data-lora="${escapeHtml(lKey)}" title="${escapeHtml(t('removeVarTitle'))}">✕</span>
         </div>
       `;
@@ -2597,6 +2705,19 @@
         <span class="toggle-pill ${isRefPrev ? 'active pill-green' : ''}" data-flag="use_previous_scene" title="${escapeHtml(t('flagRefPrevTitle'))}">
           ${escapeHtml(t('flagRefPrev'))}
         </span>
+        ${idx > 0 ? `
+          <div class="continuity-target-wrapper" style="display:${(isMatchCut || isRefPrev) ? 'inline-flex' : 'none'};" title="${escapeHtml(t('connectToSceneTitle'))}">
+            <label style="font-size:11px;color:var(--text-dim);font-weight:600;">🔗 ${escapeHtml(t('connectToScene'))}</label>
+            <select class="scene-connect-to-select" title="${escapeHtml(t('connectToSceneTitle'))}">
+              <option value="">${escapeHtml(t('connectToPrev'))} (#${allScenes[idx - 1] ? allScenes[idx - 1].id : idx})</option>
+              ${allScenes.slice(0, idx).map(ps => `
+                <option value="${ps.id}" ${String(scene.connect_to_scene) === String(ps.id) ? 'selected' : ''}>
+                  #${ps.id} ${ps.sequence ? `(${escapeHtml(ps.sequence)})` : ''}
+                </option>
+              `).join('')}
+            </select>
+          </div>
+        ` : ''}
       </div>
 
       <!-- Cast in Szene -->
@@ -2621,6 +2742,42 @@
         <textarea class="form-control scene-idea-textarea" rows="3" placeholder="${escapeHtml(t('sceneIdeaPlaceholder'))}">${escapeHtml(idea)}</textarea>
       </div>
 
+      <!-- Voiceover & Narration (Off-Screen Erzähler / Gedanken) (v1.3) -->
+      <div class="scene-voiceover-wrapper">
+        <div class="scene-voiceover-header">
+          <label>
+            <span>🎙️</span> <span>${escapeHtml(t('sceneVoiceoverLabel') || 'Voiceover & Narration (Off-Screen Sprecher / Gedanken)')}</span>
+          </label>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <select class="select-input select-xs scene-voiceover-voice-select" title="${escapeHtml(t('sceneVoiceoverVoiceTitle') || 'Sprecherstimme für diese Szene')}">
+              <option value="" ${!scene.voiceover_voice ? 'selected' : ''}>${escapeHtml(t('voiceDefaultInherit') || 'Standard (aus Studio-Einstellungen)')}</option>
+              <optgroup label="Deutsch (DE)">
+                <option value="de-DE-ConradNeural" ${scene.voiceover_voice === 'de-DE-ConradNeural' ? 'selected' : ''}>Conrad (DE - Doku/Trailer)</option>
+                <option value="de-DE-KatjaNeural" ${scene.voiceover_voice === 'de-DE-KatjaNeural' ? 'selected' : ''}>Katja (DE - Erzählerin)</option>
+                <option value="de-DE-KillianNeural" ${scene.voiceover_voice === 'de-DE-KillianNeural' ? 'selected' : ''}>Killian (DE - Dynamisch)</option>
+                <option value="de-DE-AmalaNeural" ${scene.voiceover_voice === 'de-DE-AmalaNeural' ? 'selected' : ''}>Amala (DE - Emotional)</option>
+              </optgroup>
+              <optgroup label="English (US/UK)">
+                <option value="en-US-ChristopherNeural" ${scene.voiceover_voice === 'en-US-ChristopherNeural' ? 'selected' : ''}>Christopher (US - Storyteller)</option>
+                <option value="en-US-JennyNeural" ${scene.voiceover_voice === 'en-US-JennyNeural' ? 'selected' : ''}>Jenny (US - Warm)</option>
+                <option value="en-GB-RyanNeural" ${scene.voiceover_voice === 'en-GB-RyanNeural' ? 'selected' : ''}>Ryan (UK - Doku)</option>
+                <option value="en-GB-SoniaNeural" ${scene.voiceover_voice === 'en-GB-SoniaNeural' ? 'selected' : ''}>Sonia (UK - Elegant)</option>
+              </optgroup>
+              <optgroup label="Kokoro ONNX">
+                <option value="am_michael" ${scene.voiceover_voice === 'am_michael' ? 'selected' : ''}>Michael (Kokoro US Male)</option>
+                <option value="am_adam" ${scene.voiceover_voice === 'am_adam' ? 'selected' : ''}>Adam (Kokoro US Deep)</option>
+                <option value="af_sarah" ${scene.voiceover_voice === 'af_sarah' ? 'selected' : ''}>Sarah (Kokoro US Female)</option>
+                <option value="af_bella" ${scene.voiceover_voice === 'af_bella' ? 'selected' : ''}>Bella (Kokoro US Soft)</option>
+              </optgroup>
+            </select>
+            <button type="button" class="btn btn-secondary btn-xs btn-preview-voiceover" title="${escapeHtml(t('btnPreviewVoiceoverTitle') || 'Voiceover-Vorschau anhören')}">
+              <span>🔊</span> <span>${escapeHtml(t('btnPreviewVoiceover') || 'Anhören')}</span>
+            </button>
+          </div>
+        </div>
+        <textarea class="form-control scene-voiceover-textarea" rows="2" placeholder="${escapeHtml(t('sceneVoiceoverPlaceholder') || 'Erzählerstimme oder innerer Monolog für diesen Shot (z.B. \"Ich wusste in diesem Moment, dass sich alles verändern würde...\")')}">${escapeHtml(scene.voiceover || scene.narration || '')}</textarea>
+      </div>
+
       <!-- Variablen Update in dieser Szene -->
       <div class="scene-vars-wrapper">
         <div class="scene-vars-header">
@@ -2643,6 +2800,11 @@
         <div class="scene-loras-list">
           ${sceneLorasHtml}
         </div>
+        ${hasUnavailableSceneLoras ? `
+          <div class="scene-lora-unavailable-warning">
+            <span>⚠️ ${escapeHtml(t('sceneLoraUnavailableWarning') || 'Diese Szene enthält LoRAs, die nicht mehr lokal vorhanden sind.')}</span>
+          </div>
+        ` : ''}
       </div>
 
       <!-- Regie & Render-Einstellungen (Director's Control) -->
@@ -2676,6 +2838,29 @@
             <select class="select-input select-xs scene-upscale-select">
               <option value="auto" ${scene.upscale !== false ? 'selected' : ''}>${escapeHtml(t('sceneUpscaleAuto'))}</option>
               <option value="off" ${scene.upscale === false ? 'selected' : ''}>${escapeHtml(t('sceneUpscaleOff'))}</option>
+            </select>
+          </div>
+          <div class="render-field">
+            <span class="render-field-label">${escapeHtml(t('sceneColorLabel') || 'Color Look')}:</span>
+            <select class="select-input select-xs scene-color-select">
+              <option value="" ${!scene.color_grade ? 'selected' : ''}>${escapeHtml(t('colorDefaultInherit') || 'Standard (Film-Stil)')}</option>
+              <option value="none" ${scene.color_grade === 'none' ? 'selected' : ''}>Natürlich (None)</option>
+              <option value="teal_orange" ${scene.color_grade === 'teal_orange' ? 'selected' : ''}>Teal & Orange</option>
+              <option value="warm_golden" ${scene.color_grade === 'warm_golden' ? 'selected' : ''}>Goldene Stunde</option>
+              <option value="bleach_bypass" ${scene.color_grade === 'bleach_bypass' ? 'selected' : ''}>Bleach Bypass</option>
+              <option value="film_noir" ${scene.color_grade === 'film_noir' ? 'selected' : ''}>Film Noir</option>
+              <option value="matrix_cyber" ${scene.color_grade === 'matrix_cyber' ? 'selected' : ''}>Matrix / Cyber</option>
+              <option value="vintage_film" ${scene.color_grade === 'vintage_film' ? 'selected' : ''}>Vintage 1970s</option>
+            </select>
+          </div>
+          <div class="render-field">
+            <span class="render-field-label">${escapeHtml(t('sceneGrainLabel') || 'Korn')}:</span>
+            <select class="select-input select-xs scene-grain-select">
+              <option value="" ${!scene.film_grain ? 'selected' : ''}>${escapeHtml(t('grainDefaultInherit') || 'Standard')}</option>
+              <option value="none" ${scene.film_grain === 'none' ? 'selected' : ''}>Kein Korn</option>
+              <option value="subtle" ${scene.film_grain === 'subtle' ? 'selected' : ''}>Dezent 35mm</option>
+              <option value="medium" ${scene.film_grain === 'medium' ? 'selected' : ''}>Mittel 35mm</option>
+              <option value="heavy" ${scene.film_grain === 'heavy' ? 'selected' : ''}>Stark 16mm</option>
             </select>
           </div>
         </div>
@@ -2734,9 +2919,28 @@
         pill.classList.toggle('active', !current);
         if (flag === 'match_cut') pill.classList.toggle('pill-cyan', !current);
         if (flag === 'use_previous_scene') pill.classList.toggle('pill-green', !current);
+
+        const targetWrapper = card.querySelector('.continuity-target-wrapper');
+        if (targetWrapper) {
+          const showTarget = Boolean(scene.match_cut || scene.use_previous_scene);
+          targetWrapper.style.display = showTarget ? 'inline-flex' : 'none';
+        }
         markDirty();
       });
     });
+
+    const connectSelect = card.querySelector('.scene-connect-to-select');
+    if (connectSelect) {
+      connectSelect.addEventListener('change', () => {
+        const val = connectSelect.value.trim();
+        if (val) {
+          scene.connect_to_scene = parseInt(val, 10) || val;
+        } else {
+          delete scene.connect_to_scene;
+        }
+        markDirty();
+      });
+    }
 
     // Cast Chips Toggle
     card.querySelectorAll('.cast-chip').forEach(chip => {
@@ -2847,6 +3051,7 @@
             match_cut: Boolean(s.match_cut),
             same_scene: Boolean(s.same_scene),
             use_previous_scene: Boolean(s.use_previous_scene),
+            connect_to_scene: s.connect_to_scene || null,
             variables_update: s.variables_update || {}
           }));
 
@@ -2860,8 +3065,10 @@
             continuity: {
               match_cut: Boolean(scene.match_cut),
               same_scene: Boolean(scene.same_scene),
-              use_previous_scene: Boolean(scene.use_previous_scene)
+              use_previous_scene: Boolean(scene.use_previous_scene),
+              connect_to_scene: scene.connect_to_scene || null
             },
+            connect_to_scene: scene.connect_to_scene || null,
             title: state.screenplay.title,
             description: state.screenplay.description,
             variables: cumulativeVars,
@@ -3078,6 +3285,90 @@
       });
     }
 
+    const colorSelect = card.querySelector('.scene-color-select');
+    if (colorSelect) {
+      colorSelect.addEventListener('change', () => {
+        scene.color_grade = colorSelect.value || undefined;
+        renderStoryboardTimeline();
+        markDirty();
+      });
+    }
+
+    const grainSelect = card.querySelector('.scene-grain-select');
+    if (grainSelect) {
+      grainSelect.addEventListener('change', () => {
+        scene.film_grain = grainSelect.value || undefined;
+        markDirty();
+      });
+    }
+
+    // Voiceover Listeners (v1.3)
+    const voTextarea = card.querySelector('.scene-voiceover-textarea');
+    if (voTextarea) {
+      voTextarea.addEventListener('input', () => {
+        const val = voTextarea.value.trim();
+        if (val) {
+          scene.voiceover = voTextarea.value;
+        } else {
+          delete scene.voiceover;
+          delete scene.narration;
+        }
+        renderStoryboardTimeline();
+        markDirty();
+      });
+    }
+
+    const voVoiceSelect = card.querySelector('.scene-voiceover-voice-select');
+    if (voVoiceSelect) {
+      voVoiceSelect.addEventListener('change', () => {
+        scene.voiceover_voice = voVoiceSelect.value || undefined;
+        markDirty();
+      });
+    }
+
+    const btnPreviewVo = card.querySelector('.btn-preview-voiceover');
+    if (btnPreviewVo && voTextarea) {
+      btnPreviewVo.addEventListener('click', async () => {
+        const text = (voTextarea.value || '').trim();
+        if (!text) {
+          showToast(t('voiceover_empty_warning') || 'Bitte gib zuerst einen Voiceover-Text ein.', 'warning');
+          return;
+        }
+        const voice = (voVoiceSelect ? voVoiceSelect.value : '') || (state.settings && state.settings.voiceover && state.settings.voiceover.default_voice) || 'de-DE-ConradNeural';
+        btnPreviewVo.disabled = true;
+        btnPreviewVo.innerHTML = `<span>⏳</span> <span>${escapeHtml(t('generating') || 'Erzeuge...')}</span>`;
+        try {
+          const res = await fetch('/api/voiceover/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, voice })
+          });
+          const data = await res.json();
+          if (data && data.success && data.audio_url) {
+            const audio = new Audio(data.audio_url);
+            btnPreviewVo.innerHTML = `<span>🔊</span> <span>${escapeHtml(t('playing') || 'Spielt...')}</span>`;
+            audio.onended = () => {
+              btnPreviewVo.disabled = false;
+              btnPreviewVo.innerHTML = `<span>🔊</span> <span>${escapeHtml(t('btnPreviewVoiceover') || 'Anhören')}</span>`;
+            };
+            audio.onerror = () => {
+              btnPreviewVo.disabled = false;
+              btnPreviewVo.innerHTML = `<span>🔊</span> <span>${escapeHtml(t('btnPreviewVoiceover') || 'Anhören')}</span>`;
+            };
+            audio.play();
+          } else {
+            showToast((data && data.error) || 'Fehler bei der Voiceover-Vorschau', 'error');
+            btnPreviewVo.disabled = false;
+            btnPreviewVo.innerHTML = `<span>🔊</span> <span>${escapeHtml(t('btnPreviewVoiceover') || 'Anhören')}</span>`;
+          }
+        } catch (err) {
+          showToast(`Fehler: ${err.message}`, 'error');
+          btnPreviewVo.disabled = false;
+          btnPreviewVo.innerHTML = `<span>🔊</span> <span>${escapeHtml(t('btnPreviewVoiceover') || 'Anhören')}</span>`;
+        }
+      });
+    }
+
     // Transition Listeners
     const transSelect = card.querySelector('.scene-transition-select');
     if (transSelect) {
@@ -3245,6 +3536,9 @@
       const statusData = await API.getScenesStatus(projName);
       if (statusData && statusData.success) {
         state.scenesStatus = statusData;
+        if (statusData.movie_rendering) {
+          startProductionPolling(projName);
+        }
         if (statusData.any_rendering) {
           if (Array.isArray(statusData.active_rendering_scenes)) {
             statusData.active_rendering_scenes.forEach(sid => _renderingScenes.add(sid));
@@ -3289,6 +3583,16 @@
 
     if (el.timelineStatsBadge) {
       el.timelineStatsBadge.textContent = `${totalSecs.toFixed(1)}s • ${renderedCount}/${scenes.length} ${t('timeline_ready') || 'Gerendert'}`;
+    }
+
+    if (el.btnLaunchMovie) {
+      if (state.scenesStatus && state.scenesStatus.movie_rendering) {
+        el.btnLaunchMovie.classList.add('is-rendering');
+        el.btnLaunchMovie.title = t('renderRunningTitle') || 'Filmproduktion läuft...';
+      } else {
+        el.btnLaunchMovie.classList.remove('is-rendering');
+        el.btnLaunchMovie.title = t('modalRenderTitle') || 'Film rendern & starten';
+      }
     }
 
     if (el.btnPlayFullMovie) {
@@ -3370,6 +3674,8 @@
         ${thumbHtml}
         <div class="filmstrip-cell-topbar">
           <span class="filmstrip-scene-badge">#${sceneId}</span>
+          ${(scene.voiceover || scene.narration) ? `<span class="filmstrip-vo-badge" title="${escapeHtml(t('scene_has_voiceover') || 'Voiceover aktiv')}">🎙️</span>` : ''}
+          ${(scene.color_grade && scene.color_grade !== 'none') ? `<span class="filmstrip-color-badge" title="${escapeHtml(t('scene_has_color') || 'Color Look aktiv')}">🎨</span>` : ''}
           <span class="filmstrip-status-pill ${statusPillClass}">${escapeHtml(statusPillText)}</span>
         </div>
         ${(hasVid && !isRendering) ? `<div class="filmstrip-play-overlay" title="${escapeHtml(t('timeline_play_scene') || 'Szene im Player ansehen')}">▶</div>` : ''}
@@ -5174,6 +5480,27 @@
       if (el.settingLanguage) el.settingLanguage.value = s.language || s.default_language || 'auto';
       if (el.settingExportWebm) el.settingExportWebm.checked = s.export_webm !== false;
 
+      // Voiceover (v1.3)
+      const vo = s.voiceover || {};
+      if (el.settingVoEnabled) el.settingVoEnabled.checked = vo.enabled !== false;
+      if (el.settingVoDefaultVoice && vo.default_voice) el.settingVoDefaultVoice.value = vo.default_voice;
+      if (el.settingVoVolume) {
+        const vVol = vo.volume !== undefined ? vo.volume : 1.0;
+        el.settingVoVolume.value = vVol;
+        if (el.valVoVolume) el.valVoVolume.textContent = `${Math.round(vVol * 100)}%`;
+      }
+      if (el.settingVoFoley) {
+        const fVol = vo.foley_volume !== undefined ? vo.foley_volume : 0.85;
+        el.settingVoFoley.value = fVol;
+        if (el.valVoFoley) el.valVoFoley.textContent = `${Math.round(fVol * 100)}%`;
+      }
+
+      // Color Grading (v1.3)
+      const cg = s.color_grading || {};
+      if (el.settingColorLook) el.settingColorLook.value = cg.look || 'none';
+      if (el.settingColorGrain) el.settingColorGrain.value = cg.film_grain || 'none';
+      if (el.settingColorLetterbox) el.settingColorLetterbox.value = cg.letterbox || 'none';
+
     } catch (err) {
       console.error('Error loading settings into modal:', err);
       showToast(err.message || 'Fehler beim Laden der Einstellungen', 'error');
@@ -5262,6 +5589,17 @@
           volume: el.settingMusicVolume ? parseFloat(el.settingMusicVolume.value) || 0.20 : 0.20,
           ducking: el.settingMusicDucking ? el.settingMusicDucking.checked : true
         },
+        voiceover: {
+          enabled: el.settingVoEnabled ? el.settingVoEnabled.checked : true,
+          default_voice: el.settingVoDefaultVoice ? el.settingVoDefaultVoice.value : 'de-DE-ConradNeural',
+          volume: el.settingVoVolume ? parseFloat(el.settingVoVolume.value) || 1.0 : 1.0,
+          foley_volume: el.settingVoFoley ? parseFloat(el.settingVoFoley.value) || 0.85 : 0.85
+        },
+        color_grading: {
+          look: el.settingColorLook ? el.settingColorLook.value : 'none',
+          film_grain: el.settingColorGrain ? el.settingColorGrain.value : 'none',
+          letterbox: el.settingColorLetterbox ? el.settingColorLetterbox.value : 'none'
+        },
         lm_studio: {
           url: el.settingLmsUrl ? el.settingLmsUrl.value.trim() : 'http://127.0.0.1:1234/v1/chat/completions',
           model_name: el.settingLmsModelInput ? el.settingLmsModelInput.value.trim() : '',
@@ -5317,6 +5655,7 @@
         const res = await API.rescanCatalog();
         state.presetsData = await API.getPresets();
         renderCharacters();
+        renderScenes();
         el.rescanIcon.textContent = '🔄';
         el.btnRescan.disabled = false;
         showToast(res.message || t('catalogUpdated'), 'success');
@@ -5327,21 +5666,359 @@
       }
     });
 
-    // Launch Movie / Render Modal
-    el.btnLaunchMovie.addEventListener('click', () => {
-      const rawBase = el.movieFilename.value.trim() || 'film';
-      const cleanBase = sanitizeFilename(rawBase);
-      const filename = cleanBase.endsWith('.json') ? cleanBase : `${cleanBase}.json`;
-      el.renderCliCommand.textContent = `python master_regisseur.py Projects/${filename}`;
-      el.renderModal.classList.add('open');
-    });
+  // --- Direct Full Movie Production Engine ---
+  let _productionPollTimer = null;
+  let _currentProductionMovieUrl = null;
+  let _isProductionLogCollapsed = false;
 
+  function formatProductionTime(sec) {
+    if (!sec || isNaN(sec)) return '00:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+
+  function renderProductionLogs(logs) {
+    if (!el.renderLogConsole) return;
+    if (!logs || logs.length === 0) {
+      el.renderLogConsole.innerHTML = `<div class="log-placeholder">${escapeHtml(t('renderLogsEmpty') || 'Noch keine Protokollausgaben. Klicke auf "Vollständige Produktion starten".')}</div>`;
+      return;
+    }
+
+    const wasScrolledToBottom = el.renderLogConsole.scrollHeight - el.renderLogConsole.clientHeight <= el.renderLogConsole.scrollTop + 30;
+
+    const html = logs.map(line => {
+      const clean = escapeHtml(line);
+      let cls = '';
+      if (line.includes('PHASE') || line.includes('Phase') || line.startsWith('🎬') || line.startsWith('🎬 [Movie-Produktion]')) {
+        cls = 'log-line-phase';
+      } else if (line.includes('✔') || line.includes('✅') || line.includes('erfolgreich')) {
+        cls = 'log-line-success';
+      } else if (line.includes('❌') || line.includes('Fehler') || line.includes('Error') || line.includes('Exception')) {
+        cls = 'log-line-error';
+      }
+      return cls ? `<div class="${cls}">${clean}</div>` : `<div>${clean}</div>`;
+    }).join('');
+
+    el.renderLogConsole.innerHTML = html;
+
+    if (wasScrolledToBottom) {
+      el.renderLogConsole.scrollTop = el.renderLogConsole.scrollHeight;
+    }
+  }
+
+  function updateProductionModalUI(statusData, projName) {
+    if (!el.renderModal) return;
+
+    const screenplayTitle = (state.screenplay && state.screenplay.title) || projName;
+    const cleanBase = sanitizeFilename(projName);
+    const filename = cleanBase.endsWith('.json') ? cleanBase : `${cleanBase}.json`;
+
+    if (el.renderProjectTitle) el.renderProjectTitle.textContent = screenplayTitle;
+    if (el.renderProjectFilename) el.renderProjectFilename.textContent = filename;
+    if (el.renderMetaScenes) el.renderMetaScenes.textContent = `${(state.screenplay.scenes || []).length} ${t('tabScenes') || 'Szenen'}`;
+    if (el.renderMetaChars) el.renderMetaChars.textContent = `${(state.screenplay.characters || []).length} ${t('tabCharacters') || 'Charaktere'}`;
+    if (el.renderCliCommand) el.renderCliCommand.textContent = `python master_regisseur.py Projects/${filename}`;
+
+    const st = (statusData && statusData.status) || 'idle';
+    _currentProductionMovieUrl = statusData ? statusData.movie_url : null;
+
+    if (el.renderStatusBanner) {
+      el.renderStatusBanner.className = `render-status-banner status-${st}`;
+    }
+
+    if (st === 'running') {
+      if (el.renderStatusIcon) el.renderStatusIcon.textContent = '⏳';
+      if (el.renderStatusTitle) el.renderStatusTitle.textContent = t('renderRunningTitle') || 'Filmproduktion läuft...';
+      if (el.renderStatusDesc) el.renderStatusDesc.textContent = t('renderRunningDesc') || 'Der Film wird produziert. Szenen und Charaktere werden nacheinander generiert und zusammengeschnitten.';
+      if (el.renderStatusDetail) {
+        el.renderStatusDetail.style.display = 'block';
+        el.renderStatusDetail.textContent = statusData.last_log || 'Produktion wird ausgeführt...';
+      }
+      if (el.renderElapsedTime) {
+        el.renderElapsedTime.style.display = 'inline-block';
+        el.renderElapsedTime.textContent = `⏱ ${formatProductionTime(statusData.elapsed)}`;
+      }
+      if (el.btnStartFullProduction) {
+        el.btnStartFullProduction.disabled = true;
+        el.btnStartFullProduction.classList.add('is-running');
+      }
+      if (el.btnStartFullProductionText) {
+        el.btnStartFullProductionText.textContent = t('productionRunning') || 'Produktion läuft...';
+      }
+      if (el.btnCancelFullProduction) el.btnCancelFullProduction.style.display = 'inline-flex';
+      if (el.btnPlayProducedMovie) el.btnPlayProducedMovie.style.display = 'none';
+      if (el.logIndicatorDot) el.logIndicatorDot.classList.add('active');
+      if (el.btnLaunchMovie) {
+        el.btnLaunchMovie.classList.add('is-rendering');
+        el.btnLaunchMovie.title = t('renderRunningTitle') || 'Filmproduktion läuft...';
+      }
+    } else if (st === 'completed') {
+      if (el.renderStatusIcon) el.renderStatusIcon.textContent = '✅';
+      if (el.renderStatusTitle) el.renderStatusTitle.textContent = t('renderCompletedTitle') || 'Filmproduktion erfolgreich abgeschlossen!';
+      if (el.renderStatusDesc) el.renderStatusDesc.textContent = t('renderCompletedDesc') || 'Alle Szenen wurden gerendert und der finale Film wurde erfolgreich assembliert.';
+      if (el.renderStatusDetail) {
+        el.renderStatusDetail.style.display = 'block';
+        el.renderStatusDetail.textContent = statusData.movie_file ? `🎬 ${statusData.movie_file}` : (statusData.last_log || 'Fertig!');
+      }
+      if (el.renderElapsedTime) {
+        el.renderElapsedTime.style.display = 'inline-block';
+        el.renderElapsedTime.textContent = `⏱ ${formatProductionTime(statusData.elapsed)}`;
+      }
+      if (el.btnStartFullProduction) {
+        el.btnStartFullProduction.disabled = false;
+        el.btnStartFullProduction.classList.remove('is-running');
+      }
+      if (el.btnStartFullProductionText) {
+        el.btnStartFullProductionText.textContent = `⚡ ${t('btnStartFullProduction') || 'Vollständige Produktion starten'}`;
+      }
+      if (el.btnCancelFullProduction) el.btnCancelFullProduction.style.display = 'none';
+      if (el.btnPlayProducedMovie) {
+        el.btnPlayProducedMovie.style.display = (statusData.movie_ready || statusData.movie_url) ? 'inline-flex' : 'none';
+      }
+      if (el.logIndicatorDot) el.logIndicatorDot.classList.remove('active');
+      if (el.btnLaunchMovie) {
+        el.btnLaunchMovie.classList.remove('is-rendering');
+        el.btnLaunchMovie.title = t('modalRenderTitle') || 'Film rendern & starten';
+      }
+    } else if (st === 'error') {
+      if (el.renderStatusIcon) el.renderStatusIcon.textContent = '❌';
+      if (el.renderStatusTitle) el.renderStatusTitle.textContent = t('renderErrorTitle') || 'Fehler bei der Produktion';
+      if (el.renderStatusDesc) el.renderStatusDesc.textContent = statusData.error || statusData.last_log || 'Unbekannter Fehler aufgetreten.';
+      if (el.renderStatusDetail) el.renderStatusDetail.style.display = 'none';
+      if (el.renderElapsedTime) {
+        el.renderElapsedTime.style.display = statusData.elapsed ? 'inline-block' : 'none';
+        el.renderElapsedTime.textContent = `⏱ ${formatProductionTime(statusData.elapsed)}`;
+      }
+      if (el.btnStartFullProduction) {
+        el.btnStartFullProduction.disabled = false;
+        el.btnStartFullProduction.classList.remove('is-running');
+      }
+      if (el.btnStartFullProductionText) {
+        el.btnStartFullProductionText.textContent = `⚡ ${t('btnStartFullProduction') || 'Vollständige Produktion starten'}`;
+      }
+      if (el.btnCancelFullProduction) el.btnCancelFullProduction.style.display = 'none';
+      if (el.btnPlayProducedMovie) {
+        el.btnPlayProducedMovie.style.display = (statusData.movie_ready || statusData.movie_url) ? 'inline-flex' : 'none';
+      }
+      if (el.logIndicatorDot) el.logIndicatorDot.classList.remove('active');
+      if (el.btnLaunchMovie) {
+        el.btnLaunchMovie.classList.remove('is-rendering');
+        el.btnLaunchMovie.title = t('modalRenderTitle') || 'Film rendern & starten';
+      }
+    } else if (st === 'cancelled') {
+      if (el.renderStatusIcon) el.renderStatusIcon.textContent = '🛑';
+      if (el.renderStatusTitle) el.renderStatusTitle.textContent = t('renderCancelledTitle') || 'Produktion abgebrochen';
+      if (el.renderStatusDesc) el.renderStatusDesc.textContent = t('productionCancelledToast') || 'Produktion wurde vom Benutzer abgebrochen.';
+      if (el.renderStatusDetail) el.renderStatusDetail.style.display = 'none';
+      if (el.renderElapsedTime) {
+        el.renderElapsedTime.style.display = statusData.elapsed ? 'inline-block' : 'none';
+        el.renderElapsedTime.textContent = `⏱ ${formatProductionTime(statusData.elapsed)}`;
+      }
+      if (el.btnStartFullProduction) {
+        el.btnStartFullProduction.disabled = false;
+        el.btnStartFullProduction.classList.remove('is-running');
+      }
+      if (el.btnStartFullProductionText) {
+        el.btnStartFullProductionText.textContent = `⚡ ${t('btnStartFullProduction') || 'Vollständige Produktion starten'}`;
+      }
+      if (el.btnCancelFullProduction) el.btnCancelFullProduction.style.display = 'none';
+      if (el.btnPlayProducedMovie) {
+        el.btnPlayProducedMovie.style.display = (statusData.movie_ready || statusData.movie_url) ? 'inline-flex' : 'none';
+      }
+      if (el.logIndicatorDot) el.logIndicatorDot.classList.remove('active');
+      if (el.btnLaunchMovie) {
+        el.btnLaunchMovie.classList.remove('is-rendering');
+        el.btnLaunchMovie.title = t('modalRenderTitle') || 'Film rendern & starten';
+      }
+    } else {
+      // Idle
+      if (el.renderStatusIcon) el.renderStatusIcon.textContent = '🎬';
+      if (el.renderStatusTitle) el.renderStatusTitle.textContent = t('renderReadyTitle') || 'Bereit zur Filmproduktion';
+      if (el.renderStatusDesc) {
+        el.renderStatusDesc.textContent = statusData && statusData.movie_ready
+          ? `Bestehender Film vorhanden (${statusData.movie_file}). Du kannst ihn direkt abspielen oder die Produktion komplett neu starten.`
+          : (t('renderReadyDesc') || 'Startet die vollständige Produktion: Prompt-Optimierung, Charakter-Casting (T2I), Szenen-Rendering (I2V) und finale Film-Assemblierung.');
+      }
+      if (el.renderStatusDetail) el.renderStatusDetail.style.display = 'none';
+      if (el.renderElapsedTime) el.renderElapsedTime.style.display = 'none';
+      if (el.btnStartFullProduction) {
+        el.btnStartFullProduction.disabled = false;
+        el.btnStartFullProduction.classList.remove('is-running');
+      }
+      if (el.btnStartFullProductionText) {
+        el.btnStartFullProductionText.textContent = `⚡ ${t('btnStartFullProduction') || 'Vollständige Produktion starten'}`;
+      }
+      if (el.btnCancelFullProduction) el.btnCancelFullProduction.style.display = 'none';
+      if (el.btnPlayProducedMovie) {
+        el.btnPlayProducedMovie.style.display = (statusData && (statusData.movie_ready || statusData.movie_url)) ? 'inline-flex' : 'none';
+      }
+      if (el.logIndicatorDot) el.logIndicatorDot.classList.remove('active');
+      if (el.btnLaunchMovie) {
+        el.btnLaunchMovie.classList.remove('is-rendering');
+        el.btnLaunchMovie.title = t('modalRenderTitle') || 'Film rendern & starten';
+      }
+    }
+
+    if (statusData && statusData.logs) {
+      renderProductionLogs(statusData.logs);
+    }
+  }
+
+  function startProductionPolling(projName) {
+    if (_productionPollTimer) return;
+    _productionPollTimer = setInterval(async () => {
+      try {
+        const statusData = await API.getMovieProductionStatus(projName);
+        if (statusData && statusData.success) {
+          updateProductionModalUI(statusData, projName);
+
+          if (typeof fetchAndRenderTimeline === 'function') {
+            fetchAndRenderTimeline();
+          }
+
+          if (statusData.status === 'completed') {
+            stopProductionPolling();
+            showToast(t('productionCompleted') || 'Filmproduktion erfolgreich abgeschlossen!', 'success');
+          } else if (statusData.status === 'error') {
+            stopProductionPolling();
+            showToast(`${t('productionFailed') || 'Fehler bei der Filmproduktion'}: ${statusData.error || ''}`, 'error');
+          } else if (statusData.status === 'cancelled') {
+            stopProductionPolling();
+          }
+        }
+      } catch (err) {
+        console.warn('Production poll error:', err);
+      }
+    }, 2000);
+  }
+
+  function stopProductionPolling() {
+    if (_productionPollTimer) {
+      clearInterval(_productionPollTimer);
+      _productionPollTimer = null;
+    }
+  }
+
+  async function openRenderModal() {
+    const rawBase = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+    const cleanBase = sanitizeFilename(rawBase);
+
+    el.renderModal.classList.add('open');
+
+    try {
+      const statusData = await API.getMovieProductionStatus(cleanBase);
+      updateProductionModalUI(statusData, cleanBase);
+      if (statusData && statusData.status === 'running') {
+        startProductionPolling(cleanBase);
+      }
+    } catch (err) {
+      console.warn('Could not load initial production status:', err);
+      updateProductionModalUI({ status: 'idle' }, cleanBase);
+    }
+  }
+
+  // Hook up Launch Movie / Render Modal & Direct Production Controls
+  if (el.btnLaunchMovie) {
+    el.btnLaunchMovie.addEventListener('click', openRenderModal);
+  }
+
+  if (el.btnCloseRenderModal) {
     el.btnCloseRenderModal.addEventListener('click', () => el.renderModal.classList.remove('open'));
+  }
+  if (el.btnCloseRenderModalBtn) {
     el.btnCloseRenderModalBtn.addEventListener('click', () => el.renderModal.classList.remove('open'));
+  }
+  if (el.btnCopyCli) {
     el.btnCopyCli.addEventListener('click', () => {
       navigator.clipboard.writeText(el.renderCliCommand.textContent);
       showToast(t('copied'), 'success');
     });
+  }
+
+  if (el.btnStartFullProduction) {
+    el.btnStartFullProduction.addEventListener('click', async () => {
+      const rawBase = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+      const cleanBase = sanitizeFilename(rawBase);
+
+      try {
+        if (state.isDirty) {
+          await saveCurrentProject();
+          showToast(t('autoSaveBeforeProduction') || 'Projekt gespeichert. Starte Filmproduktion...', 'info');
+        }
+
+        el.btnStartFullProduction.disabled = true;
+        el.btnStartFullProduction.classList.add('is-running');
+        if (el.btnStartFullProductionText) {
+          el.btnStartFullProductionText.textContent = t('productionRunning') || 'Produktion läuft...';
+        }
+        if (el.btnCancelFullProduction) el.btnCancelFullProduction.style.display = 'inline-flex';
+
+        const res = await API.startMovieProduction(cleanBase);
+        showToast(res.message || (t('productionStarted') || 'Filmproduktion im Hintergrund gestartet!'), 'info');
+
+        updateProductionModalUI({ status: 'running', elapsed: 0, logs: [res.message || 'Starte Produktion...'] }, cleanBase);
+        startProductionPolling(cleanBase);
+        startTimelinePolling();
+      } catch (err) {
+        showToast(err.message, 'error');
+        el.btnStartFullProduction.disabled = false;
+        el.btnStartFullProduction.classList.remove('is-running');
+        if (el.btnStartFullProductionText) {
+          el.btnStartFullProductionText.textContent = `⚡ ${t('btnStartFullProduction') || 'Vollständige Produktion starten'}`;
+        }
+      }
+    });
+  }
+
+  if (el.btnCancelFullProduction) {
+    el.btnCancelFullProduction.addEventListener('click', async () => {
+      const confirmMsg = t('confirmCancelProduction') || 'Möchtest du die laufende Produktion wirklich abbrechen?';
+      if (!confirm(confirmMsg)) return;
+
+      const rawBase = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+      const cleanBase = sanitizeFilename(rawBase);
+
+      try {
+        el.btnCancelFullProduction.disabled = true;
+        const res = await API.cancelMovieProduction(cleanBase);
+        showToast(res.message || (t('productionCancelledToast') || 'Produktion abgebrochen.'), 'info');
+        stopProductionPolling();
+        const statusData = await API.getMovieProductionStatus(cleanBase);
+        updateProductionModalUI(statusData, cleanBase);
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        el.btnCancelFullProduction.disabled = false;
+      }
+    });
+  }
+
+  if (el.btnPlayProducedMovie) {
+    el.btnPlayProducedMovie.addEventListener('click', () => {
+      const rawBase = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+      const cleanBase = sanitizeFilename(rawBase);
+      const title = (state.screenplay && state.screenplay.title) || cleanBase;
+      const movieUrl = _currentProductionMovieUrl || `/api/movie/video?project=${encodeURIComponent(cleanBase)}&t=${Date.now()}`;
+      openVideoPlayerModal(movieUrl, `🎬 ${title} (FINAL)`, 0);
+    });
+  }
+
+  if (el.btnToggleRenderLog && el.renderLogConsole) {
+    el.btnToggleRenderLog.addEventListener('click', () => {
+      _isProductionLogCollapsed = !_isProductionLogCollapsed;
+      el.renderLogConsole.classList.toggle('collapsed', _isProductionLogCollapsed);
+      el.btnToggleRenderLog.textContent = _isProductionLogCollapsed
+        ? (t('btnShowLogs') || 'Ausklappen')
+        : (t('btnHideLogs') || 'Einklappen');
+    });
+  }
+
+  if (el.btnClearRenderLog && el.renderLogConsole) {
+    el.btnClearRenderLog.addEventListener('click', () => {
+      el.renderLogConsole.innerHTML = `<div class="log-placeholder">${escapeHtml(t('renderLogsEmpty') || 'Protokoll geleert.')}</div>`;
+    });
+  }
 
     // Language Toggle
     el.btnLangToggle.addEventListener('click', () => {
@@ -5727,6 +6404,18 @@
     if (el.settingLmsTemp) {
       el.settingLmsTemp.addEventListener('input', () => {
         if (el.valLmsTemp) el.valLmsTemp.textContent = Number(el.settingLmsTemp.value).toFixed(2);
+      });
+    }
+    if (el.settingVoVolume) {
+      el.settingVoVolume.addEventListener('input', () => {
+        const pct = Math.round(parseFloat(el.settingVoVolume.value) * 100);
+        if (el.valVoVolume) el.valVoVolume.textContent = `${pct}%`;
+      });
+    }
+    if (el.settingVoFoley) {
+      el.settingVoFoley.addEventListener('input', () => {
+        const pct = Math.round(parseFloat(el.settingVoFoley.value) * 100);
+        if (el.valVoFoley) el.valVoFoley.textContent = `${pct}%`;
       });
     }
 

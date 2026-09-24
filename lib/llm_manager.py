@@ -115,7 +115,7 @@ def call_lm_studio(
     if not has_system:
         clean_messages.insert(0, {
             "role": "system",
-            "content": "You are a direct, concise movie screenwriter assistant. Never output your internal thinking, reasoning process, or preamble. Start directly with the final response."
+            "content": "You are a professional movie director and screenwriter assistant. Never output your internal thinking, reasoning process, or preamble. Start directly with the final response."
         })
 
     payload = {

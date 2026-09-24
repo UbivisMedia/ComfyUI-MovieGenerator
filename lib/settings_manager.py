@@ -40,6 +40,17 @@ DEFAULT_SETTINGS = {
         "volume": 0.20,
         "ducking": True
     },
+    "voiceover": {
+        "enabled": True,
+        "default_voice": "de-DE-ConradNeural",
+        "volume": 1.0,
+        "foley_volume": 0.85
+    },
+    "color_grading": {
+        "look": "none",
+        "film_grain": "none",
+        "letterbox": "none"
+    },
     "lm_studio": {
         "url": "http://127.0.0.1:1234/v1/chat/completions",
         "model_name": "gemma-4-e4b-uncensored-hauhaucs-aggressive",

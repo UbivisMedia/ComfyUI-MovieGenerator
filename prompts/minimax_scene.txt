@@ -14,6 +14,13 @@ CRITICAL CHARACTER WARDROBE & STATE CONTINUITY:
 - MANDATORY SUBJECT TAGGING: In 'detailed_description' under [Shot 1], you MUST refer to characters exclusively by their tag '<Subject X>' (e.g. '<Subject 1>') alongside their action, NEVER solely by their character name. Minimax models rely on '<Subject X>' to bind the description to '<Picture X>'.
 - CRITICAL VISUAL STYLE: State the visual medium clearly in [Shot 1]: If live-action, specify 'photorealistic 35mm cinematic film footage, real life camera shot, hyperrealistic textures'. If animated/anime, specify 'cel-shaded vibrant anime style, expressive animation aesthetics'.
 
+CRITICAL DETAILED CINEMATIC DESCRIPTION STANDARD:
+In 'detailed_description' under [Shot 1], do NOT write short, superficial summaries. Provide an immersive, multi-sentence cinematic description covering:
+1. Exact Camera Framing & Staging: Shot scale (wide, medium, extreme close-up, low-angle, over-the-shoulder), perspective, lighting atmosphere (volumetric light, golden hour, deep shadows, rim lighting).
+2. Physical Dynamics & Environmental Tactility: Muscle tension, gaze, micro-expressions, ground interaction (dust kicking up, debris, rain, water), surface textures (skin, hair/fur, fabric, sheen).
+3. Dedicated 'Cinematic details:' line specifying depth of field (DOF), rim lighting, lens bokeh, shutter effect, contrast.
+4. Dedicated '[Camera Movement Suggestion]:' line specifying exact camera motion (e.g. slow tracking shot, gentle dolly zoom / push-in, 360-degree orbit, fast whip pan / tilt).
+5. Strictly NO background music, soundtrack, or instrument names!
 
 CRITICAL SCENE & SHOT CONTINUITY:
 {continuity_instruction}
@@ -30,7 +37,11 @@ summary:
 [reference generation] <1 sentence summary of the action in English>
 
 detailed_description:
-[Shot 1]: A medium shot frames ... Detailed cinematic description of the action in English.{video_instruction}
+[Shot 1]: <Multi-sentence immersive cinematic description in English specifying camera framing, subject action with <Subject X> tags, anatomy/tension, environmental lighting, and tactile physics>{video_instruction}
+
+Cinematic details: <Shallow depth of field (DOF), volumetric lighting, dramatic rim light, focal sharpness, bokeh>
+
+[Camera Movement Suggestion]: <Precise camera motion direction, e.g. slow steady tracking shot, gentle dolly zoom, smooth orbit, dynamic pan/tilt>
 
 overall_soundscape:
 <Realistic diegetic environmental noise, foley, and spoken dialogue if any. Strictly NO background music>
