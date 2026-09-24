@@ -18,6 +18,34 @@ import time
 import shutil
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from version import __version__
+from lib.subject_manager import (
+    resolve_scene_characters,
+    build_subject_definitions,
+    remap_scene_subjects,
+    build_minimax_api_prompt,
+    MAX_MINIMAX_SUBJECTS
+)
+from lib.settings_manager import (
+    SETTINGS_FILE,
+    load_settings,
+    save_settings,
+    DEFAULT_SETTINGS,
+    deep_merge_settings
+)
+from lib.comfy_manager import (
+    get_comfy_models_dir,
+    find_minimax_unets,
+    find_minimax_turbo_loras,
+    detect_steps_from_lora_name,
+    find_music_checkpoints,
+    get_audio_model_profile
+)
+from lib.llm_manager import (
+    get_lm_studio_config,
+    check_lm_studio_status,
+    call_lm_studio,
+    fetch_lm_studio_models
+)
 
 # Set terminal UTF-8 encoding on Windows
 if sys.platform == "win32":
@@ -32,7 +60,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECTS_DIR = os.path.join(BASE_DIR, "Projects")
 PRESETS_DIR = os.path.join(BASE_DIR, "Presets")
 WEB_DIR = os.path.join(BASE_DIR, "web")
-SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
 
 # Ensure required directories exist
 os.makedirs(PROJECTS_DIR, exist_ok=True)
@@ -40,35 +67,9 @@ os.makedirs(PRESETS_DIR, exist_ok=True)
 os.makedirs(WEB_DIR, exist_ok=True)
 
 
-def load_settings():
-    """Loads settings.json if available."""
-    if os.path.exists(SETTINGS_FILE):
-        try:
-            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
-
-
-def get_comfy_models_dir():
-    """Finds configured or fallback models_dir."""
-    settings = load_settings()
-    cfg_dir = settings.get("comfyui", {}).get("models_dir", "").strip()
-    if cfg_dir and os.path.exists(cfg_dir):
-        return cfg_dir
-    search_paths = settings.get("comfyui", {}).get("models_search_paths", [
-        "../ComfyUI/models",
-        "../ComfyUI_windows_portable/ComfyUI/models"
-    ])
-    for p in search_paths:
-        full_p = os.path.normpath(os.path.join(BASE_DIR, p))
-        if os.path.exists(full_p):
-            return full_p
-    return None
-
 
 _LORA_COMPANION_CACHE = {}
+_ACTIVE_RESHOOTS = {}  # key: f"{project}_{scene_id}" -> dict
 IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
 VIDEO_EXTS = (".mp4", ".webm")
 
@@ -360,99 +361,8 @@ def find_free_port(start_port=7860, max_tries=50):
 
 
 # -------------------------------------------------------------
-# LM Studio Local AI Integration
+# Modular Prompt Extraction
 # -------------------------------------------------------------
-
-def get_lm_studio_config():
-    """Reads LM Studio configuration from settings.json."""
-    settings = load_settings()
-    lms = settings.get("lm_studio", {})
-    url = lms.get("url", "http://127.0.0.1:1234/v1/chat/completions")
-    model_name = lms.get("model_name", "")
-    try:
-        temp = float(lms.get("temperature", 0.7))
-    except (TypeError, ValueError):
-        temp = 0.7
-    return {
-        "url": url,
-        "model_name": model_name,
-        "temperature": temp
-    }
-
-
-def check_lm_studio_status():
-    """Checks if LM Studio Local Server is running and lists loaded models."""
-    cfg = get_lm_studio_config()
-    url = cfg["url"]
-    base_url = url.split("/chat/completions")[0] if "/chat/completions" in url else url.rstrip("/")
-    models_url = f"{base_url}/models"
-    try:
-        req = urllib.request.Request(models_url, headers={"User-Agent": "MovieGenerator-ScriptAgency"})
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            models_list = [m.get("id") for m in data.get("data", []) if m.get("id")]
-            active_model = cfg["model_name"]
-            if not active_model and models_list:
-                active_model = models_list[0]
-            elif models_list and active_model not in models_list:
-                active_model = models_list[0]
-            return {
-                "online": True,
-                "model": active_model or "Local LLM",
-                "models": models_list,
-                "url": url
-            }
-    except Exception as e:
-        return {
-            "online": False,
-            "model": cfg.get("model_name") or "Offline",
-            "error": str(e),
-            "url": url
-        }
-
-
-def call_lm_studio(messages, temperature=0.7, max_tokens=5000, timeout=None):
-    """Sends a chat completion request to the LM Studio Local Server."""
-    cfg = get_lm_studio_config()
-
-    # Prepend anti-thinking system message if none provided to keep reasoning models fast and direct
-    has_system = any(m.get("role") == "system" for m in messages)
-    clean_messages = list(messages)
-    if not has_system:
-        clean_messages.insert(0, {
-            "role": "system",
-            "content": "You are a direct, concise movie screenwriter assistant. Never output your internal thinking, reasoning process, or preamble. Start directly with the final response."
-        })
-
-    payload = {
-        "model": cfg["model_name"] or "default",
-        "messages": clean_messages,
-        "temperature": temperature,
-        "max_tokens": max_tokens
-    }
-    req = urllib.request.Request(
-        cfg["url"],
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"}
-    )
-    if timeout is None:
-        timeout = max(180, int(max_tokens * 0.05))
-
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        res = json.loads(resp.read().decode("utf-8"))
-        msg = res["choices"][0]["message"]
-        content = (msg.get("content") or "").strip()
-        reasoning = (msg.get("reasoning_content") or "").strip()
-        if not content and reasoning:
-            # If the model put the final output or summary inside reasoning:
-            if "summary:" in reasoning:
-                content = "summary:" + reasoning.split("summary:", 1)[1]
-            elif "Summary:" in reasoning:
-                content = "summary:" + reasoning.split("Summary:", 1)[1]
-            else:
-                content = reasoning
-        return content
-
 
 def extract_elaborated_components(text, fallback_idea=""):
     """Extracts clean modular components from an elaborated prompt or raw LLM output:
@@ -573,7 +483,7 @@ def get_llm_wisdom():
             with open(wisdom_path, "r", encoding="utf-8") as f:
                 return f.read().strip()
         except Exception as e:
-            logger.warning(f"Failed to read prompts/llm_wisdom.md: {e}")
+            print(f"[MovieStudio] Warning: Failed to read prompts/llm_wisdom.md: {e}")
     return """# MOVIEGENERATOR RULES:
 1. VARIABLES: Root 'variables' are permanent and persistent. On scenes, 'variables_update' is strictly a DELTA (changes only). If no change occurs, 'variables_update': {} must be EMPTY!
 2. GRANULAR WARDROBE: Use <char>_top, <char>_bottom, <char>_shoes, <char>_accessory.
@@ -687,15 +597,24 @@ def ai_elaborate_scene(payload):
 
     preceding_text = "\n".join(preceding_blocks) if preceding_blocks else "None (this is the first shot)."
 
-    char_defs = []
+    # 2. Resolve active characters in scene and format dynamic bindings (<Subject 1> .. <Subject N>)
+    all_screenplay_chars = payload.get("all_characters") or []
+    if not all_screenplay_chars and payload.get("screenplay"):
+        all_screenplay_chars = payload.get("screenplay", {}).get("characters") or []
+
+    scene_chars = resolve_scene_characters(scene_obj if scene_obj else {"characters": characters}, all_screenplay_chars)
+    char_definitions = build_subject_definitions(scene_chars)
+
     char_names_clean = []
     char_display_names = []
-    for i, c in enumerate(characters):
-        c_name = c if isinstance(c, str) else c.get("name", f"Character_{i+1}")
-        char_defs.append(f"<Subject {i+1}> is the character in <Picture {i+1}> ({c_name}).")
+    for c in scene_chars:
+        c_name = c.get("name") if isinstance(c, dict) else str(c)
         char_display_names.append(c_name)
         char_names_clean.append(re.sub(r'[^a-zA-Z0-9]', '', c_name.lower()))
-    char_definitions = "\n".join(char_defs)
+
+    # Remap incoming idea if it contains global <Subject X> tags
+    if all_screenplay_chars and scene_chars:
+        idea = remap_scene_subjects(idea, scene_chars, all_screenplay_chars)
 
     # Format all active variables at the start of this scene (character wardrobes & active story props)
     char_var_lines = []
@@ -837,6 +756,10 @@ VARIABLES_UPDATE: {{}}"""
         clean_prompt = comps["detailed_description"]
         summary_text = comps["summary"]
         soundscape_text = comps["soundscape"]
+
+        if all_screenplay_chars and scene_chars:
+            clean_prompt = remap_scene_subjects(clean_prompt, scene_chars, all_screenplay_chars)
+            summary_text = remap_scene_subjects(summary_text, scene_chars, all_screenplay_chars)
 
         return {
             "success": True,
@@ -1053,8 +976,25 @@ GUIDELINES:
 
 def generate_character_portrait_comfy(project_name, char, variables=None, remove_bg=True):
     """Generates a character casting image using ComfyUI and active model/LoRA presets.
-    Interpolates variables ({celina_top}, etc.) into the character prompt.
+    Interpolates variables ({celina_top}, etc.) into the character prompt based on the character's first scene appearance.
     """
+    # If variables were not provided or only root variables, calculate variables up to character's first_scene
+    if not variables:
+        try:
+            from master_regisseur import get_character_first_scene, get_variables_for_scene
+            safe_proj = os.path.splitext(os.path.basename(project_name))[0]
+            proj_json = os.path.join(PROJECTS_DIR, f"{safe_proj}.json")
+            if not os.path.exists(proj_json):
+                proj_json = os.path.join(PROJECTS_DIR, safe_proj, f"{safe_proj}.json")
+            if os.path.exists(proj_json):
+                with open(proj_json, "r", encoding="utf-8") as pf:
+                    proj_data = json.load(pf)
+                scenes = proj_data.get("scenes") or proj_data.get("szenen") or []
+                first_scene_id = get_character_first_scene(char, scenes)
+                variables = get_variables_for_scene(proj_data, first_scene_id)
+        except Exception:
+            pass
+
     settings = load_settings()
     server_address = settings.get("comfyui", {}).get("server_address", "127.0.0.1:8188")
 
@@ -1265,7 +1205,9 @@ def generate_character_portrait_comfy(project_name, char, variables=None, remove
     final_img_bytes = img_data
     if remove_bg:
         try:
-            from rembg import remove as rembg_remove
+            import importlib
+            rembg_mod = importlib.import_module("rembg")
+            rembg_remove = getattr(rembg_mod, "remove")
             from PIL import Image
             import io
             pil_img = Image.open(io.BytesIO(img_data)).convert("RGBA")
@@ -2271,11 +2213,148 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
         # -------------------------------------------------------------
         # REST API Routes
         # -------------------------------------------------------------
+        if path == "/api/version":
+            from version import __version__, __title__
+            self.send_json({
+                "version": __version__,
+                "title": __title__
+            })
+            return
+
         if path == "/api/localization":
+            from version import __version__, __title__
             from localization import get_current_language, get_all_editor_translations
             self.send_json({
+                "version": __version__,
+                "title": __title__,
                 "active_lang": get_current_language(),
                 "translations": get_all_editor_translations()
+            })
+            return
+
+        # -------------------------------------------------------------
+        # GET /api/settings (Retrieve merged settings.json)
+        # -------------------------------------------------------------
+        if path == "/api/settings":
+            current_cfg = load_settings()
+            merged_cfg, _ = deep_merge_settings(current_cfg, DEFAULT_SETTINGS)
+            self.send_json({
+                "success": True,
+                "settings": merged_cfg
+            })
+            return
+
+        # -------------------------------------------------------------
+        # GET /api/settings/models (Scan available models for settings UI)
+        # -------------------------------------------------------------
+        if path == "/api/settings/models":
+            models_dir = get_comfy_models_dir()
+            settings = load_settings()
+            lm_url = query.get("lm_studio_url", query.get("lm_url", [settings.get("lm_studio", {}).get("url", "http://127.0.0.1:1234/v1/chat/completions")]))[0]
+
+            unets = find_minimax_unets(models_dir) if models_dir else []
+            turbo_loras = find_minimax_turbo_loras(models_dir) if models_dir else []
+
+            formatted_unets = []
+            for u in unets:
+                m_path = resolve_model_path(u)
+                media_f, m_type, p_date = find_companion_media_and_meta(m_path)
+                preview_url = f"/api/models/media?name={urllib.parse.quote(u)}" if (media_f and m_type) else None
+                title = os.path.splitext(os.path.basename(u))[0]
+                desc = ""
+                if m_path:
+                    meta_path = os.path.splitext(m_path)[0] + ".metadata.json"
+                    if os.path.exists(meta_path):
+                        try:
+                            with open(meta_path, "r", encoding="utf-8", errors="ignore") as mf:
+                                mdata = json.load(mf)
+                                if mdata.get("model_name"):
+                                    title = mdata.get("model_name")
+                                raw_desc = mdata.get("modelDescription") or mdata.get("description") or ""
+                                desc = re.sub(r'<[^>]+>', ' ', raw_desc).strip()
+                        except Exception:
+                            pass
+                formatted_unets.append({
+                    "filename": u,
+                    "title": title,
+                    "description": desc,
+                    "media_type": m_type,
+                    "preview_url": preview_url,
+                    "published_at": p_date,
+                    "has_preview": bool(preview_url)
+                })
+
+            formatted_turbo = []
+            for tl in turbo_loras:
+                l_path = resolve_lora_path(tl)
+                media_f, m_type, p_date = find_companion_media_and_meta(l_path)
+                preview_url = f"/api/loras/media?name={urllib.parse.quote(tl)}" if (media_f and m_type) else None
+                title = os.path.splitext(os.path.basename(tl))[0]
+                desc = ""
+                if l_path:
+                    meta_path = os.path.splitext(l_path)[0] + ".metadata.json"
+                    if os.path.exists(meta_path):
+                        try:
+                            with open(meta_path, "r", encoding="utf-8", errors="ignore") as mf:
+                                mdata = json.load(mf)
+                                if mdata.get("model_name"):
+                                    title = mdata.get("model_name")
+                                raw_desc = mdata.get("modelDescription") or mdata.get("description") or ""
+                                desc = re.sub(r'<[^>]+>', ' ', raw_desc).strip()
+                        except Exception:
+                            pass
+                formatted_turbo.append({
+                    "filename": tl,
+                    "title": title,
+                    "description": desc,
+                    "steps": detect_steps_from_lora_name(tl),
+                    "media_type": m_type,
+                    "preview_url": preview_url,
+                    "published_at": p_date,
+                    "has_preview": bool(preview_url)
+                })
+
+            music_ckpts = find_music_checkpoints(models_dir) if models_dir else []
+            formatted_music = []
+            for mc in music_ckpts:
+                m_path = resolve_model_path(mc)
+                media_f, m_type, p_date = find_companion_media_and_meta(m_path)
+                preview_url = f"/api/models/media?name={urllib.parse.quote(mc)}" if (media_f and m_type) else None
+                title = os.path.splitext(os.path.basename(mc))[0]
+                desc = ""
+                if m_path:
+                    meta_path = os.path.splitext(m_path)[0] + ".metadata.json"
+                    if os.path.exists(meta_path):
+                        try:
+                            with open(meta_path, "r", encoding="utf-8", errors="ignore") as mf:
+                                mdata = json.load(mf)
+                                if mdata.get("model_name"):
+                                    title = mdata.get("model_name")
+                                raw_desc = mdata.get("modelDescription") or mdata.get("description") or ""
+                                desc = re.sub(r'<[^>]+>', ' ', raw_desc).strip()
+                        except Exception:
+                            pass
+                m_prof = get_audio_model_profile(mc, settings.get("music_studio", {}).get("model_profiles"))
+                formatted_music.append({
+                    "filename": mc,
+                    "title": title,
+                    "description": desc,
+                    "media_type": m_type,
+                    "preview_url": preview_url,
+                    "published_at": p_date,
+                    "has_preview": bool(preview_url),
+                    "profile": m_prof
+                })
+
+            lm_models = fetch_lm_studio_models(lm_url) if lm_url else []
+
+            self.send_json({
+                "success": True,
+                "models_dir": models_dir,
+                "minimax_unets": formatted_unets,
+                "minimax_turbo_loras": formatted_turbo,
+                "music_checkpoints": formatted_music,
+                "lm_studio_models": lm_models
             })
             return
 
@@ -2290,7 +2369,6 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
 
         if path == "/api/music/models":
             models_dir = get_comfy_models_dir()
-            from master_regisseur import find_music_checkpoints
             found = find_music_checkpoints(models_dir) if models_dir else []
             settings = load_settings()
             cfg_ckpt = settings.get("music_studio", {}).get("checkpoint", "Other\\base model\\ace_step_v1_3.5b.safetensors")
@@ -2298,13 +2376,16 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
                 found.insert(0, cfg_ckpt)
 
             formatted = []
+            custom_profs = settings.get("music_studio", {}).get("model_profiles")
             for f in found:
                 title = os.path.splitext(os.path.basename(f))[0]
                 m_type = "ACE-Step" if "ace" in f.lower() else ("Music" if "music" in f.lower() else "Audio")
+                m_prof = get_audio_model_profile(f, custom_profs)
                 formatted.append({
                     "filename": f,
                     "title": title,
-                    "type": m_type
+                    "type": m_type,
+                    "profile": m_prof
                 })
 
             self.send_json({
@@ -2461,12 +2542,15 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
             presets = get_presets_data(enrich=False)
             lora_presets = presets.get("lora_presets", {})
             lval = lora_presets.get(name_param)
-            if not lval:
-                self.send_error(404, "LoRA im Preset-Katalog nicht gefunden")
-                return
+            media_file = None
+            if lval:
+                cinfo = get_lora_companion_info(name_param, lval.get("lora_name", ""))
+                media_file = cinfo.get("media_file")
+            else:
+                l_path = resolve_lora_path(name_param)
+                if l_path:
+                    media_file, _, _ = find_companion_media_and_meta(l_path)
 
-            cinfo = get_lora_companion_info(name_param, lval.get("lora_name", ""))
-            media_file = cinfo.get("media_file")
             if not media_file or not os.path.exists(media_file):
                 self.send_error(404, "Vorschaumedium nicht gefunden")
                 return
@@ -2496,13 +2580,16 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
             presets = get_presets_data(enrich=False)
             model_presets = presets.get("presets", {})
             mval = model_presets.get(name_param)
-            if not mval:
-                self.send_error(404, "Modell im Preset-Katalog nicht gefunden")
-                return
+            media_file = None
+            if mval:
+                munet = mval.get("unet_name") or mval.get("checkpoint") or ""
+                cinfo = get_model_companion_info(name_param, munet)
+                media_file = cinfo.get("media_file")
+            else:
+                m_path = resolve_model_path(name_param)
+                if m_path:
+                    media_file, _, _ = find_companion_media_and_meta(m_path)
 
-            munet = mval.get("unet_name") or mval.get("checkpoint") or ""
-            cinfo = get_model_companion_info(name_param, munet)
-            media_file = cinfo.get("media_file")
             if not media_file or not os.path.exists(media_file):
                 self.send_error(404, "Vorschaumedium nicht gefunden")
                 return
@@ -2518,6 +2605,283 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
             }
             content_type = mime_map.get(ext, "application/octet-stream")
             serve_media_file(self, media_file, content_type)
+            return
+
+        # -------------------------------------------------------------
+        # -------------------------------------------------------------
+        # GET /api/scene/video (Stream rendered scene clip with HTTP 206)
+        # -------------------------------------------------------------
+        if path == "/api/scene/video":
+            project_param = query.get("project", [""])[0].strip()
+            scene_param = query.get("scene", [""])[0].strip() or query.get("id", [""])[0].strip()
+            if not project_param or not scene_param:
+                self.send_error(400, "Parameter 'project' und 'scene' erforderlich")
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            cand_scenes_dirs = [
+                os.path.join(PROJECTS_DIR, safe_project, "Scenes"),
+                os.path.join(PROJECTS_DIR, "Scenes")
+            ]
+
+            target_file = None
+            for sdir in cand_scenes_dirs:
+                if not os.path.exists(sdir):
+                    continue
+                if scene_param.endswith(".mp4"):
+                    cand = os.path.join(sdir, os.path.basename(scene_param))
+                    if os.path.exists(cand):
+                        target_file = cand
+                        break
+                else:
+                    try:
+                        s_id = int(re.search(r'\d+', scene_param).group(0))
+                        for cand_name in [
+                            f"Szene_{s_id:02d}.mp4", f"Szene_{s_id}.mp4",
+                            f"szene_{s_id:02d}.mp4", f"szene_{s_id}.mp4",
+                            f"Szene_{s_id:02d}.webm", f"Szene_{s_id}.webm"
+                        ]:
+                            cand_path = os.path.join(sdir, cand_name)
+                            if os.path.exists(cand_path):
+                                target_file = cand_path
+                                break
+                    except Exception:
+                        pass
+                if target_file:
+                    break
+
+            if not target_file or not os.path.exists(target_file):
+                self.send_error(404, "Szenen-Video nicht gefunden")
+                return
+
+            serve_media_file(self, target_file, "video/mp4")
+            return
+
+        # -------------------------------------------------------------
+        # GET /api/scene/preview (Serve scene companion thumbnail)
+        # -------------------------------------------------------------
+        if path == "/api/scene/preview":
+            project_param = query.get("project", [""])[0].strip()
+            scene_param = query.get("scene", [""])[0].strip() or query.get("id", [""])[0].strip()
+            if not project_param or not scene_param:
+                self.send_error(400, "Parameter 'project' und 'scene' erforderlich")
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            cand_scenes_dirs = [
+                os.path.join(PROJECTS_DIR, safe_project, "Scenes"),
+                os.path.join(PROJECTS_DIR, "Scenes")
+            ]
+
+            target_file = None
+            for sdir in cand_scenes_dirs:
+                if not os.path.exists(sdir):
+                    continue
+                try:
+                    s_id = int(re.search(r'\d+', scene_param).group(0))
+                    for cand_name in [
+                        f"Szene_{s_id:02d}_preview.png", f"Szene_{s_id}_preview.png",
+                        f"Szene_{s_id:02d}.png", f"Szene_{s_id}.png",
+                        f"Szene_{s_id:02d}_preview.jpg", f"Szene_{s_id}_preview.jpg",
+                        f"Szene_{s_id:02d}.jpg", f"Szene_{s_id}.jpg",
+                        f"Szene_{s_id:02d}_preview.webp", f"Szene_{s_id}_preview.webp",
+                        f"szene_{s_id:02d}_preview.png", f"szene_{s_id}_preview.png",
+                        f"szene_{s_id:02d}.png", f"szene_{s_id}.png"
+                    ]:
+                        cand_path = os.path.join(sdir, cand_name)
+                        if os.path.exists(cand_path):
+                            target_file = cand_path
+                            break
+                except Exception:
+                    pass
+                if target_file:
+                    break
+
+            if not target_file or not os.path.exists(target_file):
+                self.send_error(404, "Szenen-Vorschaubild nicht gefunden")
+                return
+
+            ext = os.path.splitext(target_file)[1].lower()
+            mime = "image/png"
+            if ext in [".jpg", ".jpeg"]:
+                mime = "image/jpeg"
+            elif ext == ".webp":
+                mime = "image/webp"
+
+            serve_media_file(self, target_file, mime)
+            return
+
+        # -------------------------------------------------------------
+        # GET /api/movie/video (Stream final assembled movie with HTTP 206)
+        # -------------------------------------------------------------
+        if path == "/api/movie/video":
+            project_param = query.get("project", [""])[0].strip()
+            if not project_param:
+                self.send_error(400, "Parameter 'project' erforderlich")
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            cand_movie_dirs = [
+                os.path.join(PROJECTS_DIR, safe_project, "Movie"),
+                os.path.join(PROJECTS_DIR, "Movie")
+            ]
+
+            target_file = None
+            for mdir in cand_movie_dirs:
+                if not os.path.exists(mdir):
+                    continue
+                tf = os.path.join(mdir, f"{safe_project}_FINAL.mp4")
+                if os.path.exists(tf):
+                    target_file = tf
+                    break
+                for f in os.listdir(mdir):
+                    if f.endswith(".mp4") and not f.endswith("_RAW.mp4"):
+                        target_file = os.path.join(mdir, f)
+                        break
+                if target_file:
+                    break
+
+            if not target_file or not os.path.exists(target_file):
+                self.send_error(404, "Finales Video nicht gefunden")
+                return
+
+            serve_media_file(self, target_file, "video/mp4")
+            return
+
+        # -------------------------------------------------------------
+        # GET /api/scenes/status (Return render state & media URLs for storyboard timeline)
+        # -------------------------------------------------------------
+        if path == "/api/scenes/status":
+            project_param = query.get("project", [""])[0].strip()
+            if not project_param:
+                self.send_error_json("Parameter 'project' erforderlich")
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            proj_dir = os.path.join(PROJECTS_DIR, safe_project)
+            cand_scenes_dirs = [
+                os.path.join(proj_dir, "Scenes"),
+                os.path.join(PROJECTS_DIR, "Scenes")
+            ]
+            cand_movie_dirs = [
+                os.path.join(proj_dir, "Movie"),
+                os.path.join(PROJECTS_DIR, "Movie")
+            ]
+
+            proj_json = os.path.join(PROJECTS_DIR, f"{safe_project}.json")
+            if not os.path.exists(proj_json):
+                proj_json = os.path.join(proj_dir, f"{safe_project}.json")
+
+            screenplay_scenes = []
+            if os.path.exists(proj_json):
+                try:
+                    with open(proj_json, "r", encoding="utf-8") as f:
+                        sp_data = json.load(f)
+                    screenplay_scenes = sp_data.get("scenes") or sp_data.get("szenen") or []
+                except Exception:
+                    pass
+
+            scene_results = []
+            for idx, sc in enumerate(screenplay_scenes):
+                sid = sc.get("id", idx + 1)
+                try:
+                    s_num = int(sid)
+                except Exception:
+                    s_num = idx + 1
+
+                target_v = None
+                target_p = None
+
+                for sdir in cand_scenes_dirs:
+                    if not os.path.exists(sdir):
+                        continue
+                    if not target_v:
+                        for cand_name in [
+                            f"Szene_{s_num:02d}.mp4", f"Szene_{s_num}.mp4",
+                            f"szene_{s_num:02d}.mp4", f"szene_{s_num}.mp4",
+                            f"Szene_{s_num:02d}.webm", f"Szene_{s_num}.webm"
+                        ]:
+                            cand_path = os.path.join(sdir, cand_name)
+                            if os.path.exists(cand_path):
+                                target_v = cand_path
+                                break
+                    if not target_p:
+                        for cand_name in [
+                            f"Szene_{s_num:02d}_preview.png", f"Szene_{s_num}_preview.png",
+                            f"Szene_{s_num:02d}.png", f"Szene_{s_num}.png",
+                            f"Szene_{s_num:02d}_preview.jpg", f"Szene_{s_num}_preview.jpg",
+                            f"Szene_{s_num:02d}.jpg", f"Szene_{s_num}.jpg",
+                            f"Szene_{s_num:02d}_preview.webp", f"Szene_{s_num}_preview.webp",
+                            f"szene_{s_num:02d}_preview.png", f"szene_{s_num}_preview.png",
+                            f"szene_{s_num:02d}.png", f"szene_{s_num}.png"
+                        ]:
+                            cand_path = os.path.join(sdir, cand_name)
+                            if os.path.exists(cand_path):
+                                target_p = cand_path
+                                break
+
+                has_video = target_v is not None
+                has_preview = target_p is not None
+
+                v_mtime = int(os.path.getmtime(target_v)) if has_video else 0
+                p_mtime = int(os.path.getmtime(target_p)) if has_preview else 0
+
+                v_url = f"/api/scene/video?project={urllib.parse.quote(safe_project)}&scene={s_num}&t={v_mtime}" if has_video else None
+                p_url = f"/api/scene/preview?project={urllib.parse.quote(safe_project)}&scene={s_num}&t={p_mtime}" if has_preview else None
+
+                reshoot_key = f"{safe_project}_{s_num}"
+                reshoot_job = _ACTIVE_RESHOOTS.get(reshoot_key)
+                is_rendering = bool(reshoot_job and reshoot_job.get("status") == "rendering")
+
+                sc_dur = float(sc.get("duration") or sc.get("dauer_sekunden") or sc.get("dauer") or 6.0)
+                sc_trans = str(sc.get("transition") or sc.get("uebergang") or sc.get("blende") or "cut")
+                sc_trans_dur = float(sc.get("transition_duration") or sc.get("uebergang_dauer") or 0.75)
+
+                scene_results.append({
+                    "id": s_num,
+                    "sequence": sc.get("sequence") or sc.get("sequenz") or "",
+                    "location": sc.get("location") or sc.get("ort") or "",
+                    "has_video": has_video,
+                    "video_url": v_url,
+                    "video_mtime": v_mtime,
+                    "has_preview": has_preview,
+                    "preview_url": p_url,
+                    "preview_mtime": p_mtime,
+                    "is_rendering": is_rendering,
+                    "duration": sc_dur,
+                    "transition": sc_trans,
+                    "transition_duration": sc_trans_dur
+                })
+
+            final_movie_path = None
+            for mdir in cand_movie_dirs:
+                if not os.path.exists(mdir):
+                    continue
+                tf = os.path.join(mdir, f"{safe_project}_FINAL.mp4")
+                if os.path.exists(tf):
+                    final_movie_path = tf
+                    break
+                for f in os.listdir(mdir):
+                    if f.endswith(".mp4") and not f.endswith("_RAW.mp4"):
+                        final_movie_path = os.path.join(mdir, f)
+                        break
+                if final_movie_path:
+                    break
+
+            has_final_movie = final_movie_path is not None and os.path.exists(final_movie_path)
+            movie_mtime = int(os.path.getmtime(final_movie_path)) if has_final_movie else 0
+            active_rendering = [s["id"] for s in scene_results if s["is_rendering"]]
+
+            self.send_json({
+                "success": True,
+                "project": safe_project,
+                "scenes": scene_results,
+                "any_rendering": len(active_rendering) > 0,
+                "active_rendering_scenes": active_rendering,
+                "movie_ready": has_final_movie,
+                "movie_url": f"/api/movie/video?project={urllib.parse.quote(safe_project)}&t={movie_mtime}" if has_final_movie else None,
+                "movie_file": os.path.basename(final_movie_path) if has_final_movie else None
+            })
             return
 
         # -------------------------------------------------------------
@@ -2556,6 +2920,14 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
         try:
             with open(local_file, "rb") as f:
                 content = f.read()
+
+            if local_file.endswith(".html"):
+                from version import __version__
+                content_str = content.decode("utf-8", errors="replace")
+                content_str = re.sub(r'class="version-tag">[^<]*<', f'class="version-tag">v{__version__}<', content_str)
+                content_str = content_str.replace("{{VERSION}}", __version__)
+                content = content_str.encode("utf-8")
+
             self.send_response(200)
             self.send_header("Content-Type", mime)
             self.send_header("Content-Length", str(len(content)))
@@ -2581,6 +2953,33 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.send_error_json(f"Ungültiges JSON im Request Body: {e}")
                 return
+
+        # -------------------------------------------------------------
+        # POST /api/settings (Save configuration to settings.json)
+        # -------------------------------------------------------------
+        if path == "/api/settings":
+            new_settings = payload.get("settings") if isinstance(payload.get("settings"), dict) else payload
+            if not isinstance(new_settings, dict):
+                self.send_error_json("Feld 'settings' als Objekt erforderlich")
+                return
+
+            ok, err = save_settings(new_settings)
+            if not ok:
+                self.send_error_json(f"Fehler beim Speichern der Einstellungen: {err}", status=500)
+                return
+
+            try:
+                import master_regisseur
+                master_regisseur.SETTINGS = new_settings
+            except Exception:
+                pass
+
+            self.send_json({
+                "success": True,
+                "message": "Einstellungen erfolgreich in settings.json gespeichert.",
+                "settings": new_settings
+            })
+            return
 
         # -------------------------------------------------------------
         # POST /api/music/suggest-tags
@@ -2634,7 +3033,7 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
                 return
 
             from master_regisseur import (
-                find_file, WORKFLOWS_DIR, BASE_DIR, get_video_duration,
+                find_file, WORKFLOWS_DIR, get_video_duration,
                 generate_movie_soundtrack, mix_soundtrack_into_movie
             )
             settings = load_settings()
@@ -2648,9 +3047,10 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
 
             movie_dur = get_video_duration(final_video) or 30.0
             chosen_ckpt = payload.get("checkpoint") or settings.get("music_studio", {}).get("checkpoint") or "Other\\base model\\ace_step_v1_3.5b.safetensors"
+            audio_prof = get_audio_model_profile(chosen_ckpt, settings.get("music_studio", {}).get("model_profiles"))
             prompt_tags = payload.get("prompt") or payload.get("tags") or "cinematic ambient soundtrack, acoustic guitar, warm pads, gentle tempo, instrumental"
-            steps = int(payload.get("steps") or 40)
-            cfg = float(payload.get("cfg") or 4.0)
+            steps = int(payload.get("steps") or settings.get("music_studio", {}).get("steps") or audio_prof.get("default_steps", 40))
+            cfg = float(payload.get("cfg") or settings.get("music_studio", {}).get("cfg") or audio_prof.get("default_cfg", 2.0))
             vol = float(payload.get("volume") or 0.20)
             ducking = bool(payload.get("ducking") if payload.get("ducking") is not None else True)
 
@@ -2723,6 +3123,17 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
             try:
                 with open(target_path, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2, ensure_ascii=False)
+
+                # Synchronize with project subfolder copy if directory exists (Projects/<film_name>/<film_name>.json)
+                proj_base = os.path.splitext(safe_name)[0]
+                sub_proj_dir = os.path.join(PROJECTS_DIR, proj_base)
+                if os.path.isdir(sub_proj_dir):
+                    sub_target_path = os.path.join(sub_proj_dir, safe_name)
+                    try:
+                        with open(sub_target_path, "w", encoding="utf-8") as sf:
+                            json.dump(data, sf, indent=2, ensure_ascii=False)
+                    except Exception as sbe:
+                        print(f"⚠️ Subprojekt-Synchronisation fehlgeschlagen: {sbe}")
 
                 self.send_json({
                     "success": True,
@@ -2798,9 +3209,11 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
             # Perform background removal if requested
             if remove_bg:
                 try:
-                    from rembg import remove
+                    import importlib
+                    rembg_mod = importlib.import_module("rembg")
+                    remove_fn = getattr(rembg_mod, "remove")
                     print(f"✂️ [RemBG] Entferne Hintergrund für Charakter '{char_name}'...")
-                    img_bytes = remove(img_bytes)
+                    img_bytes = remove_fn(img_bytes)
                     print("✅ [RemBG] Hintergrund erfolgreich entfernt!")
                 except Exception as re_err:
                     print(f"⚠️ [RemBG] Warnung: Hintergrundentfernung fehlgeschlagen ({re_err}), verwende Originalbild.")
@@ -2915,6 +3328,70 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
             threading.Thread(target=stop_server, daemon=True).start()
             return
 
+        # -------------------------------------------------------------
+        # POST /api/scene/rerender (Incrementally re-shoot single scene)
+        # -------------------------------------------------------------
+        if path == "/api/scene/rerender":
+            project_param = payload.get("project", "").strip()
+            scene_id = payload.get("scene_id")
+            if not project_param or scene_id is None:
+                self.send_error_json("Parameter 'project' und 'scene_id' erforderlich")
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            proj_json = os.path.join(PROJECTS_DIR, f"{safe_project}.json")
+            if not os.path.exists(proj_json):
+                proj_json = os.path.join(PROJECTS_DIR, safe_project, f"{safe_project}.json")
+
+            if not os.path.exists(proj_json):
+                self.send_error_json(f"Projekt-Drehbuch '{safe_project}' nicht gefunden")
+                return
+
+            reshoot_key = f"{safe_project}_{scene_id}"
+            _ACTIVE_RESHOOTS[reshoot_key] = {
+                "project": safe_project,
+                "scene_id": scene_id,
+                "status": "rendering",
+                "start_time": time.time(),
+                "finished_at": None,
+                "error": None
+            }
+
+            # Launch master_regisseur.py in background thread with --scene <id>
+            def run_targeted_reshoot():
+                import subprocess
+                cmd = [
+                    sys.executable,
+                    "-u",
+                    os.path.join(BASE_DIR, "master_regisseur.py"),
+                    proj_json,
+                    "--scene", str(scene_id)
+                ]
+                print(f"🎬 [Re-Render] Starte gezielten Dreh von Szene {scene_id} für '{safe_project}'...")
+                try:
+                    subprocess.run(cmd, cwd=BASE_DIR, check=True)
+                    print(f"✅ [Re-Render] Szene {scene_id} erfolgreich neu gedreht!")
+                    if reshoot_key in _ACTIVE_RESHOOTS:
+                        _ACTIVE_RESHOOTS[reshoot_key]["status"] = "completed"
+                        _ACTIVE_RESHOOTS[reshoot_key]["finished_at"] = time.time()
+                except Exception as ex:
+                    print(f"❌ [Re-Render] Fehler beim Drehen von Szene {scene_id}: {ex}")
+                    if reshoot_key in _ACTIVE_RESHOOTS:
+                        _ACTIVE_RESHOOTS[reshoot_key]["status"] = "error"
+                        _ACTIVE_RESHOOTS[reshoot_key]["error"] = str(ex)
+                        _ACTIVE_RESHOOTS[reshoot_key]["finished_at"] = time.time()
+
+            t_thread = threading.Thread(target=run_targeted_reshoot, daemon=True)
+            t_thread.start()
+
+            self.send_json({
+                "success": True,
+                "message": f"Dreh für Szene {scene_id} wurde im Hintergrund gestartet.",
+                "scene_id": scene_id,
+                "project": safe_project
+            })
+            return
+
         self.send_error_json(f"Unbekannte POST-Route: {path}", status=404)
 
 
@@ -2931,7 +3408,7 @@ def run_script_agency(port=None, host="127.0.0.1", open_browser=True, blocking=T
 
     url = f"http://{host}:{port}/"
     print("\n" + "=" * 60)
-    print(f"🎬 SCRIPT AGENCY v{__version__} • MovieGenerator Visual Screenplay Studio")
+    print(f"🎬 MOVIE STUDIO v{__version__} • MovieGenerator Visual Production Studio")
     print(f"👉 Web-Editor läuft unter: {url}")
     print("   [Tipp] Drücke Strg+C im Terminal oder klicke '✕' im Web, um zu beenden.")
     print("=" * 60 + "\n")
@@ -2943,7 +3420,7 @@ def run_script_agency(port=None, host="127.0.0.1", open_browser=True, blocking=T
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
-            print("\n🛑 Script Agency beendet.")
+            print("\n🛑 Movie Studio beendet.")
         finally:
             httpd.server_close()
     else:
@@ -2952,9 +3429,9 @@ def run_script_agency(port=None, host="127.0.0.1", open_browser=True, blocking=T
         return httpd
 
 
-if __name__ == "__main__":
+def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Script Agency - Visual Screenplay Editor")
+    parser = argparse.ArgumentParser(description="Movie Studio - Visual Production Studio")
     parser.add_argument("--port", type=int, default=None, help="Port für den Webserver (Standard: 7860)")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Host-Adresse (Standard: 127.0.0.1)")
     parser.add_argument("--no-browser", action="store_true", help="Browser nicht automatisch öffnen")
@@ -2966,3 +3443,7 @@ if __name__ == "__main__":
         open_browser=not args.no_browser,
         blocking=True
     )
+
+
+if __name__ == "__main__":
+    main()

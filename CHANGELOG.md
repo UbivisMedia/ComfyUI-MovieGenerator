@@ -5,11 +5,119 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.4] - 2026-09-23
+
+### ✨ Added
+
+- **Centralized Engine Architecture (`lib/`)**:
+  - Modularized common logic across `master_regisseur.py` and `script_agency.py` into a clean `lib/` package:
+    - `lib/subject_manager.py`: Implemented robust subject resolution (capping at MiniMax's hardware maximum of 9 portraits) and dynamic 2-pass remapping from arbitrary global IDs (`<Subject 7>`) to local 1-based scene slots (`<Subject 1>` .. `<Subject N>`).
+    - `lib/settings_manager.py`: Centralized `settings.json` loading, automatic schema healing/migrations, and atomic saving with `.bak` backups.
+    - `lib/comfy_manager.py`: Centralized ComfyUI HTTP client execution (`queue_prompt`, `get_history`, `get_image`, `upload_file`, `free_comfyui_memory`) and model discovery (`find_minimax_unets`, `find_minimax_turbo_loras`, `detect_steps_from_lora_name`, `find_music_checkpoints`, dynamic models search paths).
+    - `lib/llm_manager.py`: Centralized LM Studio configuration, `/v1/models` retrieval, model status checking, prompt dispatching, and CLI VRAM management (`lms load`, `lms unload`).
+- **Unified One-Click Launcher (`start_movie_studio.bat`)**:
+  - Consolidated `create_movie.bat` and `start_script_agency.bat` into a single, clean `start_movie_studio.bat`.
+  - Added an interactive English selection menu:
+    - `[1] Launch Movie Studio (Web GUI) [Default]`
+    - `[2] Launch Master Director (Terminal CLI)`
+    - `[3] Exit`
+  - Added seamless drag-and-drop support: dragging a screenplay JSON directly onto `start_movie_studio.bat` immediately starts the CLI film pipeline.
+- **Bugfix & Stability**:
+  - Resolved ComfyUI `MiniMaxH3ReferenceToVideo.execute()` crash (`unexpected keyword argument 'ref_images.ref_image_9'`) by strictly limiting scene inputs to 9 portraits while preserving global IDs in screenplays.
+  - **Storyboard Timeline Preview Auto-Update on Scene Re-Shoot**: Fixed issue where targeted scene re-rendering in Movie Studio did not automatically update the Storyboard Timeline preview thumbnail upon scene completion. Implemented background job lifecycle tracking in `script_agency.py` (`_ACTIVE_RESHOOTS`), disk file modification timestamp caching in `GET /api/scenes/status` (`?t=mtime`), active rendering state badges (`⏳ Wird gedreht...`), and polling in `web/app.js` with live thumbnail replacement and success notifications.
+  - **Visual Model Picker for Music Studio Settings**: Replaced the plain dropdown and text input for the Music Checkpoint in the Studio Settings (`⚙️ Studio-Einstellungen`) with the visual Model Picker Card & Modal (`btnPickMusicCheckpoint`, `settingMusicCheckpointCard`), matching the sleek UX of Minimax UNET and Turbo LoRA. Automatically resolves companion covers and descriptions for audio checkpoints (ACE-Step, Stable Audio).
+  - **Dynamic Audio Model Profiles & Configurable Generation Parameters**: Removed all hardcoded magic numbers for audio checkpoints. Implemented an extensible model profile system (`get_audio_model_profile`) with tailored defaults and safety ranges for ACE-Step 1.5 (SFT / AIO, CFG 1.0–2.0), ACE-Step v1 (CFG 3.5–4.5), Stable Audio (CFG 4.0–6.0), and Generic models. Added per-screenplay **Sampling Steps** and **CFG Scale** controls directly into the Music Studio tab with live profile hints and a one-click *"⚡ Empfohlene Werte"* auto-tuning button. Both CLI and Web Studio now dynamically evaluate parameters with a clean hierarchy: Screenplay -> Settings -> Dynamic Model Profile.
+
+---
+
+## [1.2.3] - 2026-09-22
+
+### ✨ Added
+
+- **Studio Settings GUI (`settings.json` Editor)**: Added a comprehensive, comfortable visual settings editor accessible via the top navigation bar (`⚙️ Einstellungen` / `⚙️ Settings`).
+  - **Minimax I2V & Turbo**: Select detected Minimax diffusion UNET models from ComfyUI, configure Turbo LoRAs, steps, strength slider with live value indicator, and VAE/CLIP models.
+  - **Visual LoRA Picker for Turbo**: Integrated the rich visual LoRA picker modal (`⚡ LoRA-Picker`) directly into the settings editor, allowing users to browse cover thumbnails, descriptions, and trigger words to pick their preferred Turbo LoRA with automated step detection (3, 4, 8 steps).
+  - **Music Studio Settings**: Configure default soundtrack generation, select ACE-Step / audio checkpoints, set default steps, CFG scale, volume slider with live percentage badge, and smart auto-ducking.
+  - **LM Studio & System**: Configure LM Studio API endpoint, dynamically fetch and pick available language models via `Abrufen` / `Fetch`, set temperature/creativity slider, configure ComfyUI server address, models directory, and WebM export.
+- **Settings Backend API (`script_agency.py`)**:
+  - `GET /api/settings`: Returns merged settings with `DEFAULT_SETTINGS`.
+  - `POST /api/settings`: Saves new configuration to `settings.json` with automated `.bak` backup and live in-memory synchronization.
+  - `GET /api/settings/models`: Scans and enumerates local Minimax UNET models, Turbo LoRAs with auto-detected step recommendations, audio checkpoints, and queries LM Studio models via HTTP.
+- **Bilingual Studio Settings Localization**: Comprehensive German and English translation keys added to `localization/de.json` and `localization/en.json`.
+
+---
+
+## [1.2.2] - 2026-09-22
+
+### 🐛 Fixed
+
+- **Director's Control Settings in Single-Scene Re-Shoot (HQ / Steps)**: Fixed an issue where re-rendering a scene (e.g. via the single-scene reshoot button) fell back to the default 8-step Turbo mode despite the scene being configured for "HQ / Kein Turbo (20 Steps)". When `master_regisseur.py` loaded the project, it previously prioritized an existing subfolder copy (`Projects/<film>/<film>.json`) which contained stale default parameters from an earlier run, ignoring the master screenplay (`Projects/<film>.json`) saved by Script Agency.
+- **Master Screenplay Priority & Continuity**: `master_regisseur.py` now treats the specified screenplay path as the authoritative source of truth for all scene settings (`turbo`, `steps`, `megapixels`, `upscale`), borrows AI prompts from the project copy only when the master file lacks them, and keeps the project directory copy synchronized.
+- **Dual-Path Project Saving**: `POST /api/project` in `script_agency.py` now writes to both the root project file (`Projects/<name>.json`) and the project subfolder (`Projects/<name>/<name>.json`) if the directory exists, preventing stale state drift.
+- **Auto-Save Before Scene Re-Shoot**: Added automatic pre-flight screenplay saving in `web/app.js` prior to triggering `/api/scene/rerender` whenever changes are unsaved (`state.isDirty`).
+- **Missing Localization Key**: Added `scene_shooting_settings` to `localization/de.json` and `localization/en.json` to correctly log director render parameters in the console during Phase 3.
+
+### ✨ Added
+
+- **Dynamic GUI Versioning**: Removed hardcoded version numbers from the web interface. The version is now read dynamically from `version.py` (`__version__`), exposed via `/api/version` and `/api/localization`, and automatically injected into `.version-tag` elements both during static HTML delivery and upon client-side application initialization.
+- **Movie Studio Branding & Architecture**: Rebranded the web interface from "Script Agency" to **Movie Studio** (`MovieGenerator Visual Production Studio`) to reflect its evolution into a complete suite (scriptwriting, casting, directing, scoring, timeline, video player, and re-rendering).
+- **Dedicated `movie_studio.py` & `start_movie_studio.bat` Launchers**: Added `movie_studio.py` and `start_movie_studio.bat` as explicit GUI entry points, clarifying the clean separation between CLI/Worker (`master_regisseur.py` / `create_movie.bat`) and Web GUI (`movie_studio.py` / `start_movie_studio.bat`). Backward-compatibility aliases for `script_agency.py` remain fully intact.
+
+---
+
+## [1.2.1] - 2026-09-22
+
+### 🐛 Fixed
+
+- **Character Casting Continuity & Variable Timeline**: Fixed continuity error where character casting portraits in ComfyUI interpolated `{variables}` (such as wardrobe changes) using values from the very end of the screenplay after LM Studio processed all scenes. Introduced automated detection of each character's first appearance scene (`first_scene`) and scoped variable resolution (`get_variables_for_scene`) so characters are cast in their authentic introductory attire.
+- **Video Player Modal Overlay & Layout**: Fixed video player element rendering as a static unhideable box taking up half the viewport height by standardizing its markup on studio-wide `.modal-backdrop` and `.modal-dialog` classes. The player is now properly hidden by default.
+- **Scene Re-Rendering Background Thread**: Fixed `NameError: cannot access free variable 'BASE_DIR'` in `script_agency.py` during `POST /api/scene/rerender` by removing redundant local `BASE_DIR` import shadowing in `do_POST()`.
+
+### ✨ Added
+
+- **Dedicated Video Player Header Button**: Added an immediate `🎬 Player` launcher button to the Script Agency top navigation bar to open or close the video player anytime.
+- **Enhanced Player Controls**: Added a footer "Schließen" button in the player meta bar in addition to the header close button (✕), backdrop dismissal, and `Escape` key shortcut.
+- **Bilingual Localization**: Added UI translations for `btnVideoPlayer`, `btnVideoPlayerTitle`, and `video_no_rendered_found` in `de.json` and `en.json`.
+
+---
+
+## [1.2.0] - 2026-09-20
+
+### 🌟 Highlights
+
+- **Visual Storyboard Filmstrip Timeline (`#storyboardTimelineContainer`)**: An interactive, responsive timeline strip positioned directly above the scene cards. Displays live scene thumbnails, durations, readiness status badges, interactive transition chips, and an immediate full movie playback launcher (`▶️ Gesamten Film abspielen`).
+- **In-Browser Video Playback & Streaming**: Integrated HTML5 video player modal (`#videoPlayerModal`) supporting HTTP 206 Partial Content (Range requests) for instant, seekable scrubbing of both individual scene clips and the assembled master movie without leaving Script Agency.
+- **Cinematic Scene Transitions**: Added per-scene cinematic transition controls with custom durations (0.5s – 2.0s). Supports **Hard Cut**, **Cross-Dissolve** (`dissolve`), **Fade to Black** (`fadeblack`), **Dip to White** (`fadewhite`), and directional **Wipes** (`wipeleft`, `wiperight`). Transition assembly automatically constructs chained FFmpeg `xfade` (video) and `acrossfade` (audio) complex filtergraphs with sample rate normalization, while seamlessly falling back to ultra-fast lossless stream-copy (`-c copy`) when only hard cuts are used.
+- **Incremental Re-Rendering (`--scene <id>`)**: Directors can now re-shoot any single scene directly from its scene card (`🔄 Szene neu drehen` / `Reshoot Scene`) or via CLI flag. Automatically loads existing anchor frames for match-cut continuity, regenerates only the target scene, and immediately reassembles the master movie.
+
+### ✨ Added
+
+- **Storyboard Timeline Track (`web/index.html`, `web/style.css`, `web/app.js`)**:
+  - Filmstrip cards displaying thumbnail previews, scene indices, durations, and rendered/pending badges.
+  - Interactive transition badges between timeline cards that cycle transitions on click (`CUT` ➔ `DISSOLVE` ➔ `FADE-BLACK` ➔ `FADE-WHITE` ➔ `WIPE-LEFT`) and synchronize instantly with scene card controls.
+  - Scene card highlight effect and auto-scroll when clicking timeline thumbnails.
+- **In-Browser Video Player Modal (`web/index.html`, `web/style.css`, `web/app.js`)**:
+  - Native video controls with keyboard shortcuts (`Escape` to close), duration indicator, and direct file download button.
+  - Play buttons integrated into both timeline cards and scene card headers (`▶️`).
+- **HTTP 206 Partial Content Media Streaming (`script_agency.py`)**:
+  - `GET /api/scene/video?project=...&scene=...`: Stream individual scene clips.
+  - `GET /api/scene/preview?project=...&scene=...`: Serve companion preview keyframes.
+  - `GET /api/movie/video?project=...`: Stream the assembled full movie.
+  - `GET /api/scenes/status?project=...`: Real-time query of all scene statuses, video file sizes, and duration metadata.
+  - `POST /api/scene/rerender`: Background execution of selective re-rendering via `master_regisseur.py --scene <id>`.
+- **FFmpeg Cinematic Transition Pipeline (`master_regisseur.py`)**:
+  - `has_audio_stream(video_path)`: Reliable probe for audio presence across clips.
+  - `assemble_movie()`: Dynamically compiles `xfade` and `acrossfade` filter chains with duration offsets.
+  - `--scene <id>` and `--only-scene <id>` CLI arguments for targeted scene re-shooting.
+- **Full Bilingual Localization**:
+  - 25+ new translation keys in both `localization/de.json` and `localization/en.json` covering all timeline elements, player modal strings, and transition choices.
+
 ---
 
 ## [1.1.0] - 2026-09-20
 
 ### 🌟 Highlights
+
 - **In-App Directing Guide & Best Practices (`📚 Guide`)**: Comprehensive, interactive studio manual with 6 structured chapters accessible directly from the header navigation. Covers the complete production pipeline, visual continuity rules (Match-Cuts, Last-Frame extraction, camera angles), scene prompting formulas, Director's Control tradeoffs, audio scoring, and a 5-step post-wizard checklist.
 - **Script Wizard Co-Director Advisory System**: Prominent advisory callout boxes integrated into both the Wizard setup screen and the step-by-step interactive drafting view. Educates directors that AI scripts serve as a creative rough draft that requires human refinement (camera perspectives, match-cuts, and wardrobe alignment) to avoid disjointed video sequences. Includes direct one-click deep links to the best practices manual.
 - **Director's Control (Scene-Specific Render Settings)**: Granular per-scene control over video generation parameters. Choose between fast 8-step Turbo mode or artifact-free 20-step High Quality (HQ) mode for facial stability, select native render resolutions (0.25 MP Standard, 0.45 MP Wide/Detail, 0.75 MP Native HD), and optionally bypass AI upscaling.
@@ -17,6 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Strategic Development Roadmap (`ROADMAP.md`)**: Comprehensive multi-phase evolution plan covering v1.2 (Workflow, Incremental Re-Rendering, Transitions), v1.3 (Continuity & Audio Stems), and v2.0 (Live Queue & Social Cuts).
 
 ### ✨ Added
+
 - **In-App Guide Modal (`#guideModal`)**:
   - Split-pane layout with responsive topic navigation and cinema dark aesthetic.
   - 6 chapters with practical comparisons (❌ Vague Prompt vs. ✅ Director's Prompt), technical breakdown charts, and warning callouts.
@@ -40,6 +149,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Over 65 new translation keys in both `localization/de.json` and `localization/en.json` supporting real-time language switching for all new features.
 
 ### 🐛 Fixed
+
 - Resolved `NameError: name 'shutil' is not defined` when scoring movies in `script_agency.py`.
 - Standardized `/api/music/suggest-tags` response format to prevent toast error notifications on AI tag suggestion.
 - Added `do_HEAD` HTTP method handler in `script_agency.py` to prevent 501 Unsupported Method errors when checking soundtrack file existence.
@@ -49,6 +159,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-09-18
 
 ### 🌟 Highlights
+
 - **Visual Model Picker (SingleChoice)**: Convenient model selection modal dialog with live previews of sample images, animated hover videos, metadata specs, and category filters.
 - **Automatic Loading of Existing Character Portraits**: Immediate detection and rendering of on-disk character portraits when opening or switching screenplays.
 - **Dynamic Preset Catalog (`catalog_builder.py`)**: Fully automated discovery and configuration of all diffusion models and LoRAs in ComfyUI using generic architecture profiles (`BaseModelProfiles`) — eliminating hardcoded model lists.
@@ -59,6 +170,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ### ✨ Added
+
 - **Base Model Picker Modal (`#modelModal`)**:
   - Interactive selection window for base and diffusion models.
   - Real-time search across model names, schedulers, samplers, file paths, and descriptions.
@@ -92,6 +204,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ### 🔄 Changed
+
 - Replaced the cluttered HTML `<select>` dropdown for model selection with the modern interactive model card widget.
 - Refactored `catalog_builder.py` to completely eliminate hardcoded model lists in favor of dynamic profile mapping.
 - Improved `master_regisseur.py` prompt optimization to ignore generic dummy placeholders (*"a brave protagonist with a determined expression"*) in favor of the actual character description.
@@ -99,6 +212,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ### 🐛 Fixed
+
 - **Character Image Loss on Reload**: Fixed `normalizeScreenplay()` in `web/app.js` which previously discarded `c.image` and `c.image_url`.
 - **Model Discovery Gaps**: Fixed issue where only a subset of models was returned by scanning all files in `diffusion_models` and `checkpoints`.
 - **Windows Terminal Encoding**: Resolved UTF-8 encoding warnings and emoji crashes in Windows terminal environments.
@@ -106,6 +220,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ## [0.9.0] - Prior Versions
+
 - Core pipeline implementation of `master_regisseur.py` with ComfyUI.
 - Initial release of `script_agency.py` web-based screenplay editor.
 - Minimax H3 I2V video workflow and Text-to-Image generation support.

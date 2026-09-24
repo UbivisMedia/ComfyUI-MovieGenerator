@@ -95,8 +95,16 @@
     chkMusicEnabled: document.getElementById('chkMusicEnabled'),
     musicSettingsBody: document.getElementById('musicSettingsBody'),
     musicModelSelect: document.getElementById('musicModelSelect'),
+    btnApplyMusicProfile: document.getElementById('btnApplyMusicProfile'),
+    musicModelProfileBadge: document.getElementById('musicModelProfileBadge'),
+    musicModelProfileFamily: document.getElementById('musicModelProfileFamily'),
+    musicModelProfileHint: document.getElementById('musicModelProfileHint'),
     musicPromptInput: document.getElementById('musicPromptInput'),
     btnSuggestMusicTags: document.getElementById('btnSuggestMusicTags'),
+    musicStepsInput: document.getElementById('musicStepsInput'),
+    musicStepsHint: document.getElementById('musicStepsHint'),
+    musicCfgInput: document.getElementById('musicCfgInput'),
+    musicCfgHint: document.getElementById('musicCfgHint'),
     musicVolumeSelect: document.getElementById('musicVolumeSelect'),
     chkMusicDucking: document.getElementById('chkMusicDucking'),
     btnScoreMovie: document.getElementById('btnScoreMovie'),
@@ -110,6 +118,19 @@
     scenesContainer: document.getElementById('scenesContainer'),
     btnAddCharacter: document.getElementById('btnAddCharacter'),
     btnAddScene: document.getElementById('btnAddScene'),
+    storyboardTimelineContainer: document.getElementById('storyboardTimelineContainer'),
+    timelineStatsBadge: document.getElementById('timelineStatsBadge'),
+    btnPlayFullMovie: document.getElementById('btnPlayFullMovie'),
+    filmstripTrack: document.getElementById('filmstripTrack'),
+    btnToggleVideoPlayer: document.getElementById('btnToggleVideoPlayer'),
+    videoPlayerModal: document.getElementById('videoPlayerModal'),
+    btnCloseVideoModal: document.getElementById('btnCloseVideoModal'),
+    btnCloseVideoModalBtn: document.getElementById('btnCloseVideoModalBtn'),
+    videoModalTitle: document.getElementById('videoModalTitle'),
+    modalVideoElement: document.getElementById('modalVideoElement'),
+    videoMetaTitle: document.getElementById('videoMetaTitle'),
+    videoMetaDuration: document.getElementById('videoMetaDuration'),
+    videoDownloadLink: document.getElementById('videoDownloadLink'),
     jsonPreview: document.getElementById('jsonPreview'),
     btnCopyJson: document.getElementById('btnCopyJson'),
     btnFormatJson: document.getElementById('btnFormatJson'),
@@ -127,6 +148,7 @@
     btnCloseModelModal: document.getElementById('btnCloseModelModal'),
     modelSearchInput: document.getElementById('modelSearchInput'),
     modelFilterTabs: document.getElementById('modelFilterTabs'),
+    modalTargetLabel: document.getElementById('modalTargetLabel'),
     modalActiveCharName: document.getElementById('modalActiveCharName'),
     modalCurrentModelKey: document.getElementById('modalCurrentModelKey'),
     modelCardsList: document.getElementById('modelCardsList'),
@@ -211,8 +233,50 @@
     btnWizardApplyAndNext: document.getElementById('btnWizardApplyAndNext'),
     btnWizardSaveEdits: document.getElementById('btnWizardSaveEdits'),
     btnWizardRecreateScene: document.getElementById('btnWizardRecreateScene'),
-    btnWizardBackToNext: document.getElementById('btnWizardBackToNext'),
-    btnHarmonizeScript: document.getElementById('btnHarmonizeScript')
+    btnHarmonizeScript: document.getElementById('btnHarmonizeScript'),
+
+    // Settings Modal Elements
+    btnSettings: document.getElementById('btnSettings'),
+    settingsModal: document.getElementById('settingsModal'),
+    btnCloseSettingsModal: document.getElementById('btnCloseSettingsModal'),
+    btnCloseSettingsModalBtn: document.getElementById('btnCloseSettingsModalBtn'),
+    btnSaveSettings: document.getElementById('btnSaveSettings'),
+    btnPickTurboLora: document.getElementById('btnPickTurboLora'),
+    btnClearTurboLora: document.getElementById('btnClearTurboLora'),
+    btnPickMinimaxUnet: document.getElementById('btnPickMinimaxUnet'),
+    settingMinimaxUnetCard: document.getElementById('settingMinimaxUnetCard'),
+    settingTurboLoraCard: document.getElementById('settingTurboLoraCard'),
+    btnRefreshLmsModels: document.getElementById('btnRefreshLmsModels'),
+
+    settingMinimaxUnetInput: document.getElementById('settingMinimaxUnetInput'),
+    settingTurboLoraInput: document.getElementById('settingTurboLoraInput'),
+    settingMinimaxSteps: document.getElementById('settingMinimaxSteps'),
+    settingTurboStrength: document.getElementById('settingTurboStrength'),
+    valTurboStrength: document.getElementById('settingTurboStrengthVal'),
+    settingMinimaxVae: document.getElementById('settingVideoVae'),
+    settingAudioVae: document.getElementById('settingAudioVae'),
+    settingMinimaxClip: document.getElementById('settingMinimaxClip'),
+
+    settingMusicEnabled: document.getElementById('settingMusicEnabled'),
+    btnPickMusicCheckpoint: document.getElementById('btnPickMusicCheckpoint'),
+    settingMusicCheckpointCard: document.getElementById('settingMusicCheckpointCard'),
+    settingMusicCheckpointInput: document.getElementById('settingMusicCheckpointInput'),
+    settingMusicSteps: document.getElementById('settingMusicSteps'),
+    settingMusicCfg: document.getElementById('settingMusicCfg'),
+    settingMusicVolume: document.getElementById('settingMusicVolume'),
+    valMusicVolume: document.getElementById('settingMusicVolumeVal'),
+    settingMusicDucking: document.getElementById('settingMusicDucking'),
+
+    settingLmsUrl: document.getElementById('settingLmsUrl'),
+    settingLmsModelSelect: document.getElementById('settingLmsModelSelect'),
+    settingLmsModelInput: document.getElementById('settingLmsModelInput'),
+    settingLmsTemp: document.getElementById('settingLmsTemp'),
+    valLmsTemp: document.getElementById('settingLmsTempVal'),
+
+    settingComfyServer: document.getElementById('settingComfyServer'),
+    settingComfyModelsDir: document.getElementById('settingComfyModelsDir'),
+    settingLanguage: document.getElementById('settingLanguage'),
+    settingExportWebm: document.getElementById('settingExportWebm')
   };
 
   // --- Language Switching Engine ---
@@ -418,6 +482,54 @@
         throw new Error(data.error || 'Fehler bei der Filmmusik-Generierung');
       }
       return data;
+    },
+
+    async getScenesStatus(project) {
+      const res = await fetch(`/api/scenes/status?project=${encodeURIComponent(project)}`);
+      if (!res.ok) throw new Error('Fehler beim Laden des Szenen-Status');
+      return await res.json();
+    },
+
+    async reshootScene(project, sceneId) {
+      const res = await fetch('/api/scene/rerender', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project, scene_id: sceneId })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Starten des Szenen-Drehs');
+      }
+      return data;
+    },
+
+    async getSettings() {
+      const res = await fetch('/api/settings');
+      if (!res.ok) throw new Error('Fehler beim Laden der Einstellungen');
+      return await res.json();
+    },
+
+    async saveSettings(settingsData) {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settingsData)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Speichern der Einstellungen');
+      }
+      return data;
+    },
+
+    async getSettingsModels(lmUrl = '') {
+      let url = '/api/settings/models';
+      if (lmUrl) {
+        url += `?lm_studio_url=${encodeURIComponent(lmUrl)}`;
+      }
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Fehler beim Laden der Modell-Informationen');
+      return await res.json();
     }
   };
 
@@ -506,6 +618,11 @@
         }
         if (locData && locData.active_lang) {
           initialLang = locData.active_lang;
+        }
+        if (locData && locData.version) {
+          document.querySelectorAll('.version-tag').forEach(el => {
+            el.textContent = `v${locData.version}`;
+          });
         }
       } catch (e) {
         console.warn('Backend localization load warning:', e);
@@ -731,6 +848,12 @@
       if (Object.keys(sVarUpd).length > 0) sceneObj.variables_update = sVarUpd;
       if (sLoras.length > 0) sceneObj.loras = sLoras;
 
+      // Cinematic scene transition & duration
+      const sTrans = s.transition || s.uebergang || s.blende || 'cut';
+      const sTransDur = parseFloat(s.transition_duration || s.uebergang_dauer || 0.75) || 0.75;
+      sceneObj.transition = sTrans;
+      sceneObj.transition_duration = sTransDur;
+
       return sceneObj;
     });
 
@@ -758,6 +881,7 @@
       renderCharacters();
       renderScenes();
       renderMusicStudio();
+      fetchAndRenderTimeline();
       updateStats();
       renderJsonPreview();
       markClean();
@@ -952,6 +1076,85 @@
     showToast(t('tokenInserted').replace('{name}', `{${varKey}}`), 'info');
   }
 
+  // --- Character Continuity Helpers ---
+  function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function getCharacterFirstScene(char, scenes) {
+    if (!char) return 1;
+    if (char.first_scene && parseInt(char.first_scene) > 0) {
+      return parseInt(char.first_scene);
+    }
+    if (!scenes || !Array.isArray(scenes) || scenes.length === 0) return 1;
+
+    const charId = char.id;
+    const charName = (char.name || '').trim().toLowerCase();
+    const cleanName = charName.replace(/[^a-z0-9]/gi, '');
+
+    for (let idx = 0; idx < scenes.length; idx++) {
+      const scene = scenes[idx];
+      const sId = parseInt(scene.id) || (idx + 1);
+      const sceneChars = scene.characters || scene.charaktere || scene.actors || [];
+
+      if (Array.isArray(sceneChars)) {
+        for (const sc of sceneChars) {
+          if (sc === null || sc === undefined) continue;
+          if (charId !== undefined && (String(sc).trim() === String(charId))) return sId;
+          const subMatch = String(sc).match(/<Subject\s*(\d+)>/i);
+          if (subMatch && parseInt(subMatch[1]) === parseInt(charId)) return sId;
+
+          const scStr = String(sc).trim().toLowerCase();
+          if (charName && (scStr.includes(charName) || charName.includes(scStr))) return sId;
+          const scClean = scStr.replace(/[^a-z0-9]/gi, '');
+          if (cleanName && (scClean.includes(cleanName) || cleanName.includes(scClean))) return sId;
+        }
+      }
+
+      const text = `${scene.idea || ''} ${scene.prompt || ''} ${scene.idee || ''}`;
+      if (charId !== undefined && text.includes(`<Subject ${charId}>`)) return sId;
+      if (charName && charName.length >= 3) {
+        const regex = new RegExp(`\\b${escapeRegExp(charName)}\\b`, 'i');
+        if (regex.test(text)) return sId;
+      }
+    }
+
+    return parseInt(scenes[0].id) || 1;
+  }
+
+  function getVariablesForScene(screenplay, targetSceneId) {
+    const vars = {};
+    if (!screenplay) return vars;
+    const rootVars = screenplay.variables || screenplay.variablen || {};
+    Object.assign(vars, rootVars);
+
+    // Initial character outfits
+    (screenplay.characters || screenplay.charaktere || []).forEach(c => {
+      const cName = (c.name || '').trim();
+      const cOutfit = c.outfit || c.kleidung || c.status || c.wardrobe;
+      if (cOutfit && cName) {
+        const varKey = `outfit_${cName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+        if (!vars[varKey]) vars[varKey] = String(cOutfit);
+      }
+    });
+
+    if (!targetSceneId || targetSceneId <= 0) return vars;
+
+    const scenes = screenplay.scenes || screenplay.szenen || [];
+    for (let idx = 0; idx < scenes.length; idx++) {
+      const scene = scenes[idx];
+      const sId = parseInt(scene.id) || (idx + 1);
+      if (sId > targetSceneId) break;
+
+      const updates = scene.variables_update || scene.variablen_update || scene.set_variables || scene.variables || scene.variablen;
+      if (updates && typeof updates === 'object') {
+        Object.assign(vars, updates);
+      }
+    }
+
+    return vars;
+  }
+
   // --- Characters UI ---
   function renderCharacters() {
     el.charactersContainer.innerHTML = '';
@@ -986,6 +1189,10 @@
     const presets = state.presetsData.presets || {};
     const currentModelInfo = presets[selectedModel] || {};
     const modelDesc = currentModelInfo.beschreibung || t('charModelDefaultDesc');
+
+    // First appearance scene (continuity check)
+    const scenes = state.screenplay.scenes || [];
+    const detectedFirstScene = getCharacterFirstScene(char, scenes);
 
     // LoRAs assigned to this character
     const charLoras = Array.isArray(char.loras) ? char.loras : (typeof char.loras === 'string' ? char.loras.split(',').map(s => s.trim()).filter(Boolean) : []);
@@ -1159,6 +1366,22 @@
         <textarea class="form-control char-desc-input" rows="2" placeholder="${escapeHtml(t('charDescPlaceholder'))}">${escapeHtml(char.description || '')}</textarea>
       </div>
 
+      <!-- Erster Auftritt & Kontinuitäts-Verankerung -->
+      <div class="form-group char-first-scene-group">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <label style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;" title="${escapeHtml(t('charFirstSceneTooltip'))}">
+            <span>🎬</span> <span>${escapeHtml(t('charFirstSceneLabel'))}</span>
+          </label>
+          <span class="badge ${char.first_scene ? 'badge-accent' : 'badge-subtle'}" style="font-size:10px;">
+            ${char.first_scene ? `${escapeHtml(t('charFirstSceneManual'))}: #${char.first_scene}` : `${escapeHtml(t('charFirstSceneAuto'))}: #${detectedFirstScene}`}
+          </span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="number" class="form-control char-first-scene-input" min="1" max="999" value="${char.first_scene || ''}" placeholder="${detectedFirstScene ? `Auto (#${detectedFirstScene})` : '1'}" style="width:120px;">
+          <span style="font-size:11px;color:var(--text-dim);">${escapeHtml(t('charFirstSceneDesc'))}</span>
+        </div>
+      </div>
+
       <!-- LM Studio AI Prompt Toggle & Override -->
       <div class="char-prompt-group">
         <label class="char-prompt-toggle">
@@ -1183,6 +1406,20 @@
       char.name = nameInput.value.trim();
       markDirty();
     });
+
+    const firstSceneInput = card.querySelector('.char-first-scene-input');
+    if (firstSceneInput) {
+      firstSceneInput.addEventListener('change', () => {
+        const val = parseInt(firstSceneInput.value);
+        if (!isNaN(val) && val > 0) {
+          char.first_scene = val;
+        } else {
+          delete char.first_scene;
+        }
+        markDirty();
+        renderCharacters();
+      });
+    }
 
     // Pick Model Button & Card click
     const pickModelBtn = card.querySelector('.btn-pick-model');
@@ -1380,7 +1617,8 @@
       gBtn.addEventListener('click', async () => {
         const projectName = (el.movieFilename && el.movieFilename.value.trim()) ? el.movieFilename.value.trim() : 'film';
         const doRemoveBg = removeBgChk ? removeBgChk.checked : true;
-        const vars = state.screenplay.variables || state.screenplay.variablen || {};
+        const targetSceneId = (char.first_scene && parseInt(char.first_scene) > 0) ? parseInt(char.first_scene) : detectedFirstScene;
+        const vars = getVariablesForScene(state.screenplay, targetSceneId);
 
         try {
           if (uploadStatus) {
@@ -1496,6 +1734,22 @@
     el.loraModal.classList.add('open');
   }
 
+  function openLoraPickerModalForTurbo() {
+    state.activeLoraTarget = {
+      type: 'turbo',
+      model: 'minimax_h3'
+    };
+    const modalTitleElem = el.loraModal.querySelector('.modal-title');
+    if (modalTitleElem) {
+      modalTitleElem.textContent = t('btnPickTurboLora') || '⚡ Turbo-LoRA auswählen';
+    }
+    el.modalActiveModelName.textContent = 'Minimax H3 / Turbo';
+    el.loraSearchInput.value = '';
+    el.chkShowAllLoras.checked = false;
+    renderLoraModalCards();
+    el.loraModal.classList.add('open');
+  }
+
   function closeLoraPickerModal() {
     el.loraModal.classList.remove('open');
     state.activeLoraTarget = null;
@@ -1521,6 +1775,9 @@
       } else if (typeof raw === 'string' && raw) {
         currentAssignedLoras = raw.split(',').map(s => s.trim()).filter(Boolean);
       }
+    } else if (target.type === 'turbo') {
+      const cur = el.settingTurboLoraInput ? el.settingTurboLoraInput.value.toLowerCase().trim() : '';
+      if (cur) currentAssignedLoras = [cur];
     }
 
     const keys = Object.keys(loraPresets);
@@ -1572,6 +1829,17 @@
           lKeyLower.includes('mmh3') ||
           lNameLower.includes('video') ||
           lKeyLower.includes('video');
+      } else if (target.type === 'turbo') {
+        const isTurbo = turboExcludes.includes(lKeyLower) ||
+          lKeyLower.includes('turbo') ||
+          lNameLower.includes('turbo') ||
+          lKeyLower.includes('lightx2v') ||
+          lNameLower.includes('lightx2v') ||
+          lKeyLower.includes('step') ||
+          lNameLower.includes('step') ||
+          compatList.includes('minimax_h3') ||
+          lNameLower.includes('minimax');
+        isCompat = isTurbo;
       }
 
       if (!isCompat && !showAll) {
@@ -1584,16 +1852,22 @@
       }
 
       countShown++;
-      const isAlreadyAssigned = currentAssignedLoras.includes(lKey);
+      const isAlreadyAssigned = target.type === 'turbo'
+        ? (currentAssignedLoras.some(c => c && (c === lKeyLower || (lora.lora_name && c.includes(lora.lora_name.toLowerCase())) || lKeyLower.includes(c))))
+        : currentAssignedLoras.includes(lKey);
       const card = document.createElement('div');
       card.className = `lora-card-item ${isCompat ? 'compatible' : ''} ${isAlreadyAssigned ? 'selected' : ''}`;
 
       const strengthModel = lora.strength_model !== undefined ? lora.strength_model : (target.type === 'scene' ? 1.0 : 0.8);
       const triggers = lora.trigger_words ? `<div style="font-size:10px;color:var(--accent-cyan);margin-top:2px;">Triggers: <code>${escapeHtml(lora.trigger_words)}</code></div>` : '';
 
-      const compatBadgeText = target.type === 'scene'
-        ? (isCompat ? escapeHtml(t('videoCompatBadge')) : escapeHtml(t('otherModelBadge')))
-        : (isCompat ? escapeHtml(t('compatBadge')) : escapeHtml(t('otherModelBadge')));
+      const compatBadgeText = target.type === 'turbo'
+        ? (isCompat ? '⚡ Turbo LoRA' : escapeHtml(t('otherModelBadge')))
+        : target.type === 'scene'
+          ? (isCompat ? escapeHtml(t('videoCompatBadge')) : escapeHtml(t('otherModelBadge')))
+          : (isCompat ? escapeHtml(t('compatBadge')) : escapeHtml(t('otherModelBadge')));
+
+      const itemIcon = target.type === 'turbo' ? '⚡' : (target.type === 'scene' ? '🎬' : '✨');
 
       let mediaHtml = '';
       if (lora.preview_url) {
@@ -1616,7 +1890,7 @@
       } else {
         mediaHtml = `
           <div class="lora-card-media lora-media-placeholder">
-            <span class="lora-placeholder-icon">${target.type === 'scene' ? '🎬' : '✨'}</span>
+            <span class="lora-placeholder-icon">${itemIcon}</span>
             ${lora.published_at ? `<span class="lora-date-badge" title="${escapeHtml(t('loraPublishedDate') || 'Published:')} ${escapeHtml(lora.published_at)}">📅 ${escapeHtml(lora.published_at)}</span>` : ''}
           </div>
         `;
@@ -1626,7 +1900,7 @@
         ${mediaHtml}
         <div class="lora-card-body">
           <div class="lora-card-title">
-            <span>${target.type === 'scene' ? '🎬' : '✨'} ${escapeHtml(lKey)}</span>
+            <span>${itemIcon} ${escapeHtml(lKey)}</span>
             <span style="font-size:11px;">${isAlreadyAssigned ? escapeHtml(t('activeBadge')) : '➕'}</span>
           </div>
           <div class="lora-card-desc" title="${escapeHtml(lora.beschreibung || '')}">${escapeHtml(lora.beschreibung || '')}</div>
@@ -1652,6 +1926,24 @@
       }
 
       card.addEventListener('click', () => {
+        if (target.type === 'turbo') {
+          const selectedLoraPath = lora.lora_name || lKey;
+          if (el.settingTurboLoraInput) el.settingTurboLoraInput.value = selectedLoraPath;
+          updateSettingsTurboLoraCard(selectedLoraPath);
+          // Auto-detect steps (3, 4 or 8)
+          const combined = (lKey + ' ' + (lora.lora_name || '')).toLowerCase();
+          if (combined.includes('4step') || combined.includes('4_step') || combined.includes('4 step') || combined.includes('4-step') || combined.includes('4s')) {
+            if (el.settingMinimaxSteps) el.settingMinimaxSteps.value = 4;
+          } else if (combined.includes('8step') || combined.includes('8_step') || combined.includes('8 step') || combined.includes('8-step') || combined.includes('8s')) {
+            if (el.settingMinimaxSteps) el.settingMinimaxSteps.value = 8;
+          } else if (combined.includes('3step') || combined.includes('taomate')) {
+            if (el.settingMinimaxSteps) el.settingMinimaxSteps.value = 3;
+          }
+          closeLoraPickerModal();
+          showToast(`Turbo-LoRA gewählt: ${lora.beschreibung || lKey}`, 'success');
+          return;
+        }
+
         if (target.type === 'character') {
           const char = state.screenplay.characters[target.index];
           if (!char) return;
@@ -1711,6 +2003,10 @@
   }
 
   function openModelPickerModal(charIndex, activeModelKey) {
+    state.activeModelTarget = {
+      type: 'character',
+      charIndex: charIndex
+    };
     state.activeModelTargetCharIndex = charIndex;
     state.modelFilterCategory = 'all';
 
@@ -1719,6 +2015,9 @@
     const modalTitleElem = el.modelModal.querySelector('.modal-title');
     if (modalTitleElem) {
       modalTitleElem.textContent = t('modalModelTitle') + (charName ? ` (${charName})` : '');
+    }
+    if (el.modalTargetLabel) {
+      el.modalTargetLabel.textContent = t('charLabel') || 'Charakter:';
     }
     if (el.modalActiveCharName) {
       el.modalActiveCharName.textContent = charName || '-';
@@ -1732,6 +2031,7 @@
 
     // Reset filter tabs
     if (el.modelFilterTabs) {
+      el.modelFilterTabs.style.display = 'flex';
       el.modelFilterTabs.querySelectorAll('.btn-filter-pill').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.filter === 'all');
       });
@@ -1741,12 +2041,316 @@
     el.modelModal.classList.add('open');
   }
 
+  async function openModelPickerModalForMinimax() {
+    state.activeModelTarget = {
+      type: 'minimax_unet'
+    };
+    state.activeModelTargetCharIndex = null;
+    state.modelFilterCategory = 'all';
+
+    const modalTitleElem = el.modelModal.querySelector('.modal-title');
+    if (modalTitleElem) {
+      modalTitleElem.textContent = t('modalMinimaxModelTitle') || '🎬 Minimax Diffusionsmodell auswählen';
+    }
+    if (el.modalTargetLabel) {
+      el.modalTargetLabel.textContent = t('moduleLabel') || 'Bereich:';
+    }
+    if (el.modalActiveCharName) {
+      el.modalActiveCharName.textContent = 'Minimax I2V';
+    }
+    const curUnet = el.settingMinimaxUnetInput ? el.settingMinimaxUnetInput.value : '';
+    if (el.modalCurrentModelKey) {
+      el.modalCurrentModelKey.textContent = curUnet || '-';
+    }
+    if (el.modelSearchInput) {
+      el.modelSearchInput.value = '';
+    }
+    if (el.modelFilterTabs) {
+      el.modelFilterTabs.style.display = 'none';
+    }
+
+    if (!cachedSettingsModels || !cachedSettingsModels.minimax_unets || cachedSettingsModels.minimax_unets.length === 0) {
+      try {
+        cachedSettingsModels = await API.getSettingsModels();
+      } catch (e) {
+        console.error('Could not fetch settings models:', e);
+      }
+    }
+
+    renderModelModalCards();
+    el.modelModal.classList.add('open');
+  }
+
+  async function openModelPickerModalForMusic() {
+    state.activeModelTarget = {
+      type: 'music_checkpoint'
+    };
+    state.activeModelTargetCharIndex = null;
+    state.modelFilterCategory = 'all';
+
+    const modalTitleElem = el.modelModal.querySelector('.modal-title');
+    if (modalTitleElem) {
+      modalTitleElem.textContent = t('modalMusicModelTitle') || '🎵 Musik Checkpoint auswählen';
+    }
+    if (el.modalTargetLabel) {
+      el.modalTargetLabel.textContent = t('moduleLabel') || 'Bereich:';
+    }
+    if (el.modalActiveCharName) {
+      el.modalActiveCharName.textContent = 'Music Studio';
+    }
+    const curCkpt = el.settingMusicCheckpointInput ? el.settingMusicCheckpointInput.value : '';
+    if (el.modalCurrentModelKey) {
+      el.modalCurrentModelKey.textContent = curCkpt || '-';
+    }
+    if (el.modelSearchInput) {
+      el.modelSearchInput.value = '';
+    }
+    if (el.modelFilterTabs) {
+      el.modelFilterTabs.style.display = 'none';
+    }
+
+    if (!cachedSettingsModels || !cachedSettingsModels.music_checkpoints || cachedSettingsModels.music_checkpoints.length === 0) {
+      try {
+        cachedSettingsModels = await API.getSettingsModels().catch(() => null);
+      } catch (e) {
+        console.error('Could not fetch settings models:', e);
+      }
+    }
+
+    if (!cachedSettingsModels || !cachedSettingsModels.music_checkpoints || cachedSettingsModels.music_checkpoints.length === 0) {
+      try {
+        const musicData = await API.getMusicModels();
+        if (musicData && Array.isArray(musicData.models) && musicData.models.length > 0) {
+          if (!cachedSettingsModels) cachedSettingsModels = {};
+          cachedSettingsModels.music_checkpoints = musicData.models;
+        }
+      } catch (e) {
+        console.warn('Could not fetch music models fallback:', e);
+      }
+    }
+
+    renderModelModalCards();
+    el.modelModal.classList.add('open');
+  }
+
   function closeModelPickerModal() {
     if (el.modelModal) el.modelModal.classList.remove('open');
+    state.activeModelTarget = null;
     state.activeModelTargetCharIndex = null;
+    if (el.modelFilterTabs) {
+      el.modelFilterTabs.style.display = 'flex';
+    }
   }
 
   function renderModelModalCards() {
+    if (!state.activeModelTarget && state.activeModelTargetCharIndex === null) return;
+
+    if (state.activeModelTarget?.type === 'minimax_unet') {
+      el.modelCardsList.innerHTML = '';
+      const unetList = (cachedSettingsModels && cachedSettingsModels.minimax_unets) ? cachedSettingsModels.minimax_unets : [];
+      const curSelected = el.settingMinimaxUnetInput ? el.settingMinimaxUnetInput.value.trim() : '';
+      const query = el.modelSearchInput ? el.modelSearchInput.value.toLowerCase().trim() : '';
+
+      if (unetList.length === 0) {
+        el.modelCardsList.innerHTML = `<div style="color:var(--text-dim);font-style:italic;padding:12px;">Keine Minimax-Diffusionsmodelle gefunden.</div>`;
+        return;
+      }
+
+      let countShown = 0;
+      for (const item of unetList) {
+        const fn = typeof item === 'string' ? item : (item.filename || item.name || '');
+        const title = typeof item === 'string' ? item : (item.title || item.name || fn);
+        const desc = typeof item === 'object' ? (item.description || '') : '';
+        const previewUrl = typeof item === 'object' ? item.preview_url : null;
+        const mediaType = typeof item === 'object' ? item.media_type : null;
+        const pubDate = typeof item === 'object' ? item.published_at : null;
+
+        const fnLower = fn.toLowerCase();
+        const titleLower = title.toLowerCase();
+        const descLower = desc.toLowerCase();
+
+        if (query && !fnLower.includes(query) && !titleLower.includes(query) && !descLower.includes(query)) {
+          continue;
+        }
+
+        countShown++;
+        const isSelected = curSelected && (curSelected === fn || curSelected.toLowerCase().includes(fnLower) || fnLower.includes(curSelected.toLowerCase()));
+        const card = document.createElement('div');
+        card.className = `model-card-item ${isSelected ? 'selected' : ''}`;
+
+        let mediaHtml = '';
+        if (previewUrl) {
+          if (mediaType === 'video') {
+            mediaHtml = `
+              <div class="model-card-media">
+                <video class="model-media-thumb" src="${escapeHtml(previewUrl)}" muted loop playsinline preload="metadata"></video>
+                <span class="model-video-badge">▶ Video</span>
+                ${pubDate ? `<span class="model-date-badge">📅 ${escapeHtml(pubDate)}</span>` : ''}
+              </div>
+            `;
+          } else {
+            mediaHtml = `
+              <div class="model-card-media">
+                <img class="model-media-thumb" src="${escapeHtml(previewUrl)}" alt="${escapeHtml(title)}" loading="lazy">
+                ${pubDate ? `<span class="model-date-badge">📅 ${escapeHtml(pubDate)}</span>` : ''}
+              </div>
+            `;
+          }
+        } else {
+          mediaHtml = `
+            <div class="model-card-media model-media-placeholder">
+              <span class="model-placeholder-icon">🎬</span>
+              ${pubDate ? `<span class="model-date-badge">📅 ${escapeHtml(pubDate)}</span>` : ''}
+            </div>
+          `;
+        }
+
+        card.innerHTML = `
+          ${mediaHtml}
+          <div class="model-card-body">
+            <div class="model-card-title">
+              <span>🎬 ${escapeHtml(title)}</span>
+              ${isSelected ? `<span class="model-badge-selected">✔ ${escapeHtml(t('modelSelectedBadge') || 'Aktiv')}</span>` : `<span class="badge-base-family">Minimax UNET</span>`}
+            </div>
+            <div class="model-card-desc" title="${escapeHtml(desc || fn)}">${escapeHtml(desc || fn)}</div>
+            <div class="model-card-footer">
+              <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);word-break:break-all;">${escapeHtml(fn)}</span>
+            </div>
+          </div>
+        `;
+
+        const vidEl = card.querySelector('video');
+        if (vidEl) {
+          card.addEventListener('mouseenter', () => {
+            vidEl.play().catch(() => {});
+          });
+          card.addEventListener('mouseleave', () => {
+            vidEl.pause();
+            vidEl.currentTime = 0;
+          });
+        }
+
+        card.addEventListener('click', () => {
+          if (el.settingMinimaxUnetInput) el.settingMinimaxUnetInput.value = fn;
+          updateSettingsMinimaxUnetCard(fn);
+          closeModelPickerModal();
+          showToast(`Diffusionsmodell gewählt: ${title}`, 'success');
+        });
+
+        el.modelCardsList.appendChild(card);
+      }
+
+      if (countShown === 0) {
+        el.modelCardsList.innerHTML = `<div style="color:var(--text-dim);font-style:italic;padding:12px;">${escapeHtml(t('noModelsFound'))}</div>`;
+      }
+      return;
+    }
+
+    if (state.activeModelTarget?.type === 'music_checkpoint') {
+      el.modelCardsList.innerHTML = '';
+      const ckptList = (cachedSettingsModels && cachedSettingsModels.music_checkpoints) ? cachedSettingsModels.music_checkpoints : [];
+      const curSelected = el.settingMusicCheckpointInput ? el.settingMusicCheckpointInput.value.trim() : '';
+      const query = el.modelSearchInput ? el.modelSearchInput.value.toLowerCase().trim() : '';
+
+      if (ckptList.length === 0) {
+        el.modelCardsList.innerHTML = `<div style="color:var(--text-dim);font-style:italic;padding:12px;">Keine Audio-/Musik-Checkpoints gefunden.</div>`;
+        return;
+      }
+
+      let countShown = 0;
+      for (const item of ckptList) {
+        const fn = typeof item === 'string' ? item : (item.filename || item.name || '');
+        const title = typeof item === 'string' ? item : (item.title || item.name || fn);
+        const desc = typeof item === 'object' ? (item.description || '') : '';
+        const previewUrl = typeof item === 'object' ? item.preview_url : null;
+        const mediaType = typeof item === 'object' ? item.media_type : null;
+        const pubDate = typeof item === 'object' ? item.published_at : null;
+
+        const fnLower = fn.toLowerCase();
+        const titleLower = title.toLowerCase();
+        const descLower = desc.toLowerCase();
+
+        if (query && !fnLower.includes(query) && !titleLower.includes(query) && !descLower.includes(query)) {
+          continue;
+        }
+
+        countShown++;
+        const isSelected = curSelected && (curSelected === fn || curSelected.toLowerCase().includes(fnLower) || fnLower.includes(curSelected.toLowerCase()));
+        const card = document.createElement('div');
+        card.className = `model-card-item ${isSelected ? 'selected' : ''}`;
+
+        let mediaHtml = '';
+        if (previewUrl) {
+          if (mediaType === 'video') {
+            mediaHtml = `
+              <div class="model-card-media">
+                <video class="model-media-thumb" src="${escapeHtml(previewUrl)}" muted loop playsinline preload="metadata"></video>
+                <span class="model-video-badge">▶ Video</span>
+                ${pubDate ? `<span class="model-date-badge">📅 ${escapeHtml(pubDate)}</span>` : ''}
+              </div>
+            `;
+          } else {
+            mediaHtml = `
+              <div class="model-card-media">
+                <img class="model-media-thumb" src="${escapeHtml(previewUrl)}" alt="${escapeHtml(title)}" loading="lazy">
+                ${pubDate ? `<span class="model-date-badge">📅 ${escapeHtml(pubDate)}</span>` : ''}
+              </div>
+            `;
+          }
+        } else {
+          mediaHtml = `
+            <div class="model-card-media model-media-placeholder">
+              <span class="model-placeholder-icon">🎵</span>
+              ${pubDate ? `<span class="model-date-badge">📅 ${escapeHtml(pubDate)}</span>` : ''}
+            </div>
+          `;
+        }
+
+        card.innerHTML = `
+          ${mediaHtml}
+          <div class="model-card-body">
+            <div class="model-card-title">
+              <span>🎵 ${escapeHtml(title)}</span>
+              ${isSelected ? `<span class="model-badge-selected">✔ ${escapeHtml(t('modelSelectedBadge') || 'Aktiv')}</span>` : `<span class="badge-base-family">Audio / ACE-Step</span>`}
+            </div>
+            <div class="model-card-desc" title="${escapeHtml(desc || fn)}">${escapeHtml(desc || fn)}</div>
+            <div class="model-card-footer">
+              <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);word-break:break-all;">${escapeHtml(fn)}</span>
+            </div>
+          </div>
+        `;
+
+        const vidEl = card.querySelector('video');
+        if (vidEl) {
+          card.addEventListener('mouseenter', () => {
+            vidEl.play().catch(() => {});
+          });
+          card.addEventListener('mouseleave', () => {
+            vidEl.pause();
+            vidEl.currentTime = 0;
+          });
+        }
+
+        card.addEventListener('click', () => {
+          if (el.settingMusicCheckpointInput) el.settingMusicCheckpointInput.value = fn;
+          updateSettingsMusicCheckpointCard(fn);
+          if (item && item.profile) {
+            if (el.settingMusicSteps && item.profile.default_steps) el.settingMusicSteps.value = item.profile.default_steps;
+            if (el.settingMusicCfg && item.profile.default_cfg) el.settingMusicCfg.value = item.profile.default_cfg;
+          }
+          closeModelPickerModal();
+          showToast(`Musik-Modell gewählt: ${title}`, 'success');
+        });
+
+        el.modelCardsList.appendChild(card);
+      }
+
+      if (countShown === 0) {
+        el.modelCardsList.innerHTML = `<div style="color:var(--text-dim);font-style:italic;padding:12px;">${escapeHtml(t('noModelsFound'))}</div>`;
+      }
+      return;
+    }
+
     if (state.activeModelTargetCharIndex === null) return;
     const charIndex = state.activeModelTargetCharIndex;
     const char = state.screenplay.characters[charIndex];
@@ -1882,6 +2486,7 @@
           </button>
         </div>
       `;
+      renderStoryboardTimeline();
       return;
     }
 
@@ -1889,11 +2494,13 @@
       const card = createSceneCard(scene, idx, scenes);
       el.scenesContainer.appendChild(card);
     });
+    renderStoryboardTimeline();
   }
 
   function createSceneCard(scene, idx, allScenes) {
     const card = document.createElement('div');
     card.className = 'scene-card';
+    card.id = `sceneCard_${scene.id || (idx + 1)}`;
     card.dataset.sceneIndex = idx;
 
     const sceneId = scene.id || (idx + 1);
@@ -1970,6 +2577,8 @@
             <input type="number" class="scene-duration-input" min="3" max="15" value="${duration}">
             <span>${escapeHtml(t('secondsUnit'))}</span>
           </div>
+          <button class="btn btn-primary-outline btn-xs btn-play-scene" title="${escapeHtml(t('btn_preview_scene') || 'Clip ansehen')}">▶️</button>
+          <button class="btn btn-secondary btn-xs btn-reshoot-scene" title="${escapeHtml(t('btn_reshoot_scene') || 'Szene neu drehen')}">🔄</button>
           <button class="btn btn-ghost btn-xs btn-move-up" title="${escapeHtml(t('moveUp'))}" ${idx === 0 ? 'disabled' : ''}>▲</button>
           <button class="btn btn-ghost btn-xs btn-move-down" title="${escapeHtml(t('moveDown'))}" ${idx === allScenes.length - 1 ? 'disabled' : ''}>▼</button>
           <button class="btn btn-ghost btn-xs btn-dup-scene" title="${escapeHtml(t('duplicateSceneTitle'))}">📋</button>
@@ -2051,6 +2660,10 @@
             </select>
           </div>
           <div class="render-field">
+            <span class="render-field-label">${escapeHtml(t('sceneStepsLabel') || 'Steps')}:</span>
+            <input type="number" class="select-xs scene-steps-input" style="width:58px; text-align:center;" placeholder="${escapeHtml(t('sceneStepsPlaceholder') || 'Auto')}" min="1" max="100" value="${scene.steps !== undefined && scene.steps !== null ? scene.steps : ''}" title="${escapeHtml(t('sceneStepsTitle') || 'Steps für diese Szene manuell festlegen')}">
+          </div>
+          <div class="render-field">
             <span class="render-field-label">${escapeHtml(t('sceneResolutionLabel'))}:</span>
             <select class="select-input select-xs scene-res-select">
               <option value="auto" ${!scene.megapixels || scene.megapixels === 0.25 ? 'selected' : ''}>${escapeHtml(t('sceneResAuto'))}</option>
@@ -2064,6 +2677,29 @@
               <option value="auto" ${scene.upscale !== false ? 'selected' : ''}>${escapeHtml(t('sceneUpscaleAuto'))}</option>
               <option value="off" ${scene.upscale === false ? 'selected' : ''}>${escapeHtml(t('sceneUpscaleOff'))}</option>
             </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Szenenübergänge / Cinematic Transitions -->
+      <div class="scene-transition-section">
+        <div class="scene-transition-header">
+          <label>🎬 ${escapeHtml(t('transition_label') || 'Übergang zur nächsten Szene')}</label>
+        </div>
+        <div class="scene-transition-grid">
+          <div class="transition-field">
+            <select class="select-input select-xs scene-transition-select">
+              <option value="cut" ${scene.transition === 'cut' || !scene.transition ? 'selected' : ''}>${escapeHtml(t('transition_cut') || 'Harter Schnitt (Cut)')}</option>
+              <option value="dissolve" ${scene.transition === 'dissolve' || scene.transition === 'fade' ? 'selected' : ''}>${escapeHtml(t('transition_dissolve') || 'Weiche Blende (Crossfade / Dissolve)')}</option>
+              <option value="fadeblack" ${scene.transition === 'fadeblack' || scene.transition === 'fade_to_black' ? 'selected' : ''}>${escapeHtml(t('transition_fadeblack') || 'Schwarzblende (Fade to Black)')}</option>
+              <option value="fadewhite" ${scene.transition === 'fadewhite' || scene.transition === 'dip_to_white' ? 'selected' : ''}>${escapeHtml(t('transition_fadewhite') || 'Weißblende (Dip to White)')}</option>
+              <option value="wipeleft" ${scene.transition === 'wipeleft' ? 'selected' : ''}>${escapeHtml(t('transition_wipeleft') || 'Wischblende Links (Wipe Left)')}</option>
+              <option value="wiperight" ${scene.transition === 'wiperight' ? 'selected' : ''}>${escapeHtml(t('transition_wiperight') || 'Wischblende Rechts (Wipe Right)')}</option>
+            </select>
+          </div>
+          <div class="transition-duration-field">
+            <span class="render-field-label">${escapeHtml(t('transition_duration_label') || 'Dauer (s):')}</span>
+            <input type="number" class="scene-transition-duration-input" min="0.2" max="3.0" step="0.1" value="${scene.transition_duration || 0.75}">
           </div>
         </div>
       </div>
@@ -2372,6 +3008,24 @@
     });
 
     // Render Settings Listeners
+    const stepsInput = card.querySelector('.scene-steps-input');
+    if (stepsInput) {
+      stepsInput.addEventListener('input', () => {
+        const val = stepsInput.value.trim();
+        if (!val) {
+          delete scene.steps;
+        } else {
+          const parsed = parseInt(val, 10);
+          if (!isNaN(parsed) && parsed > 0) {
+            scene.steps = parsed;
+          } else {
+            delete scene.steps;
+          }
+        }
+        markDirty();
+      });
+    }
+
     const turboSelect = card.querySelector('.scene-turbo-select');
     if (turboSelect) {
       turboSelect.addEventListener('change', () => {
@@ -2379,12 +3033,20 @@
         if (val === 'auto') {
           delete scene.turbo;
           delete scene.steps;
+          if (stepsInput) stepsInput.value = '';
         } else if (val === 'on') {
           scene.turbo = true;
-          scene.steps = 8;
+          // Do not hardcode 8 steps; clean legacy 8/20 so it uses configured turbo steps
+          if (scene.steps === 8 || scene.steps === 20) {
+            delete scene.steps;
+            if (stepsInput) stepsInput.value = '';
+          }
         } else if (val === 'off') {
           scene.turbo = false;
-          scene.steps = 20;
+          if (scene.steps === 8 || scene.steps === 20) {
+            delete scene.steps;
+            if (stepsInput) stepsInput.value = '';
+          }
         }
         markDirty();
       });
@@ -2416,6 +3078,83 @@
       });
     }
 
+    // Transition Listeners
+    const transSelect = card.querySelector('.scene-transition-select');
+    if (transSelect) {
+      transSelect.addEventListener('change', () => {
+        scene.transition = transSelect.value;
+        renderStoryboardTimeline();
+        markDirty();
+      });
+    }
+
+    const transDurInput = card.querySelector('.scene-transition-duration-input');
+    if (transDurInput) {
+      transDurInput.addEventListener('change', () => {
+        scene.transition_duration = parseFloat(transDurInput.value) || 0.75;
+        renderStoryboardTimeline();
+        markDirty();
+      });
+    }
+
+    // Play Clip in Player Modal
+    const playBtn = card.querySelector('.btn-play-scene');
+    if (playBtn) {
+      const st = (state.scenesStatus && Array.isArray(state.scenesStatus.scenes)) ? state.scenesStatus.scenes.find(s => s.id === sceneId) : null;
+      if (!st || !st.has_video) {
+        playBtn.style.display = 'none';
+      }
+      playBtn.addEventListener('click', () => {
+        const projName = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+        const videoUrl = `/api/scene/video?project=${encodeURIComponent(projName)}&scene=${sceneId}&t=${Date.now()}`;
+        openVideoPlayerModal(videoUrl, `Szene #${sceneId} (${duration}s)`, duration);
+      });
+    }
+
+    // Re-shoot Scene Button
+    const reshootBtn = card.querySelector('.btn-reshoot-scene');
+    if (reshootBtn) {
+      if (_renderingScenes.has(sceneId)) {
+        reshootBtn.disabled = true;
+        reshootBtn.innerHTML = '⏳';
+        reshootBtn.classList.add('is-rendering');
+        reshootBtn.title = t('timeline_rendering') || 'Wird gedreht...';
+      }
+
+      reshootBtn.addEventListener('click', async () => {
+        const confirmMsg = (t('reshoot_confirm') || 'Möchtest du Szene {id} wirklich neu rendern?').replace('{id}', sceneId);
+        if (!confirm(confirmMsg)) return;
+
+        const projName = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+        try {
+          reshootBtn.disabled = true;
+          reshootBtn.innerHTML = '⏳';
+          reshootBtn.classList.add('is-rendering');
+          reshootBtn.title = t('timeline_rendering') || 'Wird gedreht...';
+
+          if (state.isDirty) {
+            await saveCurrentProject();
+          }
+
+          const res = await API.reshootScene(projName, sceneId);
+          _renderingScenes.add(sceneId);
+          showToast(res.message || (t('reshoot_started') || 'Dreh gestartet...').replace('{id}', sceneId), 'info');
+
+          // Immediately reflect rendering state in storyboard timeline and card
+          renderStoryboardTimeline();
+          startTimelinePolling();
+        } catch (err) {
+          showToast(err.message, 'error');
+          reshootBtn.disabled = false;
+          reshootBtn.innerHTML = '🔄';
+          reshootBtn.classList.remove('is-rendering');
+          reshootBtn.title = t('btn_reshoot_scene') || 'Szene neu drehen';
+          _renderingScenes.delete(sceneId);
+          renderStoryboardTimeline();
+        }
+      });
+    }
+
     return card;
   }
 
@@ -2424,6 +3163,381 @@
     scenes.forEach((s, idx) => {
       s.id = idx + 1;
     });
+  }
+
+  // --- Storyboard Filmstrip Timeline & Video Player Methods ---
+  let _timelinePollTimer = null;
+  const _renderingScenes = new Set();
+
+  function startTimelinePolling() {
+    if (_timelinePollTimer) return;
+    _timelinePollTimer = setInterval(async () => {
+      await pollTimelineUpdate();
+    }, 2500);
+  }
+
+  function stopTimelinePolling() {
+    if (_timelinePollTimer) {
+      clearInterval(_timelinePollTimer);
+      _timelinePollTimer = null;
+    }
+  }
+
+  async function pollTimelineUpdate() {
+    const projName = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+    if (!projName) {
+      stopTimelinePolling();
+      return;
+    }
+
+    try {
+      const statusData = await API.getScenesStatus(projName);
+      if (!statusData || !statusData.success) return;
+
+      const scenes = statusData.scenes || [];
+      let anyStillRendering = Boolean(statusData.any_rendering);
+
+      // Check each scene we were actively waiting for
+      _renderingScenes.forEach(sid => {
+        const matchingSc = scenes.find(s => s.id === sid);
+        if (matchingSc && !matchingSc.is_rendering) {
+          // Finished rendering!
+          _renderingScenes.delete(sid);
+
+          const cardElem = document.getElementById(`sceneCard_${sid}`);
+          if (cardElem) {
+            const rBtn = cardElem.querySelector('.btn-reshoot-scene');
+            if (rBtn) {
+              rBtn.disabled = false;
+              rBtn.innerHTML = '🔄';
+              rBtn.classList.remove('is-rendering');
+              rBtn.title = t('btn_reshoot_scene') || 'Szene neu drehen';
+            }
+            const pBtn = cardElem.querySelector('.btn-play-scene');
+            if (pBtn && matchingSc.has_video) {
+              pBtn.style.display = 'inline-flex';
+            }
+          }
+
+          showToast((t('reshoot_finished') || 'Szene #{id} erfolgreich neu gerendert! Vorschau aktualisiert.').replace('{id}', sid), 'success');
+        } else if (matchingSc && matchingSc.is_rendering) {
+          anyStillRendering = true;
+        }
+      });
+
+      // Synchronize latest scene status into state and re-render filmstrip track
+      state.scenesStatus = statusData;
+      renderStoryboardTimeline();
+
+      if (!anyStillRendering && _renderingScenes.size === 0) {
+        stopTimelinePolling();
+      }
+    } catch (err) {
+      console.warn('Timeline poll error:', err);
+    }
+  }
+
+  async function fetchAndRenderTimeline() {
+    const projName = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+    if (!projName) return;
+
+    try {
+      const statusData = await API.getScenesStatus(projName);
+      if (statusData && statusData.success) {
+        state.scenesStatus = statusData;
+        if (statusData.any_rendering) {
+          if (Array.isArray(statusData.active_rendering_scenes)) {
+            statusData.active_rendering_scenes.forEach(sid => _renderingScenes.add(sid));
+          }
+          startTimelinePolling();
+        }
+        renderStoryboardTimeline();
+      }
+    } catch (err) {
+      console.warn('Could not fetch scene render status:', err);
+      renderStoryboardTimeline();
+    }
+  }
+
+  function renderStoryboardTimeline() {
+    if (!el.filmstripTrack) return;
+    el.filmstripTrack.innerHTML = '';
+
+    const scenes = state.screenplay.scenes || [];
+    const statusMap = {};
+    if (state.scenesStatus && Array.isArray(state.scenesStatus.scenes)) {
+      for (const sc of state.scenesStatus.scenes) {
+        statusMap[sc.id] = sc;
+      }
+    }
+
+    const projName = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+
+    let totalSecs = 0;
+    let renderedCount = 0;
+
+    scenes.forEach((sc, idx) => {
+      const d = parseFloat(sc.duration || 6);
+      totalSecs += d;
+      if (idx < scenes.length - 1 && sc.transition && sc.transition !== 'cut' && sc.transition !== 'none') {
+        const td = parseFloat(sc.transition_duration || 0.75);
+        totalSecs -= Math.min(td, d / 2.0);
+      }
+      const st = statusMap[sc.id || (idx + 1)];
+      if (st && st.has_video) renderedCount++;
+    });
+
+    if (el.timelineStatsBadge) {
+      el.timelineStatsBadge.textContent = `${totalSecs.toFixed(1)}s • ${renderedCount}/${scenes.length} ${t('timeline_ready') || 'Gerendert'}`;
+    }
+
+    if (el.btnPlayFullMovie) {
+      if (state.scenesStatus && state.scenesStatus.movie_ready) {
+        el.btnPlayFullMovie.style.display = 'inline-flex';
+        el.btnPlayFullMovie.onclick = () => {
+          const mUrl = state.scenesStatus.movie_url + '&t=' + Date.now();
+          const title = state.screenplay.title || projName;
+          openVideoPlayerModal(mUrl, `🎬 ${title} (FINAL)`, totalSecs.toFixed(1));
+        };
+      } else {
+        el.btnPlayFullMovie.style.display = 'none';
+      }
+    }
+
+    if (scenes.length === 0) {
+      el.filmstripTrack.innerHTML = `<span style="color:var(--text-dim);font-size:12px;font-style:italic;">${escapeHtml(t('timeline_no_scenes') || 'Noch keine Szenen im Drehbuch.')}</span>`;
+      return;
+    }
+
+    scenes.forEach((scene, idx) => {
+      const sceneId = scene.id || (idx + 1);
+      const st = statusMap[sceneId];
+      const isRendering = Boolean((st && st.is_rendering) || _renderingScenes.has(sceneId));
+      const hasVid = Boolean(st && st.has_video);
+      const hasPrev = Boolean(st && st.has_preview);
+      const duration = scene.duration || 6;
+      const seq = scene.sequence || scene.sequenz || `Szene ${sceneId}`;
+
+      const cell = document.createElement('div');
+      cell.className = `filmstrip-cell ${isRendering ? 'rendering' : (hasVid ? 'rendered' : '')}`;
+      cell.title = isRendering 
+        ? `${t('timeline_rendering') || 'Wird gedreht...'}: Szene #${sceneId}` 
+        : `${t('timeline_jump_to_scene') || 'Zu Szene {id} springen'}`.replace('{id}', sceneId);
+
+      const previewUrl = (st && st.preview_url) ? st.preview_url : `/api/scene/preview?project=${encodeURIComponent(projName)}&scene=${sceneId}&t=${Date.now()}`;
+      const videoUrl = (st && st.video_url) ? st.video_url : `/api/scene/video?project=${encodeURIComponent(projName)}&scene=${sceneId}&t=${Date.now()}`;
+
+      let thumbHtml = '';
+      if (isRendering) {
+        if (hasPrev) {
+          thumbHtml = `
+            <img src="${previewUrl}" class="filmstrip-thumb-img" style="filter: brightness(0.4) blur(1px);" alt="Szene ${sceneId}">
+            <div class="filmstrip-placeholder" style="background:transparent;z-index:2;">
+              <span style="font-size:18px;animation:filmstrip-pulse 1.2s infinite ease-in-out;">⏳</span>
+              <span style="font-weight:600;font-size:9px;color:#fbbf24;text-shadow:0 1px 4px rgba(0,0,0,0.8);">${escapeHtml(t('timeline_rendering') || 'Wird gedreht...')}</span>
+            </div>
+          `;
+        } else {
+          thumbHtml = `
+            <div class="filmstrip-placeholder">
+              <span style="font-size:18px;animation:filmstrip-pulse 1.2s infinite ease-in-out;">⏳</span>
+              <span style="font-weight:600;font-size:9px;color:#fbbf24;">${escapeHtml(t('timeline_rendering') || 'Wird gedreht...')}</span>
+            </div>
+          `;
+        }
+      } else if (hasPrev) {
+        thumbHtml = `<img src="${previewUrl}" class="filmstrip-thumb-img" alt="Szene ${sceneId}" onerror="this.style.display='none'">`;
+      } else {
+        thumbHtml = `
+          <div class="filmstrip-placeholder">
+            <span style="font-size:14px;margin-bottom:2px;">🎬</span>
+            <span style="font-weight:600;font-size:10px;">${escapeHtml(seq)}</span>
+          </div>
+        `;
+      }
+
+      let statusPillClass = 'pending';
+      let statusPillText = t('timeline_not_rendered') || 'Offen';
+      if (isRendering) {
+        statusPillClass = 'rendering';
+        statusPillText = t('timeline_rendering') || 'Wird gedreht...';
+      } else if (hasVid) {
+        statusPillClass = 'ready';
+        statusPillText = t('timeline_ready') || 'Gerendert';
+      }
+
+      cell.innerHTML = `
+        ${thumbHtml}
+        <div class="filmstrip-cell-topbar">
+          <span class="filmstrip-scene-badge">#${sceneId}</span>
+          <span class="filmstrip-status-pill ${statusPillClass}">${escapeHtml(statusPillText)}</span>
+        </div>
+        ${(hasVid && !isRendering) ? `<div class="filmstrip-play-overlay" title="${escapeHtml(t('timeline_play_scene') || 'Szene im Player ansehen')}">▶</div>` : ''}
+        <div class="filmstrip-cell-bottombar">
+          <span class="filmstrip-cell-seq">${escapeHtml(seq)}</span>
+          <span class="filmstrip-cell-dur">${duration}s</span>
+        </div>
+      `;
+
+      // Keep scene card buttons state synchronized
+      const cardElem = document.getElementById(`sceneCard_${sceneId}`);
+      if (cardElem) {
+        const pBtn = cardElem.querySelector('.btn-play-scene');
+        if (pBtn) {
+          pBtn.style.display = hasVid ? 'inline-flex' : 'none';
+        }
+        const rBtn = cardElem.querySelector('.btn-reshoot-scene');
+        if (rBtn) {
+          if (isRendering) {
+            rBtn.disabled = true;
+            rBtn.innerHTML = '⏳';
+            rBtn.classList.add('is-rendering');
+            rBtn.title = t('timeline_rendering') || 'Wird gedreht...';
+          } else if (!_renderingScenes.has(sceneId) && rBtn.classList.contains('is-rendering')) {
+            rBtn.disabled = false;
+            rBtn.innerHTML = '🔄';
+            rBtn.classList.remove('is-rendering');
+            rBtn.title = t('btn_reshoot_scene') || 'Szene neu drehen';
+          }
+        }
+      }
+
+      cell.addEventListener('click', (e) => {
+        if (e.target.closest('.filmstrip-play-overlay') || (hasVid && e.shiftKey)) {
+          openVideoPlayerModal(videoUrl, `Szene #${sceneId}: ${seq}`, duration);
+        } else {
+          const targetCard = document.getElementById(`sceneCard_${sceneId}`);
+          if (targetCard) {
+            targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            targetCard.style.outline = '2px solid var(--accent-blue, #38bdf8)';
+            targetCard.style.boxShadow = '0 0 20px rgba(56, 189, 248, 0.5)';
+            setTimeout(() => {
+              targetCard.style.outline = '';
+              targetCard.style.boxShadow = '';
+            }, 1600);
+          }
+        }
+      });
+
+      el.filmstripTrack.appendChild(cell);
+
+      // Add Transition Badge between scene idx and idx + 1
+      if (idx < scenes.length - 1) {
+        const transType = scene.transition || 'cut';
+        const transDur = scene.transition_duration || 0.75;
+        const isCut = transType === 'cut' || transType === 'none';
+
+        const transBadge = document.createElement('div');
+        transBadge.className = `filmstrip-transition-badge ${isCut ? '' : 'custom'}`;
+
+        let transIcon = '✂️';
+        let transName = 'CUT';
+        if (transType === 'dissolve' || transType === 'fade') {
+          transIcon = '🌫️';
+          transName = `DISSOLVE (${transDur}s)`;
+        } else if (transType === 'fadeblack') {
+          transIcon = '🌑';
+          transName = `FADE BLACK (${transDur}s)`;
+        } else if (transType === 'fadewhite') {
+          transIcon = '⚪';
+          transName = `DIP WHITE (${transDur}s)`;
+        } else if (transType === 'wipeleft') {
+          transIcon = '◀️';
+          transName = `WIPE LEFT (${transDur}s)`;
+        } else if (transType === 'wiperight') {
+          transIcon = '▶️';
+          transName = `WIPE RIGHT (${transDur}s)`;
+        }
+
+        transBadge.innerHTML = `<span>${transIcon}</span> <span>${escapeHtml(transName)}</span>`;
+        transBadge.title = `${escapeHtml(t('transition_label') || 'Übergang')}: ${transName}`;
+
+        transBadge.addEventListener('click', () => {
+          const sequence = ['cut', 'dissolve', 'fadeblack', 'fadewhite', 'wipeleft'];
+          const currentIdx = sequence.indexOf(scene.transition || 'cut');
+          const nextTrans = sequence[(currentIdx + 1) % sequence.length];
+          scene.transition = nextTrans;
+          if (!scene.transition_duration) scene.transition_duration = 0.75;
+
+          const cardElem = document.getElementById(`sceneCard_${sceneId}`);
+          if (cardElem) {
+            const sel = cardElem.querySelector('.scene-transition-select');
+            if (sel) sel.value = nextTrans;
+          }
+
+          renderStoryboardTimeline();
+          markDirty();
+          showToast(`Übergang Szene #${sceneId} -> #${sceneId + 1}: ${nextTrans}`, 'info');
+        });
+
+        el.filmstripTrack.appendChild(transBadge);
+      }
+    });
+  }
+
+  function openVideoPlayerModal(videoUrl, title, duration) {
+    if (!el.videoPlayerModal || !el.modalVideoElement) return;
+    if (el.videoModalTitle) el.videoModalTitle.textContent = `▶️ ${title}`;
+    if (el.videoMetaTitle) el.videoMetaTitle.textContent = title;
+    if (el.videoMetaDuration) el.videoMetaDuration.textContent = duration ? `${duration}s` : '';
+    if (el.videoDownloadLink) el.videoDownloadLink.href = videoUrl;
+
+    el.modalVideoElement.src = videoUrl;
+    el.modalVideoElement.load();
+    el.videoPlayerModal.classList.add('open');
+    el.modalVideoElement.play().catch(() => {});
+  }
+
+  function closeVideoPlayerModal() {
+    if (!el.videoPlayerModal || !el.modalVideoElement) return;
+    el.modalVideoElement.pause();
+    el.modalVideoElement.removeAttribute('src');
+    el.modalVideoElement.load();
+    el.videoPlayerModal.classList.remove('open');
+  }
+
+  function toggleVideoPlayer() {
+    if (!el.videoPlayerModal) return;
+    if (el.videoPlayerModal.classList.contains('open')) {
+      closeVideoPlayerModal();
+      return;
+    }
+
+    const projName = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+    const title = (el.movieTitle && el.movieTitle.value.trim()) || projName;
+
+    // 1. If full movie is ready, play full movie
+    if (state.scenesStatus && state.scenesStatus.movie_ready && state.scenesStatus.movie_url) {
+      const mUrl = state.scenesStatus.movie_url + '&t=' + Date.now();
+      const totalSecs = (state.scenesStatus.scenes || []).reduce((acc, s) => acc + (s.duration || 6), 0);
+      openVideoPlayerModal(mUrl, `🎬 ${title} (FINAL)`, totalSecs.toFixed(1));
+      return;
+    }
+
+    // 2. If any rendered scene exists, play first available rendered scene
+    const scenes = state.screenplay.scenes || [];
+    const statusMap = (state.scenesStatus && state.scenesStatus.scenes)
+      ? Object.fromEntries(state.scenesStatus.scenes.map(s => [s.id, s]))
+      : {};
+
+    const readyScene = scenes.find(s => statusMap[s.id] && statusMap[s.id].has_video);
+    if (readyScene) {
+      const st = statusMap[readyScene.id];
+      const videoUrl = (st && st.video_url) ? st.video_url : `/api/scene/video?project=${encodeURIComponent(projName)}&scene=${readyScene.id}&t=${Date.now()}`;
+      const seq = readyScene.sequence || readyScene.sequenz || `Szene ${readyScene.id}`;
+      openVideoPlayerModal(videoUrl, `Szene #${readyScene.id}: ${seq}`, readyScene.duration || 6);
+      return;
+    }
+
+    // 3. If there is already a source in modalVideoElement
+    if (el.modalVideoElement && el.modalVideoElement.src) {
+      el.videoPlayerModal.classList.add('open');
+      el.modalVideoElement.play().catch(() => {});
+      return;
+    }
+
+    // 4. No video available yet
+    showToast(t('video_no_rendered_found') || 'Noch kein Video gerendert. Klicke auf "Film rendern" oder starte das Rendering im Storyboard.', 'info');
   }
 
   function addScene() {
@@ -2491,12 +3605,64 @@
     }
   }
 
+  function updateMusicModelProfileUI(selectedModelFn) {
+    if (!el.musicModelProfileBadge) return;
+    const modelItem = availableMusicModels.find(m => m.filename === selectedModelFn || m.title === selectedModelFn);
+    const prof = modelItem?.profile || null;
+
+    if (prof) {
+      if (el.musicModelProfileFamily) el.musicModelProfileFamily.textContent = prof.family || prof.description || 'Audio';
+      const stepsHint = prof.recommended_steps_hint || `${prof.default_steps || 40} Steps`;
+      const cfgHint = prof.recommended_cfg_hint || `${prof.default_cfg || 2.0}`;
+      if (el.musicModelProfileHint) el.musicModelProfileHint.textContent = `${stepsHint}, CFG ${cfgHint}`;
+      el.musicModelProfileBadge.style.display = 'inline-flex';
+      if (el.btnApplyMusicProfile) el.btnApplyMusicProfile.style.display = 'inline-flex';
+
+      if (el.musicStepsHint && prof.recommended_steps_hint) {
+        el.musicStepsHint.textContent = `(${prof.recommended_steps_hint})`;
+      }
+      if (el.musicCfgHint && prof.recommended_cfg_hint) {
+        el.musicCfgHint.textContent = `(${prof.recommended_cfg_hint})`;
+      }
+    } else {
+      el.musicModelProfileBadge.style.display = 'none';
+      if (el.btnApplyMusicProfile) el.btnApplyMusicProfile.style.display = 'none';
+      if (el.musicStepsHint) el.musicStepsHint.textContent = '';
+      if (el.musicCfgHint) el.musicCfgHint.textContent = '';
+    }
+  }
+
+  function applyCurrentMusicModelProfile() {
+    const curModel = el.musicModelSelect ? el.musicModelSelect.value : '';
+    const modelItem = availableMusicModels.find(m => m.filename === curModel || m.title === curModel);
+    const prof = modelItem?.profile;
+    if (!prof) return;
+
+    if (el.musicStepsInput && prof.default_steps !== undefined) {
+      el.musicStepsInput.value = prof.default_steps;
+      if (!state.screenplay.music) state.screenplay.music = {};
+      state.screenplay.music.steps = prof.default_steps;
+    }
+    if (el.musicCfgInput && prof.default_cfg !== undefined) {
+      el.musicCfgInput.value = prof.default_cfg;
+      if (!state.screenplay.music) state.screenplay.music = {};
+      state.screenplay.music.cfg = prof.default_cfg;
+    }
+    markDirty();
+    showToast((t('musicProfileApplied') || "Optimalwerte für {family} übernommen: {steps} Steps, CFG {cfg}")
+      .replace('{family}', prof.family || 'Modell')
+      .replace('{steps}', prof.default_steps)
+      .replace('{cfg}', prof.default_cfg), 'info');
+  }
+
   async function renderMusicStudio() {
     if (!state.screenplay.music) {
       state.screenplay.music = {
         enabled: false,
         model: availableMusicModels[0]?.filename || '',
         prompt: '',
+        steps: 40,
+        cfg: 2.0,
         volume: 0.22,
         ducking: true
       };
@@ -2506,11 +3672,18 @@
     if (el.chkMusicEnabled) {
       el.chkMusicEnabled.checked = Boolean(m.enabled);
     }
-    if (el.musicModelSelect && m.model) {
-      el.musicModelSelect.value = m.model;
+    const activeModel = m.model || (el.musicModelSelect ? el.musicModelSelect.value : '');
+    if (el.musicModelSelect && activeModel) {
+      el.musicModelSelect.value = activeModel;
     }
     if (el.musicPromptInput) {
       el.musicPromptInput.value = m.prompt || '';
+    }
+    if (el.musicStepsInput) {
+      el.musicStepsInput.value = m.steps !== undefined ? m.steps : 40;
+    }
+    if (el.musicCfgInput) {
+      el.musicCfgInput.value = m.cfg !== undefined ? m.cfg : 2.0;
     }
     if (el.musicVolumeSelect && m.volume !== undefined) {
       el.musicVolumeSelect.value = String(m.volume);
@@ -2518,6 +3691,8 @@
     if (el.chkMusicDucking) {
       el.chkMusicDucking.checked = m.ducking !== undefined ? Boolean(m.ducking) : true;
     }
+
+    updateMusicModelProfileUI(activeModel);
 
     // Check if soundtrack file exists for current project
     const projName = (el.movieFilename && el.movieFilename.value.trim()) || (state.currentFilename ? state.currentFilename.replace('.json', '') : '');
@@ -2592,6 +3767,8 @@
         project: projName,
         prompt_tags: (el.musicPromptInput && el.musicPromptInput.value.trim()) || (state.screenplay.music && state.screenplay.music.prompt) || '',
         checkpoint: (el.musicModelSelect && el.musicModelSelect.value) || (state.screenplay.music && state.screenplay.music.model) || '',
+        steps: el.musicStepsInput ? parseInt(el.musicStepsInput.value, 10) || 40 : 40,
+        cfg: el.musicCfgInput ? parseFloat(el.musicCfgInput.value) || 2.0 : 2.0,
         volume: el.musicVolumeSelect ? parseFloat(el.musicVolumeSelect.value) : 0.22,
         ducking: el.chkMusicDucking ? el.chkMusicDucking.checked : true
       };
@@ -3681,6 +4858,432 @@
     }
   }
 
+  // --- Studio Settings Modal & Management ---
+  const TAB_PANE_MAP = {
+    minimax: 'paneSettingsMinimax',
+    music: 'paneSettingsMusic',
+    lmstudio: 'paneSettingsLms',
+    system: 'paneSettingsSystem'
+  };
+
+  let cachedSettingsModels = null;
+
+  async function openSettingsModal() {
+    if (!el.settingsModal) return;
+    el.settingsModal.classList.add('open');
+    switchSettingsTab('minimax');
+    await loadSettingsData();
+  }
+
+  function closeSettingsModal() {
+    if (!el.settingsModal) return;
+    el.settingsModal.classList.remove('open');
+  }
+
+  function switchSettingsTab(tabName) {
+    const tabBtns = document.querySelectorAll('.settings-tab-btn');
+    const panes = document.querySelectorAll('.settings-pane');
+    const targetId = TAB_PANE_MAP[tabName] || `paneSettings${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`;
+    tabBtns.forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-tab') === tabName);
+    });
+    panes.forEach(pane => {
+      pane.classList.toggle('active', pane.id === targetId);
+    });
+  }
+
+  function updateSettingsMinimaxUnetCard(unetVal) {
+    if (!el.settingMinimaxUnetCard) return;
+    const val = (unetVal || (el.settingMinimaxUnetInput ? el.settingMinimaxUnetInput.value : '') || '').trim();
+
+    if (!val) {
+      el.settingMinimaxUnetCard.className = 'settings-selected-card is-empty';
+      el.settingMinimaxUnetCard.innerHTML = `
+        <div class="settings-selected-thumb-box">
+          <span class="settings-selected-placeholder">🎨</span>
+        </div>
+        <div class="settings-selected-details">
+          <div class="settings-selected-title" style="color:var(--text-muted);font-weight:normal;">${escapeHtml(t('noModelSelected') || 'Kein Diffusionsmodell gewählt')}</div>
+          <div class="settings-selected-path">${escapeHtml(t('clickToChangeModel') || 'Klicken, um Diffusionsmodell zu wählen')}</div>
+        </div>
+      `;
+      return;
+    }
+
+    const unetList = (cachedSettingsModels && cachedSettingsModels.minimax_unets) ? cachedSettingsModels.minimax_unets : [];
+    const found = unetList.find(u => {
+      const fn = typeof u === 'string' ? u : (u.filename || u.name || '');
+      return fn === val || fn.toLowerCase().includes(val.toLowerCase()) || val.toLowerCase().includes(fn.toLowerCase());
+    });
+
+    const title = found && typeof found === 'object' && found.title ? found.title : val.split(/[/\\]/).pop().replace(/\.[^/.]+$/, '');
+    const previewUrl = found && typeof found === 'object' ? found.preview_url : null;
+    const mediaType = found && typeof found === 'object' ? found.media_type : null;
+
+    let mediaHtml = '';
+    if (previewUrl) {
+      if (mediaType === 'video') {
+        mediaHtml = `<video src="${escapeHtml(previewUrl)}" class="settings-selected-thumb" muted loop playsinline preload="metadata"></video>`;
+      } else {
+        mediaHtml = `<img src="${escapeHtml(previewUrl)}" class="settings-selected-thumb" alt="${escapeHtml(title)}">`;
+      }
+    } else {
+      mediaHtml = `<span class="settings-selected-placeholder">🎬</span>`;
+    }
+
+    el.settingMinimaxUnetCard.className = 'settings-selected-card';
+    el.settingMinimaxUnetCard.innerHTML = `
+      <div class="settings-selected-thumb-box">
+        ${mediaHtml}
+      </div>
+      <div class="settings-selected-details">
+        <div class="settings-selected-top">
+          <span class="settings-selected-title">🎬 ${escapeHtml(title)}</span>
+          <span class="settings-badge settings-badge-gold">Minimax UNET</span>
+        </div>
+        <div class="settings-selected-path" title="${escapeHtml(val)}">${escapeHtml(val)}</div>
+      </div>
+    `;
+
+    const vid = el.settingMinimaxUnetCard.querySelector('video');
+    if (vid) {
+      el.settingMinimaxUnetCard.addEventListener('mouseenter', () => { vid.play().catch(() => {}); });
+      el.settingMinimaxUnetCard.addEventListener('mouseleave', () => { vid.pause(); vid.currentTime = 0; });
+    }
+  }
+
+  function updateSettingsTurboLoraCard(turboVal) {
+    if (!el.settingTurboLoraCard) return;
+    const val = (turboVal || (el.settingTurboLoraInput ? el.settingTurboLoraInput.value : '') || '').trim();
+
+    if (el.btnClearTurboLora) {
+      el.btnClearTurboLora.style.display = val ? 'inline-flex' : 'none';
+    }
+
+    if (!val) {
+      el.settingTurboLoraCard.className = 'settings-selected-card is-turbo is-empty';
+      el.settingTurboLoraCard.innerHTML = `
+        <div class="settings-selected-thumb-box">
+          <span class="settings-selected-placeholder">⚡</span>
+        </div>
+        <div class="settings-selected-details">
+          <div class="settings-selected-title" style="color:var(--text-muted);font-weight:normal;">${escapeHtml(t('noTurboLoraSelected') || 'Keine Turbo-LoRA aktiv (Standard 20 Steps)')}</div>
+          <div class="settings-selected-path">${escapeHtml(t('clickToChangeTurbo') || 'Klicken, um Turbo-LoRA zu wählen')}</div>
+        </div>
+      `;
+      return;
+    }
+
+    const turboList = (cachedSettingsModels && (cachedSettingsModels.minimax_turbo_loras || cachedSettingsModels.turbo_loras)) || [];
+    const found = turboList.find(tl => {
+      const fn = typeof tl === 'string' ? tl : (tl.filename || tl.name || '');
+      return fn === val || fn.toLowerCase().includes(val.toLowerCase()) || val.toLowerCase().includes(fn.toLowerCase());
+    });
+
+    const title = found && typeof found === 'object' && found.title ? found.title : val.split(/[/\\]/).pop().replace(/\.[^/.]+$/, '');
+    const steps = found && typeof found === 'object' && found.steps ? found.steps : null;
+    const previewUrl = found && typeof found === 'object' ? found.preview_url : null;
+    const mediaType = found && typeof found === 'object' ? found.media_type : null;
+
+    let mediaHtml = '';
+    if (previewUrl) {
+      if (mediaType === 'video') {
+        mediaHtml = `<video src="${escapeHtml(previewUrl)}" class="settings-selected-thumb" muted loop playsinline preload="metadata"></video>`;
+      } else {
+        mediaHtml = `<img src="${escapeHtml(previewUrl)}" class="settings-selected-thumb" alt="${escapeHtml(title)}">`;
+      }
+    } else {
+      mediaHtml = `<span class="settings-selected-placeholder">⚡</span>`;
+    }
+
+    const stepsBadge = steps ? `<span class="settings-badge settings-badge-cyan">⚡ ${steps} Steps</span>` : `<span class="settings-badge settings-badge-cyan">Turbo</span>`;
+
+    el.settingTurboLoraCard.className = 'settings-selected-card is-turbo';
+    el.settingTurboLoraCard.innerHTML = `
+      <div class="settings-selected-thumb-box">
+        ${mediaHtml}
+      </div>
+      <div class="settings-selected-details">
+        <div class="settings-selected-top">
+          <span class="settings-selected-title">⚡ ${escapeHtml(title)}</span>
+          ${stepsBadge}
+        </div>
+        <div class="settings-selected-path" title="${escapeHtml(val)}">${escapeHtml(val)}</div>
+      </div>
+    `;
+
+    const vid = el.settingTurboLoraCard.querySelector('video');
+    if (vid) {
+      el.settingTurboLoraCard.addEventListener('mouseenter', () => { vid.play().catch(() => {}); });
+      el.settingTurboLoraCard.addEventListener('mouseleave', () => { vid.pause(); vid.currentTime = 0; });
+    }
+  }
+
+  function updateSettingsMusicCheckpointCard(ckptVal) {
+    if (!el.settingMusicCheckpointCard) return;
+    const val = (ckptVal || (el.settingMusicCheckpointInput ? el.settingMusicCheckpointInput.value : '') || '').trim();
+
+    if (!val) {
+      el.settingMusicCheckpointCard.className = 'settings-selected-card is-empty';
+      el.settingMusicCheckpointCard.innerHTML = `
+        <div class="settings-selected-thumb-box">
+          <span class="settings-selected-placeholder">🎵</span>
+        </div>
+        <div class="settings-selected-details">
+          <div class="settings-selected-title" style="color:var(--text-muted);font-weight:normal;">${escapeHtml(t('noMusicModelSelected') || 'Kein Musik-Checkpoint gewählt')}</div>
+          <div class="settings-selected-path">${escapeHtml(t('clickToChangeMusicModel') || 'Klicken, um Musik-Checkpoint zu wählen')}</div>
+        </div>
+      `;
+      return;
+    }
+
+    let ckptList = (cachedSettingsModels && cachedSettingsModels.music_checkpoints) ? cachedSettingsModels.music_checkpoints : [];
+    if (ckptList.length === 0 && availableMusicModels && availableMusicModels.length > 0) {
+      ckptList = availableMusicModels;
+    }
+    const found = ckptList.find(c => {
+      const fn = typeof c === 'string' ? c : (c.filename || c.name || '');
+      return fn === val || fn.toLowerCase().includes(val.toLowerCase()) || val.toLowerCase().includes(fn.toLowerCase());
+    });
+
+    const title = found && typeof found === 'object' && found.title ? found.title : val.split(/[/\\]/).pop().replace(/\.[^/.]+$/, '');
+    const previewUrl = found && typeof found === 'object' ? found.preview_url : null;
+    const mediaType = found && typeof found === 'object' ? found.media_type : null;
+
+    let mediaHtml = '';
+    if (previewUrl) {
+      if (mediaType === 'video') {
+        mediaHtml = `<video src="${escapeHtml(previewUrl)}" class="settings-selected-thumb" muted loop playsinline preload="metadata"></video>`;
+      } else {
+        mediaHtml = `<img src="${escapeHtml(previewUrl)}" class="settings-selected-thumb" alt="${escapeHtml(title)}">`;
+      }
+    } else {
+      mediaHtml = `<span class="settings-selected-placeholder">🎵</span>`;
+    }
+
+    el.settingMusicCheckpointCard.className = 'settings-selected-card';
+    el.settingMusicCheckpointCard.innerHTML = `
+      <div class="settings-selected-thumb-box">
+        ${mediaHtml}
+      </div>
+      <div class="settings-selected-details">
+        <div class="settings-selected-top">
+          <span class="settings-selected-title">🎵 ${escapeHtml(title)}</span>
+          <span class="settings-badge" style="background:rgba(217,70,239,0.2);color:#f0abfc;border:1px solid rgba(217,70,239,0.4);">ACE-Step / Audio</span>
+        </div>
+        <div class="settings-selected-path" title="${escapeHtml(val)}">${escapeHtml(val)}</div>
+      </div>
+    `;
+
+    const vid = el.settingMusicCheckpointCard.querySelector('video');
+    if (vid) {
+      el.settingMusicCheckpointCard.addEventListener('mouseenter', () => { vid.play().catch(() => {}); });
+      el.settingMusicCheckpointCard.addEventListener('mouseleave', () => { vid.pause(); vid.currentTime = 0; });
+    }
+  }
+
+  async function loadSettingsData() {
+    try {
+      const [settingsRes, modelsRes] = await Promise.all([
+        API.getSettings().catch(err => {
+          console.error('Failed to load settings:', err);
+          return { success: false };
+        }),
+        API.getSettingsModels().catch(err => {
+          console.error('Failed to load settings models:', err);
+          return { success: false };
+        })
+      ]);
+
+      const s = (settingsRes && settingsRes.success && settingsRes.settings) ? settingsRes.settings : (settingsRes || {});
+      cachedSettingsModels = (modelsRes && modelsRes.success) ? modelsRes : null;
+
+      if (!cachedSettingsModels || !cachedSettingsModels.music_checkpoints || cachedSettingsModels.music_checkpoints.length === 0) {
+        try {
+          const musicData = await API.getMusicModels().catch(() => null);
+          if (musicData && Array.isArray(musicData.models) && musicData.models.length > 0) {
+            if (!cachedSettingsModels) cachedSettingsModels = {};
+            cachedSettingsModels.music_checkpoints = musicData.models;
+          }
+        } catch (e) {
+          console.warn('Could not preload music models:', e);
+        }
+      }
+
+      populateSettingsModelDropdowns(cachedSettingsModels, s);
+
+      // Minimax
+      const mm = s.minimax_i2v || s.minimax || {};
+      const unetVal = mm.unet_name || mm.unet_model || '';
+      if (el.settingMinimaxUnetInput) el.settingMinimaxUnetInput.value = unetVal;
+      updateSettingsMinimaxUnetCard(unetVal);
+
+      const turboLoraVal = mm.turbo_lora || '';
+      if (el.settingTurboLoraInput) el.settingTurboLoraInput.value = turboLoraVal;
+      updateSettingsTurboLoraCard(turboLoraVal);
+
+      if (el.settingMinimaxSteps) el.settingMinimaxSteps.value = mm.steps !== undefined ? mm.steps : 8;
+      if (el.settingTurboStrength) {
+        const strVal = mm.turbo_strength !== undefined ? mm.turbo_strength : 1.0;
+        el.settingTurboStrength.value = strVal;
+        if (el.valTurboStrength) el.valTurboStrength.textContent = Number(strVal).toFixed(2);
+      }
+      if (el.settingMinimaxVae) el.settingMinimaxVae.value = mm.video_vae_name || mm.vae || '';
+      if (el.settingAudioVae) el.settingAudioVae.value = mm.audio_vae_name || '';
+      if (el.settingMinimaxClip) el.settingMinimaxClip.value = mm.clip_name || '';
+
+      // Music
+      const music = s.music_studio || s.music || {};
+      if (el.settingMusicEnabled) el.settingMusicEnabled.checked = music.enabled !== false;
+      const ckptVal = music.checkpoint || 'Other\\base model\\ace_step_v1_3.5b.safetensors';
+      if (el.settingMusicCheckpointInput) el.settingMusicCheckpointInput.value = ckptVal;
+      updateSettingsMusicCheckpointCard(ckptVal);
+      if (el.settingMusicSteps) el.settingMusicSteps.value = music.steps !== undefined ? music.steps : 40;
+      if (el.settingMusicCfg) el.settingMusicCfg.value = music.cfg !== undefined ? music.cfg : 2.0;
+      if (el.settingMusicVolume) {
+        const vol = music.volume !== undefined ? music.volume : 0.20;
+        el.settingMusicVolume.value = vol;
+        if (el.valMusicVolume) el.valMusicVolume.textContent = `${Math.round(vol * 100)}%`;
+      }
+      if (el.settingMusicDucking) el.settingMusicDucking.checked = music.ducking !== false;
+
+      // LM Studio
+      const lms = s.lm_studio || {};
+      if (el.settingLmsUrl) el.settingLmsUrl.value = lms.url || 'http://127.0.0.1:1234/v1/chat/completions';
+      const lmsModelVal = lms.model_name || lms.model || '';
+      if (el.settingLmsModelInput) el.settingLmsModelInput.value = lmsModelVal;
+      if (el.settingLmsModelSelect) {
+        if (lmsModelVal && !Array.from(el.settingLmsModelSelect.options).some(o => o.value === lmsModelVal)) {
+          const opt = document.createElement('option');
+          opt.value = lmsModelVal;
+          opt.textContent = lmsModelVal;
+          el.settingLmsModelSelect.appendChild(opt);
+        }
+        el.settingLmsModelSelect.value = lmsModelVal;
+      }
+      if (el.settingLmsTemp) {
+        const tempVal = lms.temperature !== undefined ? lms.temperature : 0.7;
+        el.settingLmsTemp.value = tempVal;
+        if (el.valLmsTemp) el.valLmsTemp.textContent = Number(tempVal).toFixed(2);
+      }
+
+      // System
+      const comfy = s.comfyui || {};
+      if (el.settingComfyServer) el.settingComfyServer.value = comfy.server_address || s.comfyui_server_address || '127.0.0.1:8188';
+      if (el.settingComfyModelsDir) el.settingComfyModelsDir.value = comfy.models_dir || s.models_dir || '';
+      if (el.settingLanguage) el.settingLanguage.value = s.language || s.default_language || 'auto';
+      if (el.settingExportWebm) el.settingExportWebm.checked = s.export_webm !== false;
+
+    } catch (err) {
+      console.error('Error loading settings into modal:', err);
+      showToast(err.message || 'Fehler beim Laden der Einstellungen', 'error');
+    }
+  }
+
+  function populateSettingsModelDropdowns(modelsData, currentSettings) {
+    if (!modelsData) return;
+
+    updateSettingsMinimaxUnetCard(el.settingMinimaxUnetInput ? el.settingMinimaxUnetInput.value : '');
+    updateSettingsTurboLoraCard(el.settingTurboLoraInput ? el.settingTurboLoraInput.value : '');
+    updateSettingsMusicCheckpointCard(el.settingMusicCheckpointInput ? el.settingMusicCheckpointInput.value : '');
+
+    if (el.settingLmsModelSelect && Array.isArray(modelsData.lm_studio_models)) {
+      const cur = el.settingLmsModelInput ? el.settingLmsModelInput.value : '';
+      el.settingLmsModelSelect.innerHTML = `<option value="">-- ${escapeHtml(t('optSelectModel'))} --</option>`;
+      modelsData.lm_studio_models.forEach(m => {
+        const opt = document.createElement('option');
+        const mId = typeof m === 'string' ? m : (m.id || m.name);
+        opt.value = mId;
+        opt.textContent = mId;
+        el.settingLmsModelSelect.appendChild(opt);
+      });
+      if (cur) el.settingLmsModelSelect.value = cur;
+    }
+  }
+
+  async function refreshLmStudioModels() {
+    const url = el.settingLmsUrl ? el.settingLmsUrl.value.trim() : '';
+    try {
+      if (el.btnRefreshLmsModels) el.btnRefreshLmsModels.disabled = true;
+      const res = await API.getSettingsModels(url);
+      if (res && res.success && Array.isArray(res.lm_studio_models)) {
+        if (el.settingLmsModelSelect) {
+          const currentVal = el.settingLmsModelInput ? el.settingLmsModelInput.value : el.settingLmsModelSelect.value;
+          el.settingLmsModelSelect.innerHTML = `<option value="">-- ${escapeHtml(t('optSelectModel'))} --</option>`;
+          res.lm_studio_models.forEach(m => {
+            const opt = document.createElement('option');
+            const mId = typeof m === 'string' ? m : (m.id || m.name);
+            opt.value = mId;
+            opt.textContent = mId;
+            el.settingLmsModelSelect.appendChild(opt);
+          });
+          el.settingLmsModelSelect.value = currentVal;
+        }
+        showToast(t('lmModelsRefreshed') || `${res.lm_studio_models.length} LM Studio Modelle geladen`, 'success');
+      } else {
+        showToast('Keine Modelle von LM Studio gefunden oder LM Studio nicht erreichbar.', 'warning');
+      }
+    } catch (err) {
+      showToast(err.message || 'Fehler beim Abrufen der LM Studio Modelle', 'error');
+    } finally {
+      if (el.btnRefreshLmsModels) el.btnRefreshLmsModels.disabled = false;
+    }
+  }
+
+  async function saveSettingsData() {
+    try {
+      if (el.btnSaveSettings) el.btnSaveSettings.disabled = true;
+
+      const payload = {
+        language: el.settingLanguage ? el.settingLanguage.value : 'auto',
+        export_webm: el.settingExportWebm ? el.settingExportWebm.checked : true,
+        comfyui: {
+          server_address: el.settingComfyServer ? el.settingComfyServer.value.trim() : '127.0.0.1:8188',
+          models_dir: el.settingComfyModelsDir ? el.settingComfyModelsDir.value.trim() : '',
+          models_search_paths: [
+            "../ComfyUI/models",
+            "../ComfyUI_windows_portable/ComfyUI/models"
+          ]
+        },
+        minimax_i2v: {
+          unet_name: el.settingMinimaxUnetInput ? el.settingMinimaxUnetInput.value.trim() : '',
+          turbo_lora: el.settingTurboLoraInput ? el.settingTurboLoraInput.value.trim() : '',
+          turbo_strength: el.settingTurboStrength ? parseFloat(el.settingTurboStrength.value) || 1.0 : 1.0,
+          steps: el.settingMinimaxSteps ? parseInt(el.settingMinimaxSteps.value, 10) || 8 : 8,
+          clip_name: el.settingMinimaxClip ? el.settingMinimaxClip.value.trim() : '',
+          video_vae_name: el.settingMinimaxVae ? el.settingMinimaxVae.value.trim() : '',
+          audio_vae_name: el.settingAudioVae ? el.settingAudioVae.value.trim() : 'minimax_h3_audio_vae_fp32.safetensors'
+        },
+        music_studio: {
+          enabled: el.settingMusicEnabled ? el.settingMusicEnabled.checked : false,
+          checkpoint: el.settingMusicCheckpointInput ? el.settingMusicCheckpointInput.value.trim() : '',
+          steps: el.settingMusicSteps ? parseInt(el.settingMusicSteps.value, 10) || 40 : 40,
+          cfg: el.settingMusicCfg ? parseFloat(el.settingMusicCfg.value) || 2.0 : 2.0,
+          volume: el.settingMusicVolume ? parseFloat(el.settingMusicVolume.value) || 0.20 : 0.20,
+          ducking: el.settingMusicDucking ? el.settingMusicDucking.checked : true
+        },
+        lm_studio: {
+          url: el.settingLmsUrl ? el.settingLmsUrl.value.trim() : 'http://127.0.0.1:1234/v1/chat/completions',
+          model_name: el.settingLmsModelInput ? el.settingLmsModelInput.value.trim() : '',
+          temperature: el.settingLmsTemp ? parseFloat(el.settingLmsTemp.value) || 0.7 : 0.7
+        }
+      };
+
+      const res = await API.saveSettings(payload);
+      if (res && res.success) {
+        showToast(t('settingsSavedSuccess') || 'Einstellungen erfolgreich gespeichert!', 'success');
+        closeSettingsModal();
+      } else {
+        throw new Error((res && res.error) || 'Speichern fehlgeschlagen');
+      }
+    } catch (err) {
+      console.error('Failed to save settings:', err);
+      showToast(err.message || 'Fehler beim Speichern der Einstellungen', 'error');
+    } finally {
+      if (el.btnSaveSettings) el.btnSaveSettings.disabled = false;
+    }
+  }
+
   // --- Setup Event Listeners ---
   function setupEventListeners() {
     // Project Select
@@ -3794,6 +5397,7 @@
         Object.values(el.tabContents).forEach(content => content && content.classList.remove('active'));
         if (el.tabContents[tab]) el.tabContents[tab].classList.add('active');
 
+        if (tab === 'scenes') fetchAndRenderTimeline();
         if (tab === 'json') renderJsonPreview();
         if (tab === 'music') renderMusicStudio();
       });
@@ -3856,7 +5460,26 @@
     if (el.musicModelSelect) {
       el.musicModelSelect.addEventListener('change', () => {
         if (!state.screenplay.music) state.screenplay.music = {};
-        state.screenplay.music.model = el.musicModelSelect.value;
+        const chosen = el.musicModelSelect.value;
+        state.screenplay.music.model = chosen;
+        updateMusicModelProfileUI(chosen);
+        markDirty();
+      });
+    }
+    if (el.btnApplyMusicProfile) {
+      el.btnApplyMusicProfile.addEventListener('click', applyCurrentMusicModelProfile);
+    }
+    if (el.musicStepsInput) {
+      el.musicStepsInput.addEventListener('input', () => {
+        if (!state.screenplay.music) state.screenplay.music = {};
+        state.screenplay.music.steps = parseInt(el.musicStepsInput.value, 10) || 40;
+        markDirty();
+      });
+    }
+    if (el.musicCfgInput) {
+      el.musicCfgInput.addEventListener('input', () => {
+        if (!state.screenplay.music) state.screenplay.music = {};
+        state.screenplay.music.cfg = parseFloat(el.musicCfgInput.value) || 2.0;
         markDirty();
       });
     }
@@ -4001,6 +5624,112 @@
       });
     }
 
+    // Video Player Modal Events
+    if (el.btnToggleVideoPlayer) {
+      el.btnToggleVideoPlayer.addEventListener('click', toggleVideoPlayer);
+    }
+    if (el.btnCloseVideoModal) {
+      el.btnCloseVideoModal.addEventListener('click', closeVideoPlayerModal);
+    }
+    if (el.btnCloseVideoModalBtn) {
+      el.btnCloseVideoModalBtn.addEventListener('click', closeVideoPlayerModal);
+    }
+    if (el.videoPlayerModal) {
+      el.videoPlayerModal.addEventListener('click', (e) => {
+        if (e.target === el.videoPlayerModal) closeVideoPlayerModal();
+      });
+    }
+
+    // Settings Modal Events
+    if (el.btnSettings) {
+      el.btnSettings.addEventListener('click', openSettingsModal);
+    }
+    if (el.btnCloseSettingsModal) {
+      el.btnCloseSettingsModal.addEventListener('click', closeSettingsModal);
+    }
+    if (el.btnCloseSettingsModalBtn) {
+      el.btnCloseSettingsModalBtn.addEventListener('click', closeSettingsModal);
+    }
+    if (el.btnSaveSettings) {
+      el.btnSaveSettings.addEventListener('click', saveSettingsData);
+    }
+    if (el.settingsModal) {
+      el.settingsModal.addEventListener('click', (e) => {
+        if (e.target === el.settingsModal) closeSettingsModal();
+      });
+    }
+
+    // Settings Tab Switching
+    document.querySelectorAll('.settings-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.getAttribute('data-tab');
+        if (tab) switchSettingsTab(tab);
+      });
+    });
+
+    // Settings Model/LoRA Picker & Refresh
+    if (el.btnPickTurboLora) {
+      el.btnPickTurboLora.addEventListener('click', openLoraPickerModalForTurbo);
+    }
+    if (el.btnPickMinimaxUnet) {
+      el.btnPickMinimaxUnet.addEventListener('click', openModelPickerModalForMinimax);
+    }
+    if (el.btnRefreshLmsModels) {
+      el.btnRefreshLmsModels.addEventListener('click', refreshLmStudioModels);
+    }
+
+    if (el.btnClearTurboLora) {
+      el.btnClearTurboLora.addEventListener('click', () => {
+        if (el.settingTurboLoraInput) el.settingTurboLoraInput.value = '';
+        updateSettingsTurboLoraCard('');
+        showToast('Turbo-LoRA deaktiviert (Standard 20 Steps)', 'info');
+      });
+    }
+    if (el.settingMinimaxUnetCard) {
+      el.settingMinimaxUnetCard.addEventListener('click', openModelPickerModalForMinimax);
+    }
+    if (el.settingTurboLoraCard) {
+      el.settingTurboLoraCard.addEventListener('click', openLoraPickerModalForTurbo);
+    }
+
+    // Music Checkpoint Picker & Card
+    if (el.btnPickMusicCheckpoint) {
+      el.btnPickMusicCheckpoint.addEventListener('click', openModelPickerModalForMusic);
+    }
+    if (el.settingMusicCheckpointCard) {
+      el.settingMusicCheckpointCard.addEventListener('click', openModelPickerModalForMusic);
+    }
+
+    // LM Studio Model Select & Input sync
+    if (el.settingLmsModelSelect) {
+      el.settingLmsModelSelect.addEventListener('change', () => {
+        if (el.settingLmsModelInput) el.settingLmsModelInput.value = el.settingLmsModelSelect.value;
+      });
+    }
+    if (el.settingLmsModelInput) {
+      el.settingLmsModelInput.addEventListener('input', () => {
+        if (el.settingLmsModelSelect) el.settingLmsModelSelect.value = el.settingLmsModelInput.value;
+      });
+    }
+
+    // Range Sliders Value Badges
+    if (el.settingTurboStrength) {
+      el.settingTurboStrength.addEventListener('input', () => {
+        if (el.valTurboStrength) el.valTurboStrength.textContent = Number(el.settingTurboStrength.value).toFixed(2);
+      });
+    }
+    if (el.settingMusicVolume) {
+      el.settingMusicVolume.addEventListener('input', () => {
+        const pct = Math.round(parseFloat(el.settingMusicVolume.value) * 100);
+        if (el.valMusicVolume) el.valMusicVolume.textContent = `${pct}%`;
+      });
+    }
+    if (el.settingLmsTemp) {
+      el.settingLmsTemp.addEventListener('input', () => {
+        if (el.valLmsTemp) el.valLmsTemp.textContent = Number(el.settingLmsTemp.value).toFixed(2);
+      });
+    }
+
     // Keyboard Shortcuts (Ctrl+S to save, Escape to close modals)
     window.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -4010,6 +5739,8 @@
         closeModelPickerModal();
         closeLoraPickerModal();
         closeGuideModal();
+        closeVideoPlayerModal();
+        closeSettingsModal();
       }
     });
   }

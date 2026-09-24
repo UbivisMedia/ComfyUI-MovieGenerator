@@ -11,12 +11,11 @@ It allows you to cast actors with tailored LoRAs, structure multi-shot sequences
 You can launch the Script Agency in three ways:
 
 1. **One-Click Windows Launcher**:
-   Double-click `start_script_agency.bat`.
-2. **Interactive Main Menu**:
-   Double-click `create_movie.bat` and press `[E]` to open the Screenplay Editor. When you close the editor, the menu automatically refreshes.
-3. **Command Line (Terminal / PowerShell)**:
+   Double-click `start_movie_studio.bat` and choose option `[1]` (or press Enter for default).
+2. **Command Line (Terminal / PowerShell)**:
    ```bash
-   python script_agency.py
+   python movie_studio.py
+   # or legacy alias: python script_agency.py
    ```
 
 By default, the server runs locally on **`http://127.0.0.1:7860/`** (or increments to `7861`, `7862`, etc. if port 7860 is occupied). It uses standard Python libraries only with zero external pip dependencies.
@@ -211,8 +210,11 @@ The AI Screenwriter dynamically loads and references:
 #### 🎞️ Context-Aware Shot Continuity
 When elaborating a shot, the AI Screenwriter ingests the **preceding shots in the screenplay**—especially shots sharing the same `sequence` or `location`. If a previous shot established that characters were standing near a bed, the new shot naturally continues from that exact physical posture without having them walk into the room again or re-initiate already completed actions!
 
-#### 🏷️ Mandatory Subject Tagging (`<Subject X>`)
-The engine maps character names to `<Subject X>` tags bound to casting portraits (`<Picture X>`), ensuring Minimax preserves facial identity and visual consistency across cuts.
+#### 🏷️ Subject Tagging (`<Subject X>`) & Dynamic Auto-Remapping
+The centralized `lib/subject_manager.py` library coordinates cast reference injection between the screenplay and ComfyUI:
+- **Global Character Addressing**: You and the AI Screenwriter can freely use characters' permanent global cast IDs (e.g. `<Subject 7>` or `<Subject 13>`) across any scene in the film.
+- **Dynamic 1-Based Translation**: During prompt elaboration and video rendering, the engine identifies the active characters in the scene and translates global IDs into sequential local slots (`<Subject 1>`, `<Subject 2>`, ...), perfectly aligning with `<Picture 1>`, `<Picture 2>` in ComfyUI.
+- **Hardware Safe (Max 9 Actors)**: Enforces MiniMax H3's architectural limit of maximum 9 reference portraits per shot, completely preventing ComfyUI schema over-allocation errors.
 
 ---
 
@@ -272,4 +274,4 @@ The `script_agency.py` server exposes lightweight JSON endpoints:
    - Use **Same Scene** when changing camera angles within the same room.
    - Use **Match-Cut** when continuing an uninterrupted physical motion (e.g. reaching for an object, throwing a punch).
 4. **Export & Render**:
-   Once your screenplay is ready in the Script Agency, simply click save, close the editor, and run `create_movie.bat` to launch full autonomous rendering!
+   Once your screenplay is ready in the Script Agency, simply click save, close the editor, and run `start_movie_studio.bat` (option `[2]`, or drag & drop the screenplay file onto it) to launch full autonomous rendering!
