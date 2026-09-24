@@ -18,6 +18,7 @@ flowchart TD
 ```
 
 ### Phase 1: Screenwriting & Character Prompting (LM Studio)
+
 - **Model Management**: Automatically instructs LM Studio CLI (`lms load <model>`) to mount the designated LLM in VRAM, and unloads it (`lms unload --all`) immediately after text generation to free maximum GPU memory for ComfyUI.
 - **Character Prompt Optimization**: If a character doesn't already have an image or explicit manual prompt lock, the LLM refines the character description into an optimal English visual tag prompt tailored to the chosen diffusion model.
 - **Minimax Prompt Engineering**: Translates each scene's narrative idea into structured prompt blocks required by Minimax:
@@ -29,17 +30,20 @@ flowchart TD
   - `DURATION`: Dynamically estimated duration between 3 and 10 seconds.
 
 ### Phase 2: Actor Casting (ComfyUI Text-to-Image)
+
 - Checks if a character portrait already exists in `Projects/<film_name>/Characters/<name>.png`. If found, casting is skipped and existing assets are reused for visual consistency.
 - If new, loads the designated model preset from `Presets/t2i_presets.json` (e.g. `anima_cyberrealistic`, `krea2_turbo_int8`, `anima_catpony`).
 - Dynamically chains `LoraLoader` nodes for all character-specific LoRAs, automatically injects trigger words into the prompt, sets model/clip strengths, and renders reference portraits via ComfyUI API (`http://127.0.0.1:8188`).
 
 ### Phase 3: Video Shooting (ComfyUI Minimax I2V)
+
 - Renders each scene using the Minimax video diffusion model via `Workflows/workflow_i2v_api.json`.
-- **Character Reference Injection**: Injects all cast character portraits into `ref_images` so Minimax preserves visual identity across shots.
+- **Character Reference Injection & Dynamic Re-Mapping**: Resolves active scene cast members via `lib/subject_manager.py`, injects up to 9 character portraits into `ref_images`, and automatically remaps global `<Subject X>` IDs to sequential local slots (`<Subject 1>`..`<Subject N>`) so Minimax accurately preserves identity across shots.
 - **Environmental Continuity (`nutze_vorherige_szene: true`)**: Passes the previous scene's video as `ref_video_0` (optimized to 672x384 at 33 frames) so Minimax keeps the lighting, room geometry, and environment consistent.
 - **Seamless Match Cut (`direkter_anschluss: true`)**: Automatically extracts the exact last frame of the previous scene via FFmpeg/OpenCV and injects it as `first_frame` guide (`MiniMaxH3AddGuide`). The new scene begins seamlessly where the previous shot ended without jump cuts.
 
 ### Phase 4: Assembly & Final Cut (FFmpeg)
+
 - Scans `Projects/<film_name>/Scenes/` for all generated `Szene_*.mp4` clips.
 - Stitches the scenes together with frame accuracy using FFmpeg stream concatenation (`-c copy`).
 - Outputs the complete movie to `Projects/<film_name>/Movie/<film_name>_FINAL.mp4`.
@@ -107,13 +111,17 @@ MovieGenerator/
 ## Quickstart & Usage
 
 ### Method 1: Drag & Drop (Recommended for Windows)
+
 Drag any screenplay JSON file (e.g. `Projects/first_time.json`) directly onto `Film_starten.bat`.
 
 ### Method 2: Interactive Menu
+
 Double-click `Film_starten.bat` without arguments. A terminal window will open listing all available `.json` files in `Projects/`. Enter the number of the screenplay you want to render.
 
 ### Method 3: Command Line
+
 Run directly from PowerShell or Command Prompt:
+
 ```powershell
 python master_regisseur.py Projects/first_time.json
 ```

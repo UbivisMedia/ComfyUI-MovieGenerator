@@ -101,9 +101,28 @@ Each item in `szenen` represents an individual camera shot rendered by Minimax.
 | `variablen_update` / `variables_update` / `set_variables` | `Object` | No | `{}` | Key-value updates to story/wardrobe variables (e.g. `{"outfit_chloe": "wearing only pink top, apron removed"}`). Persists for all subsequent shots until changed again. |
 | `charakter_status` / `character_status` | `Object` | No | `{}` | Per-scene character temporary state annotations (e.g. `{"Chloe": "sitting close to Liam, leaning forward"}`). |
 | `loras` / `lora` / `szene_loras` | `Array` / `String` | No | Auto-selected by LLM | **Scene-Specific MiniMax LoRAs**. List of MiniMax H3 LoRA keys (e.g. `["mmh3_combat_v2"]` or `["mmh3_poly_perfect"]`). If omitted, LM Studio automatically selects matching LoRAs based on scene motion and action. |
+| `characters` / `charaktere` / `cast` | `Array<String \| Integer \| Object>` | No | Auto-detected from idea / cast | **Active Scene Cast**. List of characters present in this specific shot (e.g. `["Elara", "Liam"]` or `[1, 2]`). Capped to maximum 9 reference portraits for MiniMax H3. |
 | `ki_prompt_generieren` / `auto_prompt` / `generate_prompt` | `Boolean` | No | `true` | When `false`, uses the exact text in `idee`/`prompt` verbatim without LM Studio expansion. |
 
 ---
+
+## 2.1 Scene Characters, Subject Tagging & Dynamic Auto-Remapping
+
+MovieGenerator supports movies with any number of cast members (e.g. 10, 15, or 30+ characters in the project). However, video diffusion models like **MiniMax H3** have hardware limits on the number of visual reference portraits they can process simultaneously in a single shot:
+
+### Key Rules & Behaviors:
+1. **Per-Shot Reference Limit (Max 9 Actors)**:
+   - In any individual shot, at most **9 reference portraits** can be injected (`<Picture 1>` to `<Picture 9>`).
+   - For sports matches, large ensembles, or crowed scenes (e.g. 12 volleyball players on a court), focus each shot on 1–6 active players, and describe the rest of the teams via wardrobe variables and prompt descriptions (or use shot/reverse-shot coverage).
+2. **Fixed Global Character IDs vs. Local Scene Slots**:
+   - In your screenplay ideas and prompts, you can continue using **fixed global character IDs** (e.g. `<Subject 7> (Laura)` or `<Subject 13> (Chloe)`).
+   - The central `subject_manager` library automatically inspects the scene's active `characters` array and translates global IDs to sequential local slots:
+     - 1st character in scene $\rightarrow$ `<Subject 1>` / `<Picture 1>`
+     - 2nd character in scene $\rightarrow$ `<Subject 2>` / `<Picture 2>`
+     - 3rd character in scene $\rightarrow$ `<Subject 3>` / `<Picture 3>`
+   - This ensures ComfyUI and MiniMax always receive a clean, 1-based port mapping without any manual number recalculation!
+3. **Character Name Matching**:
+   - You can also write characters as names (e.g. `Laura`, `Team_2_Laura`, or `Chloe`). The resolver identifies them and binds them to the correct local `<Subject X>` tag automatically.
 
 ## 3. Dynamic Variables & Wardrobe Continuity
 

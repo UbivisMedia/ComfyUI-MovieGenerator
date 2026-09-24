@@ -9,14 +9,14 @@ This roadmap outlines the strategic development path for **MovieGenerator** and 
 ```mermaid
 timeline
     title MovieGenerator Evolution
-    section v1.1 (Current)
+    section v1.1 (Released)
         Director's Control : Per-Scene Turbo, Steps, Resolution, Upscale
         Music Studio : Time-synchronized scoring with Auto-Ducking
-    section v1.2 (Workflow & Transitions)
+    section v1.2 (Released)
         Visual Timeline & Video Preview : Interactive filmstrip & in-browser video playback
         Scene Transitions : Dissolves, crossfades, fade-to-black via FFmpeg xfade
         Incremental Re-Rendering : Re-render individual scenes on demand
-    section v1.3 (Aesthetics & Audio)
+    section v1.3 (Current Focus)
         TTS & Voiceover Engine : Dedicated narration track (F5-TTS, ChatterBox, Coqui)
         Color Grading & Film LUTs : Unified cinematic looks & 35mm grain across all scenes
         Multi-Track Audio Mixer : Graphical waveform, dialogue, ambience & BGM levels
@@ -28,32 +28,34 @@ timeline
 
 ---
 
-## 🚀 Phase 1: Workflow & Editing Comfort (v1.2.0)
+## 🚀 Phase 1: Workflow & Editing Comfort (v1.2.0) ✅ [Completed]
 *Focus: User ergonomics, rapid iteration loops, and cinematic pacing.*
 
-### 1. Incremental Re-Rendering & Smart Cache
-* **Challenge:** Modifying a single shot in Scene 4 currently requires re-rendering the entire project or manually manipulating disk files.
-* **Solution:**
-  * Scene-level fingerprinting using content hashes and timestamps.
-  * **`🔄 Re-render This Scene Only`** action button directly on each scene card.
-  * Automatic re-stitching of the master film within seconds after any individual scene finishes.
+### 1. Incremental Re-Rendering & Smart Cache ✅
+* **Challenge:** Modifying a single shot in Scene 4 previously required re-rendering the entire project or manually manipulating disk files.
+* **Solution Implemented:**
+  * Added `--scene <id>` and `--only-scene <id>` selective generation in `master_regisseur.py`.
+  * **`🔄 Szene neu drehen / Reshoot Scene`** button directly integrated into each scene card and timeline cell.
+  * Fast re-stitching of the master film within seconds after any individual scene finishes, preserving existing match-cut anchor frames.
 
-### 2. Visual Storyboard Timeline & In-Browser Video Preview
-* **Challenge:** Directors must review the final cut in an external media player rather than inspecting shots directly within Script Agency.
-* **Solution:**
-  * **Interactive Filmstrip Timeline:** Horizontal scrubber bar displaying shot thumbnails, cumulative duration, and scene boundary markers.
-  * **In-Browser Video Playback:** Direct single-click playback of rendered scene `.mp4` files inside the web editor.
-  * **Drag & Drop Scene Reordering:** Reorder shots visually with automatic recalculation of timecodes and narrative continuity.
+### 2. Visual Storyboard Timeline & In-Browser Video Preview ✅
+* **Challenge:** Directors had to review the final cut in an external media player rather than inspecting shots directly within Script Agency.
+* **Solution Implemented:**
+  * **Interactive Filmstrip Timeline:** Horizontal scrubber bar displaying shot thumbnails, cumulative duration, and scene status badges.
+  * **In-Browser Video Playback:** HTML5 video player modal with HTTP 206 partial content streaming for both scene clips and full movie assembly.
+  * **Instant Scene Card Navigation:** Clicking any filmstrip thumbnail auto-scrolls to and highlights the target scene card.
 
-### 3. Cinematic Scene Transitions
-* **Challenge:** All shots are currently joined via hard cuts (`Cut`) or direct match-cuts.
-* **Solution:**
+### 3. Cinematic Scene Transitions ✅
+* **Challenge:** All shots were previously joined via hard cuts or direct match-cuts.
+* **Solution Implemented:**
   * Transition selector per scene:
-    * `Hard Cut` (Default)
-    * `Cross-Dissolve` (Smooth overlapping blend, 0.5s – 1.0s)
-    * `Fade to Black` (Act transitions, passage of time)
-    * `Dip to White` (Flashbacks, dream sequences, intense lighting changes)
-  * Rendered via FFmpeg `xfade` filter during Phase 5 assembly.
+    * `Hard Cut` (Default — uses ultra-fast lossless `-c copy` stream concatenation)
+    * `Cross-Dissolve` (`dissolve`, smooth overlapping blend)
+    * `Fade to Black` (`fadeblack`, act transitions, passage of time)
+    * `Dip to White` (`fadewhite`, flashbacks, dream sequences, lightning)
+    * `Wipe Left / Wipe Right` (`wipeleft`, `wiperight`, dynamic action cuts)
+  * Assembled seamlessly via FFmpeg `xfade` (video) and `acrossfade` (audio) chained filtergraphs with automatic duration offsets.
+  * Interactive transition chips directly in the filmstrip timeline to cycle transition types with one click.
 
 ---
 
