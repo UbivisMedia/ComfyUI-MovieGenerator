@@ -62,7 +62,7 @@
     "inputs": {
       "seed": 449601688123789,
       "steps": 40,
-      "cfg": 4.0,
+      "cfg": 2.0,
       "sampler_name": "res_multistep",
       "scheduler": "simple",
       "denoise": 1.0,

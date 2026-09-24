@@ -21,6 +21,38 @@ if sys.platform == "win32":
 from localization import t, init_localization, set_language, get_current_language
 from catalog_builder import build_or_update_catalog
 from version import __version__
+from lib.subject_manager import (
+    resolve_scene_characters as resolve_scene_characters_managed,
+    build_subject_definitions,
+    remap_scene_subjects,
+    build_minimax_api_prompt as build_minimax_api_prompt_managed,
+    MAX_MINIMAX_SUBJECTS
+)
+from lib.settings_manager import (
+    DEFAULT_SETTINGS,
+    SETTINGS_FILE,
+    load_settings as load_settings_from_manager,
+    save_settings,
+    deep_merge_settings
+)
+from lib.comfy_manager import (
+    get_comfy_models_dir,
+    find_minimax_unets,
+    find_minimax_turbo_loras,
+    detect_steps_from_lora_name,
+    find_music_checkpoints,
+    get_audio_model_profile,
+    free_comfyui_memory as comfy_free_memory,
+    queue_prompt as comfy_queue_prompt,
+    get_history as comfy_get_history,
+    get_image as comfy_get_image,
+    upload_file as comfy_upload_file,
+)
+from lib.llm_manager import (
+    fetch_lm_studio_models,
+    lms_load as lms_cli_load,
+    lms_unload as lms_cli_unload,
+)
 
 # Base directories
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -28,60 +60,7 @@ PRESETS_DIR = os.path.join(BASE_DIR, "Presets")
 WORKFLOWS_DIR = os.path.join(BASE_DIR, "Workflows")
 PROJECTS_DIR = os.path.join(BASE_DIR, "Projects")
 PROMPTS_DIR = os.path.join(BASE_DIR, "prompts")
-SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
 
-DEFAULT_SETTINGS = {
-    "language": "auto",
-    "export_webm": True,
-    "comfyui": {
-        "server_address": "127.0.0.1:8188",
-        "models_dir": "",
-        "models_search_paths": [
-            "../ComfyUI/models",
-            "../ComfyUI_windows_portable/ComfyUI/models"
-        ]
-    },
-    "minimax_i2v": {
-        "unet_name": "MiniMax H3\\base model\\minimaxH3INT8INT4_flREF2VAPruned.safetensors",
-        "turbo_lora": "MiniMax H3\\tool\\minimax_h3_fl2v_lightx2v_turbo_8step_v1.0_resized_avg_rank_24_bf16.safetensors",
-        "turbo_strength": 1.0,
-        "steps": 8,
-        "clip_name": "minimaxH3INT8INT4_fl2vaINT8Pruned_txt.safetensors",
-        "video_vae_name": "minimax_h3_video_vae_int8_convrot.safetensors",
-        "audio_vae_name": "minimax_h3_audio_vae_fp32.safetensors"
-    },
-    "music_studio": {
-        "enabled": False,
-        "checkpoint": "Other\\base model\\ace_step_v1_3.5b.safetensors",
-        "steps": 40,
-        "cfg": 4.0,
-        "volume": 0.20,
-        "ducking": True
-    },
-    "lm_studio": {
-        "url": "http://127.0.0.1:1234/v1/chat/completions",
-        "model_name": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
-        "temperature": 0.7
-    }
-}
-
-def find_music_checkpoints(models_dir):
-    """Finds audio/music checkpoints (e.g. ACE-Step, Stable Audio) in models/checkpoints."""
-    found = []
-    if not models_dir or not os.path.exists(models_dir):
-        return found
-    base = os.path.join(models_dir, "checkpoints")
-    if not os.path.exists(base):
-        return found
-    for root, _, files in os.walk(base):
-        for f in files:
-            if f.endswith((".safetensors", ".gguf", ".sft", ".ckpt")):
-                rel_p = os.path.relpath(os.path.join(root, f), base)
-                rp_lower = rel_p.lower()
-                if any(kw in rp_lower for kw in ["ace", "music", "audio", "sound"]):
-                    if rel_p not in found:
-                        found.append(rel_p)
-    return sorted(found)
 
 def get_video_duration(video_path):
     """Returns duration of video in seconds using ffprobe."""
@@ -320,63 +299,6 @@ def ask_lm_studio_music_tags(title, description, scenes=None, url=None, model=No
             return f"[00:00-00:07] warm acoustic guitar, soft ocean pads, [00:07-00:19] joyful strings, light percussion, [00:19-{total_sec:02d}] emotional climax, gentle sunset resolution, instrumental"
         return "cinematic ambient soundtrack, acoustic guitar, warm pads, gentle tempo, emotional, instrumental"
 
-def find_minimax_unets(models_dir):
-    """Finds Minimax diffusion models in models/diffusion_models and models/unet."""
-    found = []
-    if not models_dir or not os.path.exists(models_dir):
-        return found
-    for sub in ["diffusion_models", "unet"]:
-        base = os.path.join(models_dir, sub)
-        if not os.path.exists(base):
-            continue
-        for root, _, files in os.walk(base):
-            for f in files:
-                if f.endswith((".safetensors", ".gguf", ".sft", ".pt")):
-                    rel_p = os.path.relpath(os.path.join(root, f), base)
-                    rp_lower = rel_p.lower()
-                    if ("minimax" in rp_lower or "h3" in rp_lower) and "music" not in rp_lower:
-                        if rel_p not in found:
-                            found.append(rel_p)
-    return sorted(found)
-
-def find_minimax_turbo_loras(models_dir):
-    """Finds Minimax Turbo/LightX2V LoRAs in models/loras."""
-    found = []
-    if not models_dir or not os.path.exists(models_dir):
-        return found
-    base = os.path.join(models_dir, "loras")
-    if not os.path.exists(base):
-        return found
-    for root, _, files in os.walk(base):
-        for f in files:
-            if f.endswith((".safetensors", ".gguf", ".sft", ".pt")):
-                rel_p = os.path.relpath(os.path.join(root, f), base)
-                rp_lower = rel_p.lower()
-                if "minimax" in rp_lower and any(kw in rp_lower for kw in ["turbo", "lightx2v", "taomate"]):
-                    if rel_p not in found:
-                        found.append(rel_p)
-    return sorted(found)
-
-def detect_steps_from_lora_name(lora_name, default=8):
-    """Heuristically detects recommended step count from LoRA filename."""
-    if not lora_name:
-        return default
-    m = re.search(r'(\d+)\s*step', lora_name, re.IGNORECASE)
-    if m:
-        try:
-            val = int(m.group(1))
-            if 1 <= val <= 50:
-                return val
-        except ValueError:
-            pass
-    if "taomate" in lora_name.lower():
-        return 3
-    if "4step" in lora_name.lower():
-        return 4
-    if "8step" in lora_name.lower():
-        return 8
-    return default
-
 def configure_minimax_interactive(models_dir=None, current_cfg=None):
     """Interactively guides the user through selecting Minimax diffusion model, Turbo LoRA, and steps."""
     if not models_dir:
@@ -481,48 +403,6 @@ def configure_minimax_interactive(models_dir=None, current_cfg=None):
         "audio_vae_name": current_cfg.get("audio_vae_name", "minimax_h3_audio_vae_fp32.safetensors")
     }
     return result
-
-def fetch_lm_studio_models(api_url):
-    """Attempts to retrieve available models from LM Studio /v1/models."""
-    try:
-        m = re.match(r'^(https?://[^/]+(?:/v1)?)', api_url)
-        if m:
-            base_prefix = m.group(1)
-            if not base_prefix.endswith('/v1'):
-                models_url = f"{base_prefix}/v1/models"
-            else:
-                models_url = f"{base_prefix}/models"
-        else:
-            models_url = "http://127.0.0.1:1234/v1/models"
-
-        req = urllib.request.Request(models_url, headers={"User-Agent": "MovieGenerator"})
-        with urllib.request.urlopen(req, timeout=2.5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            models_list = []
-            if isinstance(data, dict) and "data" in data and isinstance(data["data"], list):
-                for item in data["data"]:
-                    mid = item.get("id")
-                    if mid and mid not in models_list:
-                        models_list.append(mid)
-            return models_list
-    except Exception:
-        return []
-
-def deep_merge_settings(user_cfg, default_cfg):
-    """Recursively merges default_cfg into user_cfg for any missing keys."""
-    added_keys = []
-    def _merge(target, source, path=""):
-        for k, v in source.items():
-            curr_path = f"{path}.{k}" if path else k
-            if k not in target:
-                target[k] = v
-                added_keys.append(curr_path)
-            elif isinstance(v, dict) and isinstance(target.get(k), dict):
-                _merge(target[k], v, curr_path)
-    
-    result = dict(user_cfg)
-    _merge(result, default_cfg)
-    return result, added_keys
 
 def interactive_setup_wizard():
     """Interactively guides the user through setting up settings.json."""
@@ -669,40 +549,7 @@ def interactive_setup_wizard():
 
 def load_settings():
     """Loads configuration from settings.json with interactive first-run wizard and auto-healing."""
-    defaults = json.loads(json.dumps(DEFAULT_SETTINGS))
-    
-    if not os.path.exists(SETTINGS_FILE):
-        if sys.stdin and hasattr(sys.stdin, "isatty") and sys.stdin.isatty():
-            return interactive_setup_wizard()
-        else:
-            try:
-                with open(SETTINGS_FILE, "w", encoding="utf-8") as sf:
-                    json.dump(defaults, sf, indent=2, ensure_ascii=False)
-            except Exception:
-                pass
-            return defaults
-
-    try:
-        with open(SETTINGS_FILE, "r", encoding="utf-8") as sf:
-            cfg = json.load(sf)
-    except Exception as e:
-        print(f"⚠️ Fehler beim Lesen von settings.json: {e}")
-        return defaults
-
-    if not isinstance(cfg, dict):
-        cfg = {}
-
-    # Auto-migrate / auto-heal missing keys
-    merged_cfg, added_keys = deep_merge_settings(cfg, defaults)
-    if added_keys:
-        try:
-            with open(SETTINGS_FILE, "w", encoding="utf-8") as sf:
-                json.dump(merged_cfg, sf, indent=2, ensure_ascii=False)
-            print(t("settings_migrated_notice", keys=", ".join(added_keys)))
-        except Exception:
-            pass
-
-    return merged_cfg
+    return load_settings_from_manager(SETTINGS_FILE, interactive_wizard_callback=interactive_setup_wizard)
 
 SETTINGS = load_settings()
 SERVER_ADDRESS = SETTINGS["comfyui"]["server_address"]
@@ -739,72 +586,39 @@ def find_file(filename, search_dirs):
 def lms_load():
     print(t("lms_loading", model=LLM_MODEL_NAME))
     try:
-        subprocess.run(["lms", "load", LLM_MODEL_NAME], check=True, capture_output=True)
-        print(t("lms_loaded"))
+        if lms_cli_load(LLM_MODEL_NAME):
+            print(t("lms_loaded"))
+        else:
+            print(t("lms_load_error", error="Failed to execute lms load"))
     except Exception as e:
         print(t("lms_load_error", error=e))
 
 def lms_unload():
     print(t("lms_unloading"))
     try:
-        subprocess.run(["lms", "unload", "--all"], check=False, capture_output=True)
-        print(t("lms_unloaded"))
+        if lms_cli_unload():
+            print(t("lms_unloaded"))
+        else:
+            print(t("lms_unload_error", error="Failed to execute lms unload"))
     except Exception as e:
         print(t("lms_unload_error", error=e))
 
 def free_comfyui_memory(unload_models=False, free_memory=True):
     """Frees ComfyUI memory/VRAM cache via its /free endpoint."""
-    try:
-        data = json.dumps({"unload_models": unload_models, "free_memory": free_memory}).encode("utf-8")
-        req = urllib.request.Request(
-            f"http://{SERVER_ADDRESS}/free",
-            data=data,
-            headers={"Content-Type": "application/json"}
-        )
-        urllib.request.urlopen(req, timeout=5)
+    if comfy_free_memory(server_address=SERVER_ADDRESS, unload_models=unload_models, free_memory=free_memory):
         print(t("vram_cleanup"))
-    except Exception:
-        pass
 
 def queue_prompt(prompt_workflow):
-    p = {"prompt": prompt_workflow, "client_id": "master_regisseur"}
-    data = json.dumps(p).encode('utf-8')
-    req = urllib.request.Request(f"http://{SERVER_ADDRESS}/prompt", data=data)
-    try:
-        return json.loads(urllib.request.urlopen(req).read())
-    except urllib.error.HTTPError as e:
-        err_body = e.read().decode('utf-8', errors='replace')
-        print(f"   ❌ HTTPError from ComfyUI ({e.code}): {err_body}")
-        raise
+    return comfy_queue_prompt(prompt_workflow, server_address=SERVER_ADDRESS, client_id="master_regisseur")
 
 def get_history(prompt_id):
-    try:
-        req = urllib.request.Request(f"http://{SERVER_ADDRESS}/history/{prompt_id}")
-        return json.loads(urllib.request.urlopen(req).read())
-    except Exception:
-        return {}
+    return comfy_get_history(prompt_id, server_address=SERVER_ADDRESS)
 
 def get_image(filename, subfolder, folder_type):
-    url = f"http://{SERVER_ADDRESS}/view?filename={filename}&subfolder={subfolder}&type={folder_type}"
-    req = urllib.request.Request(url)
-    return urllib.request.urlopen(req).read()
+    return comfy_get_image(filename, subfolder, folder_type, server_address=SERVER_ADDRESS)
 
 def upload_file(file_data, filename, content_type="image/png"):
-    """Uploads an image/video to ComfyUI and returns the actual assigned filename."""
-    boundary = '----WebKitFormBoundary7MA4YWxkTrZu0gW'
-    body = (
-        f'--{boundary}\r\n'
-        f'Content-Disposition: form-data; name="overwrite"\r\n\r\n'
-        f'true\r\n'
-        f'--{boundary}\r\n'
-        f'Content-Disposition: form-data; name="image"; filename="{filename}"\r\n'
-        f'Content-Type: {content_type}\r\n\r\n'
-    ).encode('utf-8') + file_data + f'\r\n--{boundary}--\r\n'.encode('utf-8')
-    
-    req = urllib.request.Request(f"http://{SERVER_ADDRESS}/upload/image", data=body)
-    req.add_header('Content-Type', f'multipart/form-data; boundary={boundary}')
-    response = urllib.request.urlopen(req).read()
-    return json.loads(response)["name"]
+    return comfy_upload_file(file_data, filename, content_type=content_type, server_address=SERVER_ADDRESS)
 
 def save_image_with_metadata(img_bytes, target_path, prompt_workflow=None, a1111_params_text=""):
     """Saves a PNG image with embedded ComfyUI workflow JSON and A1111/Civitai parameters text."""
@@ -1246,6 +1060,18 @@ def get_character_first_scene(char, scenes_list):
         return 1
 
 
+def is_matching_scene_id(scene_id, target_id):
+    """
+    Checks if a scene ID matches a target scene ID (supporting both integer and string IDs).
+    """
+    if target_id is None:
+        return True
+    try:
+        return int(scene_id) == int(target_id)
+    except (ValueError, TypeError):
+        return str(scene_id).strip().lower() == str(target_id).strip().lower()
+
+
 def get_variables_for_scene(screenplay, target_scene_id=1):
     """
     Computes the cumulative state of screenplay variables up to and including target_scene_id.
@@ -1467,78 +1293,9 @@ def format_available_scene_loras(available_loras):
 def resolve_scene_characters(scene, characters_list):
     """
     Resolves the list of character objects active in a specific scene.
-    Looks for scene-level 'charaktere', 'characters', 'cast', or 'actors'.
-    Falls back to checking mentions in 'idee', 'idea', or 'prompt'.
-    Defaults to characters_list if no specific characters are identified.
+    Delegates to lib.subject_manager.resolve_scene_characters.
     """
-    if not characters_list:
-        return []
-
-    char_map = {}
-    for idx, c in enumerate(characters_list):
-        c_id = str(c.get("id", idx + 1))
-        char_map[c_id] = c
-        if c.get("name"):
-            char_map[c.get("name").strip().lower()] = c
-
-    raw_chars = (
-        scene.get("charaktere") or 
-        scene.get("characters") or 
-        scene.get("cast") or 
-        scene.get("actors")
-    )
-
-    if raw_chars:
-        if isinstance(raw_chars, str):
-            raw_list = [x.strip() for x in raw_chars.split(",") if x.strip()]
-        elif isinstance(raw_chars, list):
-            raw_list = raw_chars
-        else:
-            raw_list = [raw_chars]
-
-        resolved = []
-        for item in raw_list:
-            if isinstance(item, dict):
-                k = str(item.get("id") or item.get("name") or "").strip().lower()
-                c_obj = char_map.get(k) or item
-                if c_obj not in resolved:
-                    resolved.append(c_obj)
-            else:
-                k = str(item).strip().lower()
-                if k in char_map:
-                    if char_map[k] not in resolved:
-                        resolved.append(char_map[k])
-                else:
-                    for c_name_key, c_obj in char_map.items():
-                        if k == c_name_key or k in c_name_key:
-                            if c_obj not in resolved:
-                                resolved.append(c_obj)
-                            break
-        if resolved:
-            return resolved
-
-    # Fallback: Check mentions in idea / prompt
-    text_corpus = (
-        str(scene.get("idee") or "") + " " + 
-        str(scene.get("idea") or "") + " " + 
-        str(scene.get("prompt") or "")
-    ).lower()
-
-    mentioned = []
-    for idx, c in enumerate(characters_list):
-        c_name = str(c.get("name", "")).strip().lower()
-        c_id = str(c.get("id", idx + 1))
-        if c_name and c_name in text_corpus:
-            if c not in mentioned:
-                mentioned.append(c)
-        elif f"<picture {c_id}>" in text_corpus or f"<subject {c_id}>" in text_corpus:
-            if c not in mentioned:
-                mentioned.append(c)
-
-    if mentioned:
-        return mentioned
-
-    return list(characters_list)
+    return resolve_scene_characters_managed(scene, characters_list=characters_list)
 
 def ask_lm_studio(
     idea,
@@ -1554,9 +1311,7 @@ def ask_lm_studio(
 ):
     print(t("scene_elaborating", idea=idea))
     
-    char_definitions = ""
-    for i, char in enumerate(characters):
-        char_definitions += f"<Subject {i+1}> is the character in <Picture {i+1}> ({char['name']}).\n"
+    char_definitions = build_subject_definitions(characters)
 
     continuity_rules = []
     
@@ -1734,64 +1489,16 @@ Here is the scene idea:
             []
         )
 
-def build_minimax_api_prompt(prompt_text, characters=None, scene_data=None):
-    """Ensures the final prompt submitted to ComfyUI node 138 has the full Minimax template envelope:
-    subject_definitions, summary, detailed_description, overall_soundscape, and non_diegetic_music: None.
-    If prompt_text already has the full envelope, it is returned intact with subject_definitions ensured."""
-    if not prompt_text:
-        return ""
-
-    p_lower = prompt_text.lower()
-
-    # If already has full envelope (summary, detailed_description, and non_diegetic_music)
-    if "detailed_description:" in p_lower and "summary:" in p_lower and "non_diegetic_music:" in p_lower:
-        if "subject_definitions:" not in p_lower and characters:
-            char_defs = ""
-            for i, char in enumerate(characters):
-                c_name = char.get("name") if isinstance(char, dict) else str(char)
-                char_defs += f"<Subject {i+1}> is the character in <Picture {i+1}> ({c_name}).\n"
-            return f"subject_definitions:\n{char_defs.strip()}\n\n{prompt_text.strip()}"
-        return prompt_text.strip()
-
-    # Assemble subject definitions
-    char_defs = ""
-    chars_to_use = characters or (scene_data.get("characters") if scene_data else None) or []
-    for i, char in enumerate(chars_to_use):
-        c_name = char.get("name") if isinstance(char, dict) else str(char)
-        char_defs += f"<Subject {i+1}> is the character in <Picture {i+1}> ({c_name}).\n"
-
-    # Extract summary
-    summary = ""
-    if scene_data and scene_data.get("summary"):
-        summary = str(scene_data["summary"]).strip()
-    if not summary:
-        clean_first = re.sub(r'^\[Shot \d+\]:?\s*', '', prompt_text.strip())
-        sentences = [s.strip() for s in re.split(r'[.!?\n]', clean_first) if s.strip()]
-        summary = sentences[0] if sentences else clean_first[:100]
-
-    # Clean detailed description
-    detailed = prompt_text.strip()
-    if not detailed.lower().startswith("[shot"):
-        detailed = f"[Shot 1]: {detailed}"
-
-    # Extract soundscape
-    soundscape = ""
-    if scene_data and scene_data.get("soundscape"):
-        soundscape = str(scene_data["soundscape"]).strip()
-    elif scene_data and scene_data.get("overall_soundscape"):
-        soundscape = str(scene_data["overall_soundscape"]).strip()
-    if not soundscape:
-        soundscape = "Realistic ambient environment sounds, foley, and natural breathing. Strictly no music."
-
-    parts = []
-    if char_defs.strip():
-        parts.append(f"subject_definitions:\n{char_defs.strip()}")
-    parts.append(f"summary:\n{summary}")
-    parts.append(f"detailed_description:\n{detailed}")
-    parts.append(f"overall_soundscape:\n{soundscape}")
-    parts.append("non_diegetic_music:\nNone")
-
-    return "\n\n".join(parts)
+def build_minimax_api_prompt(prompt_text, characters=None, scene_data=None, all_characters=None):
+    """Ensures the final prompt submitted to ComfyUI node 138 has the full Minimax template envelope
+    with dynamically remapped <Subject X> tags matching active scene character portraits.
+    Delegates to lib.subject_manager.build_minimax_api_prompt."""
+    return build_minimax_api_prompt_managed(
+        prompt_text=prompt_text,
+        characters=characters,
+        scene_data=scene_data,
+        all_characters=all_characters
+    )
 
 
 def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_scenes=None, wf_i2v=None, t2i_presets=None):
@@ -2090,13 +1797,15 @@ def assemble_movie(scenes_dir, movie_dir, movie_name, screenplay=None, prepared_
                     prompt_tags = music_cfg.get("prompt") or music_cfg.get("tags")
                     if not prompt_tags:
                         print("   🧠 LM Studio: Erstelle musikalische Tags für den Film-Soundtrack...")
-                        p_title = screenplay.get("titel") or screenplay.get("title") or movie_name
-                        p_scenes = screenplay.get("scenes") or screenplay.get("szenen") if isinstance(screenplay, dict) else None
+                        p_title = (screenplay.get("titel") or screenplay.get("title") or movie_name) if isinstance(screenplay, dict) else movie_name
+                        p_desc = (screenplay.get("beschreibung") or screenplay.get("description") or "") if isinstance(screenplay, dict) else ""
+                        p_scenes = (screenplay.get("scenes") or screenplay.get("szenen")) if isinstance(screenplay, dict) else None
                         prompt_tags = ask_lm_studio_music_tags(p_title, p_desc, scenes=p_scenes)
                         music_cfg["prompt"] = prompt_tags
                     
-                    music_steps = music_cfg.get("steps") or SETTINGS.get("music_studio", {}).get("steps", 40)
-                    music_cfg_scale = music_cfg.get("cfg") or SETTINGS.get("music_studio", {}).get("cfg", 4.0)
+                    audio_prof = get_audio_model_profile(chosen_ckpt, SETTINGS.get("music_studio", {}).get("model_profiles"))
+                    music_steps = music_cfg.get("steps") or SETTINGS.get("music_studio", {}).get("steps") or audio_prof.get("default_steps", 40)
+                    music_cfg_scale = music_cfg.get("cfg") or SETTINGS.get("music_studio", {}).get("cfg") or audio_prof.get("default_cfg", 2.0)
                     music_vol = float(music_cfg.get("volume") or SETTINGS.get("music_studio", {}).get("volume", 0.20))
                     use_ducking = bool(music_cfg.get("ducking") if music_cfg.get("ducking") is not None else SETTINGS.get("music_studio", {}).get("ducking", True))
 
@@ -2270,8 +1979,8 @@ def main():
                 break
 
     # Determine screenplay input
-    if len(cli_args) >= 1:
-        screenplay_input = cli_args[0]
+    if len(cli_args) >= 1 and cli_args[0].strip():
+        screenplay_input = cli_args[0].strip()
     else:
         # Interactive menu selection or fallback
         print(f"\n🎬 MovieGenerator v{__version__} • Master Regisseur")
@@ -2524,9 +2233,41 @@ def main():
 
     scenes_list = screenplay.get("szenen") or screenplay.get("scenes") or []
 
+    # Targeted scene re-shooting support (--scene <id>):
+    target_scene = None
+    chars_to_check = characters_list
+    scenes_to_check = scenes_list
+
+    if target_scene_id is not None:
+        for idx, s in enumerate(scenes_list):
+            s_id = s.get("id", idx + 1)
+            if is_matching_scene_id(s_id, target_scene_id):
+                target_scene = s
+                break
+
+        if target_scene:
+            scenes_to_check = [target_scene]
+            target_char_objs = resolve_scene_characters(target_scene, characters_list)
+            target_char_keys = set()
+            for tc in target_char_objs:
+                if isinstance(tc, dict):
+                    if tc.get("name"):
+                        target_char_keys.add(tc["name"].strip().lower())
+                    if tc.get("id"):
+                        target_char_keys.add(str(tc["id"]).strip().lower())
+                elif isinstance(tc, str):
+                    target_char_keys.add(tc.strip().lower())
+            chars_to_check = [
+                c for idx_c, c in enumerate(characters_list)
+                if c.get("name", "").strip().lower() in target_char_keys or str(c.get("id", idx_c + 1)).strip().lower() in target_char_keys
+            ]
+            print(f"🎬 [Gezielter Dreh] Fokus auf Szene {target_scene_id} ({len(chars_to_check)} relevante Charaktere)")
+        else:
+            print(f"⚠️ Zielszene {target_scene_id} wurde im Drehbuch nicht gefunden!")
+
     # Check if LM Studio is actually needed for any character or scene
     chars_needing_llm = []
-    for i, char in enumerate(characters_list):
+    for i, char in enumerate(chars_to_check):
         char_name = char.get("name", f"actor_{i+1}").strip()
         safe_name = re.sub(r'[\\/*?:"<>| ]', '_', char_name)
         char_file = os.path.join(characters_dir, f"{safe_name}.png")
@@ -2541,7 +2282,7 @@ def main():
             chars_needing_llm.append(char)
 
     scenes_needing_llm = []
-    for idx, scene in enumerate(scenes_list):
+    for idx, scene in enumerate(scenes_to_check):
         auto_prompt = not (
             scene.get("ki_prompt_generieren") is False or 
             scene.get("auto_prompt") is False or 
@@ -2557,7 +2298,7 @@ def main():
         print(t("phase1_start"))
         lms_load()
     else:
-        print(t("phase1_header_skip", file=os.path.basename(target_load_path)))
+        print(t("phase1_header_skip", file=os.path.basename(screenplay_path)))
 
     prepared_scenes = []
     try:
@@ -2565,6 +2306,8 @@ def main():
         if chars_needing_llm:
             print(t("phase1_developing_chars"))
             for i, char in enumerate(characters_list):
+                if target_scene_id is not None and char not in chars_to_check:
+                    continue
                 char_name = char.get("name", f"actor_{i+1}").strip()
                 safe_name = re.sub(r'[\\/*?:"<>| ]', '_', char_name)
                 char_file = os.path.join(characters_dir, f"{safe_name}.png")
@@ -2726,8 +2469,20 @@ def main():
 
             # Resolve characters active in this specific scene
             scene_chars = resolve_scene_characters(scene, characters_list)
+            is_target = is_matching_scene_id(scene_id, target_scene_id)
 
-            if not auto_prompt and existing_p:
+            if target_scene_id is not None and not is_target:
+                # Non-target scene during reshoot: keep existing prompt, do not call LM Studio
+                minimax_prompt = existing_p
+                calculated_duration = (
+                    scene.get("dauer_sekunden") or 
+                    scene.get("duration_seconds") or 
+                    scene.get("duration") or 
+                    scene.get("dauer") or 
+                    5
+                )
+                final_scene_loras = existing_scene_loras
+            elif not auto_prompt and existing_p:
                 if needs_llm:
                     print(t("scene_keep_manual_prompt", id=scene_id))
                 minimax_prompt = existing_p
@@ -2827,10 +2582,11 @@ def main():
                 continuity_badges.append(t("scene_sequence_badge", seq=seq_name))
 
             anschluss_txt = "".join(continuity_badges)
-            if needs_llm:
-                print(t("scene_written", id=scene_id, dauer=calculated_duration, anschluss=anschluss_txt))
-            else:
-                print(t("scene_ready", id=scene_id, dauer=calculated_duration, anschluss=anschluss_txt))
+            if target_scene_id is None or is_target:
+                if needs_llm:
+                    print(t("scene_written", id=scene_id, dauer=calculated_duration, anschluss=anschluss_txt))
+                else:
+                    print(t("scene_ready", id=scene_id, dauer=calculated_duration, anschluss=anschluss_txt))
 
         # Save extended screenplay with AI-generated character & scene prompts to the project directory
         if needs_llm:
@@ -2876,6 +2632,11 @@ def main():
             uploaded_name = upload_file(char_img_data, f"{safe_name}.png", "image/png")
             char["echter_dateiname"] = uploaded_name
             print(t("char_already_exists_skip_t2i", name=char_name, file=char_file))
+            continue
+
+        # Targeted reshoot filter: Skip casting actors that do not appear in the target scene
+        if target_scene_id is not None and char not in chars_to_check:
+            print(f"   ⏩ Überspringe Casting für '{char_name}' (wird in Szene {target_scene_id} nicht benötigt)")
             continue
 
         # Clean up any leftover I2I nodes from previous characters
@@ -3149,14 +2910,7 @@ def main():
         # Targeted Scene Re-Shooting Filter (--scene <id>):
         # Skip all non-target scenes while preserving last_video_data for match cuts
         if target_scene_id is not None:
-            is_target = False
-            try:
-                if int(szene_id) == int(target_scene_id):
-                    is_target = True
-            except (ValueError, TypeError):
-                if str(szene_id).lower() == str(target_scene_id).lower():
-                    is_target = True
-
+            is_target = is_matching_scene_id(szene_id, target_scene_id)
             if not is_target:
                 if os.path.exists(target_path):
                     try:
@@ -3309,28 +3063,19 @@ def main():
         if applied_scene_loras:
             print(t("scene_loras_active", count=len(applied_scene_loras), loras=", ".join(applied_scene_loras)))
 
-        raw_scene_chars = scene_data.get("characters") or resolve_scene_characters(scene_data, characters_list)
-        resolved_scene_chars = []
-        if raw_scene_chars:
-            for sc in raw_scene_chars:
-                if isinstance(sc, dict):
-                    resolved_scene_chars.append(sc)
-                elif isinstance(sc, str):
-                    matched = char_lookup.get(sc.strip().lower()) or char_lookup.get(sc.strip())
-                    if matched:
-                        resolved_scene_chars.append(matched)
-                    else:
-                        resolved_scene_chars.append({"name": sc.strip()})
-                else:
-                    resolved_scene_chars.append(sc)
+        resolved_scene_chars = resolve_scene_characters(scene_data, characters_list)
 
         final_scene_prompt = scene_data["prompt"]
         if extra_scene_triggers:
             final_scene_prompt = f"{final_scene_prompt}\n\n[Scene enhancements: {', '.join(extra_scene_triggers)}]"
         
-        # Assemble full Minimax template (subject_definitions, summary, detailed_description, soundscape, non_diegetic_music)
-        chars_for_envelope = resolved_scene_chars if resolved_scene_chars else characters_list
-        final_scene_prompt = build_minimax_api_prompt(final_scene_prompt, characters=chars_for_envelope, scene_data=scene_data)
+        # Assemble full Minimax template with dynamic subject remapping
+        final_scene_prompt = build_minimax_api_prompt(
+            final_scene_prompt, 
+            characters=resolved_scene_chars, 
+            scene_data=scene_data, 
+            all_characters=characters_list
+        )
         wf_i2v["138"]["inputs"]["value"] = final_scene_prompt
         
         keys_to_remove = [k for k in wf_i2v["136"]["inputs"].keys() if k.startswith("ref_images.ref_image_") or k.startswith("ref_videos.")]
@@ -3353,6 +3098,9 @@ def main():
                 print(f"   🎭 Scene {szene_id} active cast: {char_names_log}")
             valid_ref_idx = 0
             for i, char in enumerate(resolved_scene_chars):
+                if valid_ref_idx >= 9:
+                    print(f"   ⚠️ Warning: MiniMax H3 supports maximum 9 reference images. Skipping remaining cast members for scene {szene_id}.")
+                    break
                 fallback_name = (char.get("name") if isinstance(char, dict) else str(char)) or f"actor_{i+1}"
                 safe_char_name = re.sub(r'[\\/*?:"<>| ]', '_', fallback_name)
                 

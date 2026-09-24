@@ -95,8 +95,16 @@
     chkMusicEnabled: document.getElementById('chkMusicEnabled'),
     musicSettingsBody: document.getElementById('musicSettingsBody'),
     musicModelSelect: document.getElementById('musicModelSelect'),
+    btnApplyMusicProfile: document.getElementById('btnApplyMusicProfile'),
+    musicModelProfileBadge: document.getElementById('musicModelProfileBadge'),
+    musicModelProfileFamily: document.getElementById('musicModelProfileFamily'),
+    musicModelProfileHint: document.getElementById('musicModelProfileHint'),
     musicPromptInput: document.getElementById('musicPromptInput'),
     btnSuggestMusicTags: document.getElementById('btnSuggestMusicTags'),
+    musicStepsInput: document.getElementById('musicStepsInput'),
+    musicStepsHint: document.getElementById('musicStepsHint'),
+    musicCfgInput: document.getElementById('musicCfgInput'),
+    musicCfgHint: document.getElementById('musicCfgHint'),
     musicVolumeSelect: document.getElementById('musicVolumeSelect'),
     chkMusicDucking: document.getElementById('chkMusicDucking'),
     btnScoreMovie: document.getElementById('btnScoreMovie'),
@@ -140,6 +148,7 @@
     btnCloseModelModal: document.getElementById('btnCloseModelModal'),
     modelSearchInput: document.getElementById('modelSearchInput'),
     modelFilterTabs: document.getElementById('modelFilterTabs'),
+    modalTargetLabel: document.getElementById('modalTargetLabel'),
     modalActiveCharName: document.getElementById('modalActiveCharName'),
     modalCurrentModelKey: document.getElementById('modalCurrentModelKey'),
     modelCardsList: document.getElementById('modelCardsList'),
@@ -233,35 +242,41 @@
     btnCloseSettingsModalBtn: document.getElementById('btnCloseSettingsModalBtn'),
     btnSaveSettings: document.getElementById('btnSaveSettings'),
     btnPickTurboLora: document.getElementById('btnPickTurboLora'),
+    btnClearTurboLora: document.getElementById('btnClearTurboLora'),
+    btnPickMinimaxUnet: document.getElementById('btnPickMinimaxUnet'),
+    settingMinimaxUnetCard: document.getElementById('settingMinimaxUnetCard'),
+    settingTurboLoraCard: document.getElementById('settingTurboLoraCard'),
     btnRefreshLmsModels: document.getElementById('btnRefreshLmsModels'),
 
-    settingMinimaxUnetSelect: document.getElementById('settingMinimaxUnetSelect'),
     settingMinimaxUnetInput: document.getElementById('settingMinimaxUnetInput'),
-    settingTurboLoraSelect: document.getElementById('settingTurboLoraSelect'),
     settingTurboLoraInput: document.getElementById('settingTurboLoraInput'),
     settingMinimaxSteps: document.getElementById('settingMinimaxSteps'),
     settingTurboStrength: document.getElementById('settingTurboStrength'),
-    valTurboStrength: document.getElementById('valTurboStrength'),
-    settingMinimaxVae: document.getElementById('settingMinimaxVae'),
+    valTurboStrength: document.getElementById('settingTurboStrengthVal'),
+    settingMinimaxVae: document.getElementById('settingVideoVae'),
+    settingAudioVae: document.getElementById('settingAudioVae'),
     settingMinimaxClip: document.getElementById('settingMinimaxClip'),
 
     settingMusicEnabled: document.getElementById('settingMusicEnabled'),
-    settingMusicModel: document.getElementById('settingMusicModel'),
+    btnPickMusicCheckpoint: document.getElementById('btnPickMusicCheckpoint'),
+    settingMusicCheckpointCard: document.getElementById('settingMusicCheckpointCard'),
+    settingMusicCheckpointInput: document.getElementById('settingMusicCheckpointInput'),
     settingMusicSteps: document.getElementById('settingMusicSteps'),
     settingMusicCfg: document.getElementById('settingMusicCfg'),
     settingMusicVolume: document.getElementById('settingMusicVolume'),
-    valMusicVolume: document.getElementById('valMusicVolume'),
+    valMusicVolume: document.getElementById('settingMusicVolumeVal'),
     settingMusicDucking: document.getElementById('settingMusicDucking'),
 
     settingLmsUrl: document.getElementById('settingLmsUrl'),
-    settingLmsModel: document.getElementById('settingLmsModel'),
+    settingLmsModelSelect: document.getElementById('settingLmsModelSelect'),
+    settingLmsModelInput: document.getElementById('settingLmsModelInput'),
     settingLmsTemp: document.getElementById('settingLmsTemp'),
-    valLmsTemp: document.getElementById('valLmsTemp'),
+    valLmsTemp: document.getElementById('settingLmsTempVal'),
 
-    settingComfyUrl: document.getElementById('settingComfyUrl'),
-    settingModelsDir: document.getElementById('settingModelsDir'),
-    settingDefaultLang: document.getElementById('settingDefaultLang'),
-    settingWebmExport: document.getElementById('settingWebmExport')
+    settingComfyServer: document.getElementById('settingComfyServer'),
+    settingComfyModelsDir: document.getElementById('settingComfyModelsDir'),
+    settingLanguage: document.getElementById('settingLanguage'),
+    settingExportWebm: document.getElementById('settingExportWebm')
   };
 
   // --- Language Switching Engine ---
@@ -1914,31 +1929,18 @@
         if (target.type === 'turbo') {
           const selectedLoraPath = lora.lora_name || lKey;
           if (el.settingTurboLoraInput) el.settingTurboLoraInput.value = selectedLoraPath;
-          if (el.settingTurboLoraSelect) {
-            let matched = false;
-            for (const opt of el.settingTurboLoraSelect.options) {
-              if (opt.value === selectedLoraPath || opt.value.toLowerCase().includes(lKey.toLowerCase()) || (lora.lora_name && opt.value.toLowerCase().includes(lora.lora_name.toLowerCase()))) {
-                el.settingTurboLoraSelect.value = opt.value;
-                matched = true;
-                break;
-              }
-            }
-            if (!matched && selectedLoraPath) {
-              const newOpt = document.createElement('option');
-              newOpt.value = selectedLoraPath;
-              newOpt.textContent = selectedLoraPath;
-              el.settingTurboLoraSelect.appendChild(newOpt);
-              el.settingTurboLoraSelect.value = selectedLoraPath;
-            }
-          }
-          // Auto-detect steps (4 or 8)
+          updateSettingsTurboLoraCard(selectedLoraPath);
+          // Auto-detect steps (3, 4 or 8)
           const combined = (lKey + ' ' + (lora.lora_name || '')).toLowerCase();
           if (combined.includes('4step') || combined.includes('4_step') || combined.includes('4 step') || combined.includes('4-step') || combined.includes('4s')) {
             if (el.settingMinimaxSteps) el.settingMinimaxSteps.value = 4;
           } else if (combined.includes('8step') || combined.includes('8_step') || combined.includes('8 step') || combined.includes('8-step') || combined.includes('8s')) {
             if (el.settingMinimaxSteps) el.settingMinimaxSteps.value = 8;
+          } else if (combined.includes('3step') || combined.includes('taomate')) {
+            if (el.settingMinimaxSteps) el.settingMinimaxSteps.value = 3;
           }
           closeLoraPickerModal();
+          showToast(`Turbo-LoRA gewählt: ${lora.beschreibung || lKey}`, 'success');
           return;
         }
 
@@ -2001,6 +2003,10 @@
   }
 
   function openModelPickerModal(charIndex, activeModelKey) {
+    state.activeModelTarget = {
+      type: 'character',
+      charIndex: charIndex
+    };
     state.activeModelTargetCharIndex = charIndex;
     state.modelFilterCategory = 'all';
 
@@ -2009,6 +2015,9 @@
     const modalTitleElem = el.modelModal.querySelector('.modal-title');
     if (modalTitleElem) {
       modalTitleElem.textContent = t('modalModelTitle') + (charName ? ` (${charName})` : '');
+    }
+    if (el.modalTargetLabel) {
+      el.modalTargetLabel.textContent = t('charLabel') || 'Charakter:';
     }
     if (el.modalActiveCharName) {
       el.modalActiveCharName.textContent = charName || '-';
@@ -2022,6 +2031,7 @@
 
     // Reset filter tabs
     if (el.modelFilterTabs) {
+      el.modelFilterTabs.style.display = 'flex';
       el.modelFilterTabs.querySelectorAll('.btn-filter-pill').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.filter === 'all');
       });
@@ -2031,12 +2041,316 @@
     el.modelModal.classList.add('open');
   }
 
+  async function openModelPickerModalForMinimax() {
+    state.activeModelTarget = {
+      type: 'minimax_unet'
+    };
+    state.activeModelTargetCharIndex = null;
+    state.modelFilterCategory = 'all';
+
+    const modalTitleElem = el.modelModal.querySelector('.modal-title');
+    if (modalTitleElem) {
+      modalTitleElem.textContent = t('modalMinimaxModelTitle') || '🎬 Minimax Diffusionsmodell auswählen';
+    }
+    if (el.modalTargetLabel) {
+      el.modalTargetLabel.textContent = t('moduleLabel') || 'Bereich:';
+    }
+    if (el.modalActiveCharName) {
+      el.modalActiveCharName.textContent = 'Minimax I2V';
+    }
+    const curUnet = el.settingMinimaxUnetInput ? el.settingMinimaxUnetInput.value : '';
+    if (el.modalCurrentModelKey) {
+      el.modalCurrentModelKey.textContent = curUnet || '-';
+    }
+    if (el.modelSearchInput) {
+      el.modelSearchInput.value = '';
+    }
+    if (el.modelFilterTabs) {
+      el.modelFilterTabs.style.display = 'none';
+    }
+
+    if (!cachedSettingsModels || !cachedSettingsModels.minimax_unets || cachedSettingsModels.minimax_unets.length === 0) {
+      try {
+        cachedSettingsModels = await API.getSettingsModels();
+      } catch (e) {
+        console.error('Could not fetch settings models:', e);
+      }
+    }
+
+    renderModelModalCards();
+    el.modelModal.classList.add('open');
+  }
+
+  async function openModelPickerModalForMusic() {
+    state.activeModelTarget = {
+      type: 'music_checkpoint'
+    };
+    state.activeModelTargetCharIndex = null;
+    state.modelFilterCategory = 'all';
+
+    const modalTitleElem = el.modelModal.querySelector('.modal-title');
+    if (modalTitleElem) {
+      modalTitleElem.textContent = t('modalMusicModelTitle') || '🎵 Musik Checkpoint auswählen';
+    }
+    if (el.modalTargetLabel) {
+      el.modalTargetLabel.textContent = t('moduleLabel') || 'Bereich:';
+    }
+    if (el.modalActiveCharName) {
+      el.modalActiveCharName.textContent = 'Music Studio';
+    }
+    const curCkpt = el.settingMusicCheckpointInput ? el.settingMusicCheckpointInput.value : '';
+    if (el.modalCurrentModelKey) {
+      el.modalCurrentModelKey.textContent = curCkpt || '-';
+    }
+    if (el.modelSearchInput) {
+      el.modelSearchInput.value = '';
+    }
+    if (el.modelFilterTabs) {
+      el.modelFilterTabs.style.display = 'none';
+    }
+
+    if (!cachedSettingsModels || !cachedSettingsModels.music_checkpoints || cachedSettingsModels.music_checkpoints.length === 0) {
+      try {
+        cachedSettingsModels = await API.getSettingsModels().catch(() => null);
+      } catch (e) {
+        console.error('Could not fetch settings models:', e);
+      }
+    }
+
+    if (!cachedSettingsModels || !cachedSettingsModels.music_checkpoints || cachedSettingsModels.music_checkpoints.length === 0) {
+      try {
+        const musicData = await API.getMusicModels();
+        if (musicData && Array.isArray(musicData.models) && musicData.models.length > 0) {
+          if (!cachedSettingsModels) cachedSettingsModels = {};
+          cachedSettingsModels.music_checkpoints = musicData.models;
+        }
+      } catch (e) {
+        console.warn('Could not fetch music models fallback:', e);
+      }
+    }
+
+    renderModelModalCards();
+    el.modelModal.classList.add('open');
+  }
+
   function closeModelPickerModal() {
     if (el.modelModal) el.modelModal.classList.remove('open');
+    state.activeModelTarget = null;
     state.activeModelTargetCharIndex = null;
+    if (el.modelFilterTabs) {
+      el.modelFilterTabs.style.display = 'flex';
+    }
   }
 
   function renderModelModalCards() {
+    if (!state.activeModelTarget && state.activeModelTargetCharIndex === null) return;
+
+    if (state.activeModelTarget?.type === 'minimax_unet') {
+      el.modelCardsList.innerHTML = '';
+      const unetList = (cachedSettingsModels && cachedSettingsModels.minimax_unets) ? cachedSettingsModels.minimax_unets : [];
+      const curSelected = el.settingMinimaxUnetInput ? el.settingMinimaxUnetInput.value.trim() : '';
+      const query = el.modelSearchInput ? el.modelSearchInput.value.toLowerCase().trim() : '';
+
+      if (unetList.length === 0) {
+        el.modelCardsList.innerHTML = `<div style="color:var(--text-dim);font-style:italic;padding:12px;">Keine Minimax-Diffusionsmodelle gefunden.</div>`;
+        return;
+      }
+
+      let countShown = 0;
+      for (const item of unetList) {
+        const fn = typeof item === 'string' ? item : (item.filename || item.name || '');
+        const title = typeof item === 'string' ? item : (item.title || item.name || fn);
+        const desc = typeof item === 'object' ? (item.description || '') : '';
+        const previewUrl = typeof item === 'object' ? item.preview_url : null;
+        const mediaType = typeof item === 'object' ? item.media_type : null;
+        const pubDate = typeof item === 'object' ? item.published_at : null;
+
+        const fnLower = fn.toLowerCase();
+        const titleLower = title.toLowerCase();
+        const descLower = desc.toLowerCase();
+
+        if (query && !fnLower.includes(query) && !titleLower.includes(query) && !descLower.includes(query)) {
+          continue;
+        }
+
+        countShown++;
+        const isSelected = curSelected && (curSelected === fn || curSelected.toLowerCase().includes(fnLower) || fnLower.includes(curSelected.toLowerCase()));
+        const card = document.createElement('div');
+        card.className = `model-card-item ${isSelected ? 'selected' : ''}`;
+
+        let mediaHtml = '';
+        if (previewUrl) {
+          if (mediaType === 'video') {
+            mediaHtml = `
+              <div class="model-card-media">
+                <video class="model-media-thumb" src="${escapeHtml(previewUrl)}" muted loop playsinline preload="metadata"></video>
+                <span class="model-video-badge">▶ Video</span>
+                ${pubDate ? `<span class="model-date-badge">📅 ${escapeHtml(pubDate)}</span>` : ''}
+              </div>
+            `;
+          } else {
+            mediaHtml = `
+              <div class="model-card-media">
+                <img class="model-media-thumb" src="${escapeHtml(previewUrl)}" alt="${escapeHtml(title)}" loading="lazy">
+                ${pubDate ? `<span class="model-date-badge">📅 ${escapeHtml(pubDate)}</span>` : ''}
+              </div>
+            `;
+          }
+        } else {
+          mediaHtml = `
+            <div class="model-card-media model-media-placeholder">
+              <span class="model-placeholder-icon">🎬</span>
+              ${pubDate ? `<span class="model-date-badge">📅 ${escapeHtml(pubDate)}</span>` : ''}
+            </div>
+          `;
+        }
+
+        card.innerHTML = `
+          ${mediaHtml}
+          <div class="model-card-body">
+            <div class="model-card-title">
+              <span>🎬 ${escapeHtml(title)}</span>
+              ${isSelected ? `<span class="model-badge-selected">✔ ${escapeHtml(t('modelSelectedBadge') || 'Aktiv')}</span>` : `<span class="badge-base-family">Minimax UNET</span>`}
+            </div>
+            <div class="model-card-desc" title="${escapeHtml(desc || fn)}">${escapeHtml(desc || fn)}</div>
+            <div class="model-card-footer">
+              <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);word-break:break-all;">${escapeHtml(fn)}</span>
+            </div>
+          </div>
+        `;
+
+        const vidEl = card.querySelector('video');
+        if (vidEl) {
+          card.addEventListener('mouseenter', () => {
+            vidEl.play().catch(() => {});
+          });
+          card.addEventListener('mouseleave', () => {
+            vidEl.pause();
+            vidEl.currentTime = 0;
+          });
+        }
+
+        card.addEventListener('click', () => {
+          if (el.settingMinimaxUnetInput) el.settingMinimaxUnetInput.value = fn;
+          updateSettingsMinimaxUnetCard(fn);
+          closeModelPickerModal();
+          showToast(`Diffusionsmodell gewählt: ${title}`, 'success');
+        });
+
+        el.modelCardsList.appendChild(card);
+      }
+
+      if (countShown === 0) {
+        el.modelCardsList.innerHTML = `<div style="color:var(--text-dim);font-style:italic;padding:12px;">${escapeHtml(t('noModelsFound'))}</div>`;
+      }
+      return;
+    }
+
+    if (state.activeModelTarget?.type === 'music_checkpoint') {
+      el.modelCardsList.innerHTML = '';
+      const ckptList = (cachedSettingsModels && cachedSettingsModels.music_checkpoints) ? cachedSettingsModels.music_checkpoints : [];
+      const curSelected = el.settingMusicCheckpointInput ? el.settingMusicCheckpointInput.value.trim() : '';
+      const query = el.modelSearchInput ? el.modelSearchInput.value.toLowerCase().trim() : '';
+
+      if (ckptList.length === 0) {
+        el.modelCardsList.innerHTML = `<div style="color:var(--text-dim);font-style:italic;padding:12px;">Keine Audio-/Musik-Checkpoints gefunden.</div>`;
+        return;
+      }
+
+      let countShown = 0;
+      for (const item of ckptList) {
+        const fn = typeof item === 'string' ? item : (item.filename || item.name || '');
+        const title = typeof item === 'string' ? item : (item.title || item.name || fn);
+        const desc = typeof item === 'object' ? (item.description || '') : '';
+        const previewUrl = typeof item === 'object' ? item.preview_url : null;
+        const mediaType = typeof item === 'object' ? item.media_type : null;
+        const pubDate = typeof item === 'object' ? item.published_at : null;
+
+        const fnLower = fn.toLowerCase();
+        const titleLower = title.toLowerCase();
+        const descLower = desc.toLowerCase();
+
+        if (query && !fnLower.includes(query) && !titleLower.includes(query) && !descLower.includes(query)) {
+          continue;
+        }
+
+        countShown++;
+        const isSelected = curSelected && (curSelected === fn || curSelected.toLowerCase().includes(fnLower) || fnLower.includes(curSelected.toLowerCase()));
+        const card = document.createElement('div');
+        card.className = `model-card-item ${isSelected ? 'selected' : ''}`;
+
+        let mediaHtml = '';
+        if (previewUrl) {
+          if (mediaType === 'video') {
+            mediaHtml = `
+              <div class="model-card-media">
+                <video class="model-media-thumb" src="${escapeHtml(previewUrl)}" muted loop playsinline preload="metadata"></video>
+                <span class="model-video-badge">▶ Video</span>
+                ${pubDate ? `<span class="model-date-badge">📅 ${escapeHtml(pubDate)}</span>` : ''}
+              </div>
+            `;
+          } else {
+            mediaHtml = `
+              <div class="model-card-media">
+                <img class="model-media-thumb" src="${escapeHtml(previewUrl)}" alt="${escapeHtml(title)}" loading="lazy">
+                ${pubDate ? `<span class="model-date-badge">📅 ${escapeHtml(pubDate)}</span>` : ''}
+              </div>
+            `;
+          }
+        } else {
+          mediaHtml = `
+            <div class="model-card-media model-media-placeholder">
+              <span class="model-placeholder-icon">🎵</span>
+              ${pubDate ? `<span class="model-date-badge">📅 ${escapeHtml(pubDate)}</span>` : ''}
+            </div>
+          `;
+        }
+
+        card.innerHTML = `
+          ${mediaHtml}
+          <div class="model-card-body">
+            <div class="model-card-title">
+              <span>🎵 ${escapeHtml(title)}</span>
+              ${isSelected ? `<span class="model-badge-selected">✔ ${escapeHtml(t('modelSelectedBadge') || 'Aktiv')}</span>` : `<span class="badge-base-family">Audio / ACE-Step</span>`}
+            </div>
+            <div class="model-card-desc" title="${escapeHtml(desc || fn)}">${escapeHtml(desc || fn)}</div>
+            <div class="model-card-footer">
+              <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);word-break:break-all;">${escapeHtml(fn)}</span>
+            </div>
+          </div>
+        `;
+
+        const vidEl = card.querySelector('video');
+        if (vidEl) {
+          card.addEventListener('mouseenter', () => {
+            vidEl.play().catch(() => {});
+          });
+          card.addEventListener('mouseleave', () => {
+            vidEl.pause();
+            vidEl.currentTime = 0;
+          });
+        }
+
+        card.addEventListener('click', () => {
+          if (el.settingMusicCheckpointInput) el.settingMusicCheckpointInput.value = fn;
+          updateSettingsMusicCheckpointCard(fn);
+          if (item && item.profile) {
+            if (el.settingMusicSteps && item.profile.default_steps) el.settingMusicSteps.value = item.profile.default_steps;
+            if (el.settingMusicCfg && item.profile.default_cfg) el.settingMusicCfg.value = item.profile.default_cfg;
+          }
+          closeModelPickerModal();
+          showToast(`Musik-Modell gewählt: ${title}`, 'success');
+        });
+
+        el.modelCardsList.appendChild(card);
+      }
+
+      if (countShown === 0) {
+        el.modelCardsList.innerHTML = `<div style="color:var(--text-dim);font-style:italic;padding:12px;">${escapeHtml(t('noModelsFound'))}</div>`;
+      }
+      return;
+    }
+
     if (state.activeModelTargetCharIndex === null) return;
     const charIndex = state.activeModelTargetCharIndex;
     const char = state.screenplay.characters[charIndex];
@@ -2344,6 +2658,10 @@
               <option value="on" ${scene.turbo === true ? 'selected' : ''}>${escapeHtml(t('sceneTurboOn'))}</option>
               <option value="off" ${scene.turbo === false ? 'selected' : ''}>${escapeHtml(t('sceneTurboOff'))}</option>
             </select>
+          </div>
+          <div class="render-field">
+            <span class="render-field-label">${escapeHtml(t('sceneStepsLabel') || 'Steps')}:</span>
+            <input type="number" class="select-xs scene-steps-input" style="width:58px; text-align:center;" placeholder="${escapeHtml(t('sceneStepsPlaceholder') || 'Auto')}" min="1" max="100" value="${scene.steps !== undefined && scene.steps !== null ? scene.steps : ''}" title="${escapeHtml(t('sceneStepsTitle') || 'Steps für diese Szene manuell festlegen')}">
           </div>
           <div class="render-field">
             <span class="render-field-label">${escapeHtml(t('sceneResolutionLabel'))}:</span>
@@ -2690,6 +3008,24 @@
     });
 
     // Render Settings Listeners
+    const stepsInput = card.querySelector('.scene-steps-input');
+    if (stepsInput) {
+      stepsInput.addEventListener('input', () => {
+        const val = stepsInput.value.trim();
+        if (!val) {
+          delete scene.steps;
+        } else {
+          const parsed = parseInt(val, 10);
+          if (!isNaN(parsed) && parsed > 0) {
+            scene.steps = parsed;
+          } else {
+            delete scene.steps;
+          }
+        }
+        markDirty();
+      });
+    }
+
     const turboSelect = card.querySelector('.scene-turbo-select');
     if (turboSelect) {
       turboSelect.addEventListener('change', () => {
@@ -2697,12 +3033,20 @@
         if (val === 'auto') {
           delete scene.turbo;
           delete scene.steps;
+          if (stepsInput) stepsInput.value = '';
         } else if (val === 'on') {
           scene.turbo = true;
-          scene.steps = 8;
+          // Do not hardcode 8 steps; clean legacy 8/20 so it uses configured turbo steps
+          if (scene.steps === 8 || scene.steps === 20) {
+            delete scene.steps;
+            if (stepsInput) stepsInput.value = '';
+          }
         } else if (val === 'off') {
           scene.turbo = false;
-          scene.steps = 20;
+          if (scene.steps === 8 || scene.steps === 20) {
+            delete scene.steps;
+            if (stepsInput) stepsInput.value = '';
+          }
         }
         markDirty();
       });
@@ -2756,6 +3100,10 @@
     // Play Clip in Player Modal
     const playBtn = card.querySelector('.btn-play-scene');
     if (playBtn) {
+      const st = (state.scenesStatus && Array.isArray(state.scenesStatus.scenes)) ? state.scenesStatus.scenes.find(s => s.id === sceneId) : null;
+      if (!st || !st.has_video) {
+        playBtn.style.display = 'none';
+      }
       playBtn.addEventListener('click', () => {
         const projName = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
         const videoUrl = `/api/scene/video?project=${encodeURIComponent(projName)}&scene=${sceneId}&t=${Date.now()}`;
@@ -2766,6 +3114,13 @@
     // Re-shoot Scene Button
     const reshootBtn = card.querySelector('.btn-reshoot-scene');
     if (reshootBtn) {
+      if (_renderingScenes.has(sceneId)) {
+        reshootBtn.disabled = true;
+        reshootBtn.innerHTML = '⏳';
+        reshootBtn.classList.add('is-rendering');
+        reshootBtn.title = t('timeline_rendering') || 'Wird gedreht...';
+      }
+
       reshootBtn.addEventListener('click', async () => {
         const confirmMsg = (t('reshoot_confirm') || 'Möchtest du Szene {id} wirklich neu rendern?').replace('{id}', sceneId);
         if (!confirm(confirmMsg)) return;
@@ -2774,19 +3129,28 @@
         try {
           reshootBtn.disabled = true;
           reshootBtn.innerHTML = '⏳';
+          reshootBtn.classList.add('is-rendering');
+          reshootBtn.title = t('timeline_rendering') || 'Wird gedreht...';
+
           if (state.isDirty) {
             await saveCurrentProject();
           }
+
           const res = await API.reshootScene(projName, sceneId);
+          _renderingScenes.add(sceneId);
           showToast(res.message || (t('reshoot_started') || 'Dreh gestartet...').replace('{id}', sceneId), 'info');
-          setTimeout(() => {
-            fetchAndRenderTimeline();
-          }, 3000);
+
+          // Immediately reflect rendering state in storyboard timeline and card
+          renderStoryboardTimeline();
+          startTimelinePolling();
         } catch (err) {
           showToast(err.message, 'error');
-        } finally {
           reshootBtn.disabled = false;
           reshootBtn.innerHTML = '🔄';
+          reshootBtn.classList.remove('is-rendering');
+          reshootBtn.title = t('btn_reshoot_scene') || 'Szene neu drehen';
+          _renderingScenes.delete(sceneId);
+          renderStoryboardTimeline();
         }
       });
     }
@@ -2802,6 +3166,77 @@
   }
 
   // --- Storyboard Filmstrip Timeline & Video Player Methods ---
+  let _timelinePollTimer = null;
+  const _renderingScenes = new Set();
+
+  function startTimelinePolling() {
+    if (_timelinePollTimer) return;
+    _timelinePollTimer = setInterval(async () => {
+      await pollTimelineUpdate();
+    }, 2500);
+  }
+
+  function stopTimelinePolling() {
+    if (_timelinePollTimer) {
+      clearInterval(_timelinePollTimer);
+      _timelinePollTimer = null;
+    }
+  }
+
+  async function pollTimelineUpdate() {
+    const projName = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+    if (!projName) {
+      stopTimelinePolling();
+      return;
+    }
+
+    try {
+      const statusData = await API.getScenesStatus(projName);
+      if (!statusData || !statusData.success) return;
+
+      const scenes = statusData.scenes || [];
+      let anyStillRendering = Boolean(statusData.any_rendering);
+
+      // Check each scene we were actively waiting for
+      _renderingScenes.forEach(sid => {
+        const matchingSc = scenes.find(s => s.id === sid);
+        if (matchingSc && !matchingSc.is_rendering) {
+          // Finished rendering!
+          _renderingScenes.delete(sid);
+
+          const cardElem = document.getElementById(`sceneCard_${sid}`);
+          if (cardElem) {
+            const rBtn = cardElem.querySelector('.btn-reshoot-scene');
+            if (rBtn) {
+              rBtn.disabled = false;
+              rBtn.innerHTML = '🔄';
+              rBtn.classList.remove('is-rendering');
+              rBtn.title = t('btn_reshoot_scene') || 'Szene neu drehen';
+            }
+            const pBtn = cardElem.querySelector('.btn-play-scene');
+            if (pBtn && matchingSc.has_video) {
+              pBtn.style.display = 'inline-flex';
+            }
+          }
+
+          showToast((t('reshoot_finished') || 'Szene #{id} erfolgreich neu gerendert! Vorschau aktualisiert.').replace('{id}', sid), 'success');
+        } else if (matchingSc && matchingSc.is_rendering) {
+          anyStillRendering = true;
+        }
+      });
+
+      // Synchronize latest scene status into state and re-render filmstrip track
+      state.scenesStatus = statusData;
+      renderStoryboardTimeline();
+
+      if (!anyStillRendering && _renderingScenes.size === 0) {
+        stopTimelinePolling();
+      }
+    } catch (err) {
+      console.warn('Timeline poll error:', err);
+    }
+  }
+
   async function fetchAndRenderTimeline() {
     const projName = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
     if (!projName) return;
@@ -2810,6 +3245,12 @@
       const statusData = await API.getScenesStatus(projName);
       if (statusData && statusData.success) {
         state.scenesStatus = statusData;
+        if (statusData.any_rendering) {
+          if (Array.isArray(statusData.active_rendering_scenes)) {
+            statusData.active_rendering_scenes.forEach(sid => _renderingScenes.add(sid));
+          }
+          startTimelinePolling();
+        }
         renderStoryboardTimeline();
       }
     } catch (err) {
@@ -2871,20 +3312,40 @@
     scenes.forEach((scene, idx) => {
       const sceneId = scene.id || (idx + 1);
       const st = statusMap[sceneId];
-      const hasVid = st && st.has_video;
-      const hasPrev = st && st.has_preview;
+      const isRendering = Boolean((st && st.is_rendering) || _renderingScenes.has(sceneId));
+      const hasVid = Boolean(st && st.has_video);
+      const hasPrev = Boolean(st && st.has_preview);
       const duration = scene.duration || 6;
       const seq = scene.sequence || scene.sequenz || `Szene ${sceneId}`;
 
       const cell = document.createElement('div');
-      cell.className = `filmstrip-cell ${hasVid ? 'rendered' : ''}`;
-      cell.title = `${t('timeline_jump_to_scene') || 'Zu Szene {id} springen'}`.replace('{id}', sceneId);
+      cell.className = `filmstrip-cell ${isRendering ? 'rendering' : (hasVid ? 'rendered' : '')}`;
+      cell.title = isRendering 
+        ? `${t('timeline_rendering') || 'Wird gedreht...'}: Szene #${sceneId}` 
+        : `${t('timeline_jump_to_scene') || 'Zu Szene {id} springen'}`.replace('{id}', sceneId);
 
       const previewUrl = (st && st.preview_url) ? st.preview_url : `/api/scene/preview?project=${encodeURIComponent(projName)}&scene=${sceneId}&t=${Date.now()}`;
       const videoUrl = (st && st.video_url) ? st.video_url : `/api/scene/video?project=${encodeURIComponent(projName)}&scene=${sceneId}&t=${Date.now()}`;
 
       let thumbHtml = '';
-      if (hasPrev) {
+      if (isRendering) {
+        if (hasPrev) {
+          thumbHtml = `
+            <img src="${previewUrl}" class="filmstrip-thumb-img" style="filter: brightness(0.4) blur(1px);" alt="Szene ${sceneId}">
+            <div class="filmstrip-placeholder" style="background:transparent;z-index:2;">
+              <span style="font-size:18px;animation:filmstrip-pulse 1.2s infinite ease-in-out;">⏳</span>
+              <span style="font-weight:600;font-size:9px;color:#fbbf24;text-shadow:0 1px 4px rgba(0,0,0,0.8);">${escapeHtml(t('timeline_rendering') || 'Wird gedreht...')}</span>
+            </div>
+          `;
+        } else {
+          thumbHtml = `
+            <div class="filmstrip-placeholder">
+              <span style="font-size:18px;animation:filmstrip-pulse 1.2s infinite ease-in-out;">⏳</span>
+              <span style="font-weight:600;font-size:9px;color:#fbbf24;">${escapeHtml(t('timeline_rendering') || 'Wird gedreht...')}</span>
+            </div>
+          `;
+        }
+      } else if (hasPrev) {
         thumbHtml = `<img src="${previewUrl}" class="filmstrip-thumb-img" alt="Szene ${sceneId}" onerror="this.style.display='none'">`;
       } else {
         thumbHtml = `
@@ -2895,18 +3356,51 @@
         `;
       }
 
+      let statusPillClass = 'pending';
+      let statusPillText = t('timeline_not_rendered') || 'Offen';
+      if (isRendering) {
+        statusPillClass = 'rendering';
+        statusPillText = t('timeline_rendering') || 'Wird gedreht...';
+      } else if (hasVid) {
+        statusPillClass = 'ready';
+        statusPillText = t('timeline_ready') || 'Gerendert';
+      }
+
       cell.innerHTML = `
         ${thumbHtml}
         <div class="filmstrip-cell-topbar">
           <span class="filmstrip-scene-badge">#${sceneId}</span>
-          <span class="filmstrip-status-pill ${hasVid ? 'ready' : 'pending'}">${hasVid ? (t('timeline_ready') || 'Gerendert') : (t('timeline_not_rendered') || 'Offen')}</span>
+          <span class="filmstrip-status-pill ${statusPillClass}">${escapeHtml(statusPillText)}</span>
         </div>
-        ${hasVid ? `<div class="filmstrip-play-overlay" title="${escapeHtml(t('timeline_play_scene') || 'Szene im Player ansehen')}">▶</div>` : ''}
+        ${(hasVid && !isRendering) ? `<div class="filmstrip-play-overlay" title="${escapeHtml(t('timeline_play_scene') || 'Szene im Player ansehen')}">▶</div>` : ''}
         <div class="filmstrip-cell-bottombar">
           <span class="filmstrip-cell-seq">${escapeHtml(seq)}</span>
           <span class="filmstrip-cell-dur">${duration}s</span>
         </div>
       `;
+
+      // Keep scene card buttons state synchronized
+      const cardElem = document.getElementById(`sceneCard_${sceneId}`);
+      if (cardElem) {
+        const pBtn = cardElem.querySelector('.btn-play-scene');
+        if (pBtn) {
+          pBtn.style.display = hasVid ? 'inline-flex' : 'none';
+        }
+        const rBtn = cardElem.querySelector('.btn-reshoot-scene');
+        if (rBtn) {
+          if (isRendering) {
+            rBtn.disabled = true;
+            rBtn.innerHTML = '⏳';
+            rBtn.classList.add('is-rendering');
+            rBtn.title = t('timeline_rendering') || 'Wird gedreht...';
+          } else if (!_renderingScenes.has(sceneId) && rBtn.classList.contains('is-rendering')) {
+            rBtn.disabled = false;
+            rBtn.innerHTML = '🔄';
+            rBtn.classList.remove('is-rendering');
+            rBtn.title = t('btn_reshoot_scene') || 'Szene neu drehen';
+          }
+        }
+      }
 
       cell.addEventListener('click', (e) => {
         if (e.target.closest('.filmstrip-play-overlay') || (hasVid && e.shiftKey)) {
@@ -3111,12 +3605,64 @@
     }
   }
 
+  function updateMusicModelProfileUI(selectedModelFn) {
+    if (!el.musicModelProfileBadge) return;
+    const modelItem = availableMusicModels.find(m => m.filename === selectedModelFn || m.title === selectedModelFn);
+    const prof = modelItem?.profile || null;
+
+    if (prof) {
+      if (el.musicModelProfileFamily) el.musicModelProfileFamily.textContent = prof.family || prof.description || 'Audio';
+      const stepsHint = prof.recommended_steps_hint || `${prof.default_steps || 40} Steps`;
+      const cfgHint = prof.recommended_cfg_hint || `${prof.default_cfg || 2.0}`;
+      if (el.musicModelProfileHint) el.musicModelProfileHint.textContent = `${stepsHint}, CFG ${cfgHint}`;
+      el.musicModelProfileBadge.style.display = 'inline-flex';
+      if (el.btnApplyMusicProfile) el.btnApplyMusicProfile.style.display = 'inline-flex';
+
+      if (el.musicStepsHint && prof.recommended_steps_hint) {
+        el.musicStepsHint.textContent = `(${prof.recommended_steps_hint})`;
+      }
+      if (el.musicCfgHint && prof.recommended_cfg_hint) {
+        el.musicCfgHint.textContent = `(${prof.recommended_cfg_hint})`;
+      }
+    } else {
+      el.musicModelProfileBadge.style.display = 'none';
+      if (el.btnApplyMusicProfile) el.btnApplyMusicProfile.style.display = 'none';
+      if (el.musicStepsHint) el.musicStepsHint.textContent = '';
+      if (el.musicCfgHint) el.musicCfgHint.textContent = '';
+    }
+  }
+
+  function applyCurrentMusicModelProfile() {
+    const curModel = el.musicModelSelect ? el.musicModelSelect.value : '';
+    const modelItem = availableMusicModels.find(m => m.filename === curModel || m.title === curModel);
+    const prof = modelItem?.profile;
+    if (!prof) return;
+
+    if (el.musicStepsInput && prof.default_steps !== undefined) {
+      el.musicStepsInput.value = prof.default_steps;
+      if (!state.screenplay.music) state.screenplay.music = {};
+      state.screenplay.music.steps = prof.default_steps;
+    }
+    if (el.musicCfgInput && prof.default_cfg !== undefined) {
+      el.musicCfgInput.value = prof.default_cfg;
+      if (!state.screenplay.music) state.screenplay.music = {};
+      state.screenplay.music.cfg = prof.default_cfg;
+    }
+    markDirty();
+    showToast((t('musicProfileApplied') || "Optimalwerte für {family} übernommen: {steps} Steps, CFG {cfg}")
+      .replace('{family}', prof.family || 'Modell')
+      .replace('{steps}', prof.default_steps)
+      .replace('{cfg}', prof.default_cfg), 'info');
+  }
+
   async function renderMusicStudio() {
     if (!state.screenplay.music) {
       state.screenplay.music = {
         enabled: false,
         model: availableMusicModels[0]?.filename || '',
         prompt: '',
+        steps: 40,
+        cfg: 2.0,
         volume: 0.22,
         ducking: true
       };
@@ -3126,11 +3672,18 @@
     if (el.chkMusicEnabled) {
       el.chkMusicEnabled.checked = Boolean(m.enabled);
     }
-    if (el.musicModelSelect && m.model) {
-      el.musicModelSelect.value = m.model;
+    const activeModel = m.model || (el.musicModelSelect ? el.musicModelSelect.value : '');
+    if (el.musicModelSelect && activeModel) {
+      el.musicModelSelect.value = activeModel;
     }
     if (el.musicPromptInput) {
       el.musicPromptInput.value = m.prompt || '';
+    }
+    if (el.musicStepsInput) {
+      el.musicStepsInput.value = m.steps !== undefined ? m.steps : 40;
+    }
+    if (el.musicCfgInput) {
+      el.musicCfgInput.value = m.cfg !== undefined ? m.cfg : 2.0;
     }
     if (el.musicVolumeSelect && m.volume !== undefined) {
       el.musicVolumeSelect.value = String(m.volume);
@@ -3138,6 +3691,8 @@
     if (el.chkMusicDucking) {
       el.chkMusicDucking.checked = m.ducking !== undefined ? Boolean(m.ducking) : true;
     }
+
+    updateMusicModelProfileUI(activeModel);
 
     // Check if soundtrack file exists for current project
     const projName = (el.movieFilename && el.movieFilename.value.trim()) || (state.currentFilename ? state.currentFilename.replace('.json', '') : '');
@@ -3212,6 +3767,8 @@
         project: projName,
         prompt_tags: (el.musicPromptInput && el.musicPromptInput.value.trim()) || (state.screenplay.music && state.screenplay.music.prompt) || '',
         checkpoint: (el.musicModelSelect && el.musicModelSelect.value) || (state.screenplay.music && state.screenplay.music.model) || '',
+        steps: el.musicStepsInput ? parseInt(el.musicStepsInput.value, 10) || 40 : 40,
+        cfg: el.musicCfgInput ? parseFloat(el.musicCfgInput.value) || 2.0 : 2.0,
         volume: el.musicVolumeSelect ? parseFloat(el.musicVolumeSelect.value) : 0.22,
         ducking: el.chkMusicDucking ? el.chkMusicDucking.checked : true
       };
@@ -4302,6 +4859,13 @@
   }
 
   // --- Studio Settings Modal & Management ---
+  const TAB_PANE_MAP = {
+    minimax: 'paneSettingsMinimax',
+    music: 'paneSettingsMusic',
+    lmstudio: 'paneSettingsLms',
+    system: 'paneSettingsSystem'
+  };
+
   let cachedSettingsModels = null;
 
   async function openSettingsModal() {
@@ -4319,12 +4883,203 @@
   function switchSettingsTab(tabName) {
     const tabBtns = document.querySelectorAll('.settings-tab-btn');
     const panes = document.querySelectorAll('.settings-pane');
+    const targetId = TAB_PANE_MAP[tabName] || `paneSettings${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`;
     tabBtns.forEach(btn => {
       btn.classList.toggle('active', btn.getAttribute('data-tab') === tabName);
     });
     panes.forEach(pane => {
-      pane.classList.toggle('active', pane.id === `settingsPane-${tabName}`);
+      pane.classList.toggle('active', pane.id === targetId);
     });
+  }
+
+  function updateSettingsMinimaxUnetCard(unetVal) {
+    if (!el.settingMinimaxUnetCard) return;
+    const val = (unetVal || (el.settingMinimaxUnetInput ? el.settingMinimaxUnetInput.value : '') || '').trim();
+
+    if (!val) {
+      el.settingMinimaxUnetCard.className = 'settings-selected-card is-empty';
+      el.settingMinimaxUnetCard.innerHTML = `
+        <div class="settings-selected-thumb-box">
+          <span class="settings-selected-placeholder">🎨</span>
+        </div>
+        <div class="settings-selected-details">
+          <div class="settings-selected-title" style="color:var(--text-muted);font-weight:normal;">${escapeHtml(t('noModelSelected') || 'Kein Diffusionsmodell gewählt')}</div>
+          <div class="settings-selected-path">${escapeHtml(t('clickToChangeModel') || 'Klicken, um Diffusionsmodell zu wählen')}</div>
+        </div>
+      `;
+      return;
+    }
+
+    const unetList = (cachedSettingsModels && cachedSettingsModels.minimax_unets) ? cachedSettingsModels.minimax_unets : [];
+    const found = unetList.find(u => {
+      const fn = typeof u === 'string' ? u : (u.filename || u.name || '');
+      return fn === val || fn.toLowerCase().includes(val.toLowerCase()) || val.toLowerCase().includes(fn.toLowerCase());
+    });
+
+    const title = found && typeof found === 'object' && found.title ? found.title : val.split(/[/\\]/).pop().replace(/\.[^/.]+$/, '');
+    const previewUrl = found && typeof found === 'object' ? found.preview_url : null;
+    const mediaType = found && typeof found === 'object' ? found.media_type : null;
+
+    let mediaHtml = '';
+    if (previewUrl) {
+      if (mediaType === 'video') {
+        mediaHtml = `<video src="${escapeHtml(previewUrl)}" class="settings-selected-thumb" muted loop playsinline preload="metadata"></video>`;
+      } else {
+        mediaHtml = `<img src="${escapeHtml(previewUrl)}" class="settings-selected-thumb" alt="${escapeHtml(title)}">`;
+      }
+    } else {
+      mediaHtml = `<span class="settings-selected-placeholder">🎬</span>`;
+    }
+
+    el.settingMinimaxUnetCard.className = 'settings-selected-card';
+    el.settingMinimaxUnetCard.innerHTML = `
+      <div class="settings-selected-thumb-box">
+        ${mediaHtml}
+      </div>
+      <div class="settings-selected-details">
+        <div class="settings-selected-top">
+          <span class="settings-selected-title">🎬 ${escapeHtml(title)}</span>
+          <span class="settings-badge settings-badge-gold">Minimax UNET</span>
+        </div>
+        <div class="settings-selected-path" title="${escapeHtml(val)}">${escapeHtml(val)}</div>
+      </div>
+    `;
+
+    const vid = el.settingMinimaxUnetCard.querySelector('video');
+    if (vid) {
+      el.settingMinimaxUnetCard.addEventListener('mouseenter', () => { vid.play().catch(() => {}); });
+      el.settingMinimaxUnetCard.addEventListener('mouseleave', () => { vid.pause(); vid.currentTime = 0; });
+    }
+  }
+
+  function updateSettingsTurboLoraCard(turboVal) {
+    if (!el.settingTurboLoraCard) return;
+    const val = (turboVal || (el.settingTurboLoraInput ? el.settingTurboLoraInput.value : '') || '').trim();
+
+    if (el.btnClearTurboLora) {
+      el.btnClearTurboLora.style.display = val ? 'inline-flex' : 'none';
+    }
+
+    if (!val) {
+      el.settingTurboLoraCard.className = 'settings-selected-card is-turbo is-empty';
+      el.settingTurboLoraCard.innerHTML = `
+        <div class="settings-selected-thumb-box">
+          <span class="settings-selected-placeholder">⚡</span>
+        </div>
+        <div class="settings-selected-details">
+          <div class="settings-selected-title" style="color:var(--text-muted);font-weight:normal;">${escapeHtml(t('noTurboLoraSelected') || 'Keine Turbo-LoRA aktiv (Standard 20 Steps)')}</div>
+          <div class="settings-selected-path">${escapeHtml(t('clickToChangeTurbo') || 'Klicken, um Turbo-LoRA zu wählen')}</div>
+        </div>
+      `;
+      return;
+    }
+
+    const turboList = (cachedSettingsModels && (cachedSettingsModels.minimax_turbo_loras || cachedSettingsModels.turbo_loras)) || [];
+    const found = turboList.find(tl => {
+      const fn = typeof tl === 'string' ? tl : (tl.filename || tl.name || '');
+      return fn === val || fn.toLowerCase().includes(val.toLowerCase()) || val.toLowerCase().includes(fn.toLowerCase());
+    });
+
+    const title = found && typeof found === 'object' && found.title ? found.title : val.split(/[/\\]/).pop().replace(/\.[^/.]+$/, '');
+    const steps = found && typeof found === 'object' && found.steps ? found.steps : null;
+    const previewUrl = found && typeof found === 'object' ? found.preview_url : null;
+    const mediaType = found && typeof found === 'object' ? found.media_type : null;
+
+    let mediaHtml = '';
+    if (previewUrl) {
+      if (mediaType === 'video') {
+        mediaHtml = `<video src="${escapeHtml(previewUrl)}" class="settings-selected-thumb" muted loop playsinline preload="metadata"></video>`;
+      } else {
+        mediaHtml = `<img src="${escapeHtml(previewUrl)}" class="settings-selected-thumb" alt="${escapeHtml(title)}">`;
+      }
+    } else {
+      mediaHtml = `<span class="settings-selected-placeholder">⚡</span>`;
+    }
+
+    const stepsBadge = steps ? `<span class="settings-badge settings-badge-cyan">⚡ ${steps} Steps</span>` : `<span class="settings-badge settings-badge-cyan">Turbo</span>`;
+
+    el.settingTurboLoraCard.className = 'settings-selected-card is-turbo';
+    el.settingTurboLoraCard.innerHTML = `
+      <div class="settings-selected-thumb-box">
+        ${mediaHtml}
+      </div>
+      <div class="settings-selected-details">
+        <div class="settings-selected-top">
+          <span class="settings-selected-title">⚡ ${escapeHtml(title)}</span>
+          ${stepsBadge}
+        </div>
+        <div class="settings-selected-path" title="${escapeHtml(val)}">${escapeHtml(val)}</div>
+      </div>
+    `;
+
+    const vid = el.settingTurboLoraCard.querySelector('video');
+    if (vid) {
+      el.settingTurboLoraCard.addEventListener('mouseenter', () => { vid.play().catch(() => {}); });
+      el.settingTurboLoraCard.addEventListener('mouseleave', () => { vid.pause(); vid.currentTime = 0; });
+    }
+  }
+
+  function updateSettingsMusicCheckpointCard(ckptVal) {
+    if (!el.settingMusicCheckpointCard) return;
+    const val = (ckptVal || (el.settingMusicCheckpointInput ? el.settingMusicCheckpointInput.value : '') || '').trim();
+
+    if (!val) {
+      el.settingMusicCheckpointCard.className = 'settings-selected-card is-empty';
+      el.settingMusicCheckpointCard.innerHTML = `
+        <div class="settings-selected-thumb-box">
+          <span class="settings-selected-placeholder">🎵</span>
+        </div>
+        <div class="settings-selected-details">
+          <div class="settings-selected-title" style="color:var(--text-muted);font-weight:normal;">${escapeHtml(t('noMusicModelSelected') || 'Kein Musik-Checkpoint gewählt')}</div>
+          <div class="settings-selected-path">${escapeHtml(t('clickToChangeMusicModel') || 'Klicken, um Musik-Checkpoint zu wählen')}</div>
+        </div>
+      `;
+      return;
+    }
+
+    let ckptList = (cachedSettingsModels && cachedSettingsModels.music_checkpoints) ? cachedSettingsModels.music_checkpoints : [];
+    if (ckptList.length === 0 && availableMusicModels && availableMusicModels.length > 0) {
+      ckptList = availableMusicModels;
+    }
+    const found = ckptList.find(c => {
+      const fn = typeof c === 'string' ? c : (c.filename || c.name || '');
+      return fn === val || fn.toLowerCase().includes(val.toLowerCase()) || val.toLowerCase().includes(fn.toLowerCase());
+    });
+
+    const title = found && typeof found === 'object' && found.title ? found.title : val.split(/[/\\]/).pop().replace(/\.[^/.]+$/, '');
+    const previewUrl = found && typeof found === 'object' ? found.preview_url : null;
+    const mediaType = found && typeof found === 'object' ? found.media_type : null;
+
+    let mediaHtml = '';
+    if (previewUrl) {
+      if (mediaType === 'video') {
+        mediaHtml = `<video src="${escapeHtml(previewUrl)}" class="settings-selected-thumb" muted loop playsinline preload="metadata"></video>`;
+      } else {
+        mediaHtml = `<img src="${escapeHtml(previewUrl)}" class="settings-selected-thumb" alt="${escapeHtml(title)}">`;
+      }
+    } else {
+      mediaHtml = `<span class="settings-selected-placeholder">🎵</span>`;
+    }
+
+    el.settingMusicCheckpointCard.className = 'settings-selected-card';
+    el.settingMusicCheckpointCard.innerHTML = `
+      <div class="settings-selected-thumb-box">
+        ${mediaHtml}
+      </div>
+      <div class="settings-selected-details">
+        <div class="settings-selected-top">
+          <span class="settings-selected-title">🎵 ${escapeHtml(title)}</span>
+          <span class="settings-badge" style="background:rgba(217,70,239,0.2);color:#f0abfc;border:1px solid rgba(217,70,239,0.4);">ACE-Step / Audio</span>
+        </div>
+        <div class="settings-selected-path" title="${escapeHtml(val)}">${escapeHtml(val)}</div>
+      </div>
+    `;
+
+    const vid = el.settingMusicCheckpointCard.querySelector('video');
+    if (vid) {
+      el.settingMusicCheckpointCard.addEventListener('mouseenter', () => { vid.play().catch(() => {}); });
+      el.settingMusicCheckpointCard.addEventListener('mouseleave', () => { vid.pause(); vid.currentTime = 0; });
+    }
   }
 
   async function loadSettingsData() {
@@ -4340,8 +5095,20 @@
         })
       ]);
 
-      const s = (settingsRes && settingsRes.success && settingsRes.settings) ? settingsRes.settings : {};
+      const s = (settingsRes && settingsRes.success && settingsRes.settings) ? settingsRes.settings : (settingsRes || {});
       cachedSettingsModels = (modelsRes && modelsRes.success) ? modelsRes : null;
+
+      if (!cachedSettingsModels || !cachedSettingsModels.music_checkpoints || cachedSettingsModels.music_checkpoints.length === 0) {
+        try {
+          const musicData = await API.getMusicModels().catch(() => null);
+          if (musicData && Array.isArray(musicData.models) && musicData.models.length > 0) {
+            if (!cachedSettingsModels) cachedSettingsModels = {};
+            cachedSettingsModels.music_checkpoints = musicData.models;
+          }
+        } catch (e) {
+          console.warn('Could not preload music models:', e);
+        }
+      }
 
       populateSettingsModelDropdowns(cachedSettingsModels, s);
 
@@ -4349,55 +5116,34 @@
       const mm = s.minimax_i2v || s.minimax || {};
       const unetVal = mm.unet_name || mm.unet_model || '';
       if (el.settingMinimaxUnetInput) el.settingMinimaxUnetInput.value = unetVal;
-      if (el.settingMinimaxUnetSelect) {
-        if (unetVal && !Array.from(el.settingMinimaxUnetSelect.options).some(o => o.value === unetVal)) {
-          const opt = document.createElement('option');
-          opt.value = unetVal;
-          opt.textContent = unetVal;
-          el.settingMinimaxUnetSelect.appendChild(opt);
-        }
-        el.settingMinimaxUnetSelect.value = unetVal;
-      }
+      updateSettingsMinimaxUnetCard(unetVal);
 
       const turboLoraVal = mm.turbo_lora || '';
       if (el.settingTurboLoraInput) el.settingTurboLoraInput.value = turboLoraVal;
-      if (el.settingTurboLoraSelect) {
-        if (turboLoraVal && !Array.from(el.settingTurboLoraSelect.options).some(o => o.value === turboLoraVal)) {
-          const opt = document.createElement('option');
-          opt.value = turboLoraVal;
-          opt.textContent = turboLoraVal;
-          el.settingTurboLoraSelect.appendChild(opt);
-        }
-        el.settingTurboLoraSelect.value = turboLoraVal;
-      }
+      updateSettingsTurboLoraCard(turboLoraVal);
 
       if (el.settingMinimaxSteps) el.settingMinimaxSteps.value = mm.steps !== undefined ? mm.steps : 8;
       if (el.settingTurboStrength) {
-        el.settingTurboStrength.value = mm.turbo_strength !== undefined ? mm.turbo_strength : 1.0;
-        if (el.valTurboStrength) el.valTurboStrength.textContent = Number(el.settingTurboStrength.value).toFixed(2);
+        const strVal = mm.turbo_strength !== undefined ? mm.turbo_strength : 1.0;
+        el.settingTurboStrength.value = strVal;
+        if (el.valTurboStrength) el.valTurboStrength.textContent = Number(strVal).toFixed(2);
       }
       if (el.settingMinimaxVae) el.settingMinimaxVae.value = mm.video_vae_name || mm.vae || '';
+      if (el.settingAudioVae) el.settingAudioVae.value = mm.audio_vae_name || '';
       if (el.settingMinimaxClip) el.settingMinimaxClip.value = mm.clip_name || '';
 
       // Music
       const music = s.music_studio || s.music || {};
       if (el.settingMusicEnabled) el.settingMusicEnabled.checked = music.enabled !== false;
-      const ckptVal = music.checkpoint || '';
-      if (el.settingMusicModel) {
-        if (ckptVal && !Array.from(el.settingMusicModel.options).some(o => o.value === ckptVal)) {
-          const opt = document.createElement('option');
-          opt.value = ckptVal;
-          opt.textContent = ckptVal;
-          el.settingMusicModel.appendChild(opt);
-        }
-        el.settingMusicModel.value = ckptVal;
-      }
-      if (el.settingMusicSteps) el.settingMusicSteps.value = music.steps !== undefined ? music.steps : 25;
-      if (el.settingMusicCfg) el.settingMusicCfg.value = music.cfg !== undefined ? music.cfg : 4.0;
+      const ckptVal = music.checkpoint || 'Other\\base model\\ace_step_v1_3.5b.safetensors';
+      if (el.settingMusicCheckpointInput) el.settingMusicCheckpointInput.value = ckptVal;
+      updateSettingsMusicCheckpointCard(ckptVal);
+      if (el.settingMusicSteps) el.settingMusicSteps.value = music.steps !== undefined ? music.steps : 40;
+      if (el.settingMusicCfg) el.settingMusicCfg.value = music.cfg !== undefined ? music.cfg : 2.0;
       if (el.settingMusicVolume) {
-        const volPercent = music.volume !== undefined ? Math.round(music.volume * 100) : 35;
-        el.settingMusicVolume.value = volPercent;
-        if (el.valMusicVolume) el.valMusicVolume.textContent = `${volPercent}%`;
+        const vol = music.volume !== undefined ? music.volume : 0.20;
+        el.settingMusicVolume.value = vol;
+        if (el.valMusicVolume) el.valMusicVolume.textContent = `${Math.round(vol * 100)}%`;
       }
       if (el.settingMusicDucking) el.settingMusicDucking.checked = music.ducking !== false;
 
@@ -4405,26 +5151,28 @@
       const lms = s.lm_studio || {};
       if (el.settingLmsUrl) el.settingLmsUrl.value = lms.url || 'http://127.0.0.1:1234/v1/chat/completions';
       const lmsModelVal = lms.model_name || lms.model || '';
-      if (el.settingLmsModel) {
-        if (lmsModelVal && !Array.from(el.settingLmsModel.options).some(o => o.value === lmsModelVal)) {
+      if (el.settingLmsModelInput) el.settingLmsModelInput.value = lmsModelVal;
+      if (el.settingLmsModelSelect) {
+        if (lmsModelVal && !Array.from(el.settingLmsModelSelect.options).some(o => o.value === lmsModelVal)) {
           const opt = document.createElement('option');
           opt.value = lmsModelVal;
           opt.textContent = lmsModelVal;
-          el.settingLmsModel.appendChild(opt);
+          el.settingLmsModelSelect.appendChild(opt);
         }
-        el.settingLmsModel.value = lmsModelVal;
+        el.settingLmsModelSelect.value = lmsModelVal;
       }
       if (el.settingLmsTemp) {
-        el.settingLmsTemp.value = lms.temperature !== undefined ? lms.temperature : 0.7;
-        if (el.valLmsTemp) el.valLmsTemp.textContent = Number(el.settingLmsTemp.value).toFixed(2);
+        const tempVal = lms.temperature !== undefined ? lms.temperature : 0.7;
+        el.settingLmsTemp.value = tempVal;
+        if (el.valLmsTemp) el.valLmsTemp.textContent = Number(tempVal).toFixed(2);
       }
 
       // System
       const comfy = s.comfyui || {};
-      if (el.settingComfyUrl) el.settingComfyUrl.value = comfy.server_address || s.comfyui_server_address || '127.0.0.1:8188';
-      if (el.settingModelsDir) el.settingModelsDir.value = comfy.models_dir || s.models_dir || '';
-      if (el.settingDefaultLang) el.settingDefaultLang.value = s.language || s.default_language || 'auto';
-      if (el.settingWebmExport) el.settingWebmExport.checked = s.export_webm !== false;
+      if (el.settingComfyServer) el.settingComfyServer.value = comfy.server_address || s.comfyui_server_address || '127.0.0.1:8188';
+      if (el.settingComfyModelsDir) el.settingComfyModelsDir.value = comfy.models_dir || s.models_dir || '';
+      if (el.settingLanguage) el.settingLanguage.value = s.language || s.default_language || 'auto';
+      if (el.settingExportWebm) el.settingExportWebm.checked = s.export_webm !== false;
 
     } catch (err) {
       console.error('Error loading settings into modal:', err);
@@ -4435,63 +5183,21 @@
   function populateSettingsModelDropdowns(modelsData, currentSettings) {
     if (!modelsData) return;
 
-    if (el.settingMinimaxUnetSelect && Array.isArray(modelsData.minimax_unets)) {
-      const cur = el.settingMinimaxUnetInput ? el.settingMinimaxUnetInput.value : '';
-      el.settingMinimaxUnetSelect.innerHTML = `<option value="">-- ${escapeHtml(t('optSelectModel'))} --</option>`;
-      modelsData.minimax_unets.forEach(u => {
-        const opt = document.createElement('option');
-        const fn = typeof u === 'string' ? u : (u.filename || u.name);
-        const title = typeof u === 'string' ? u : (u.title || u.name);
-        opt.value = fn;
-        opt.textContent = title;
-        el.settingMinimaxUnetSelect.appendChild(opt);
-      });
-      if (cur) el.settingMinimaxUnetSelect.value = cur;
-    }
+    updateSettingsMinimaxUnetCard(el.settingMinimaxUnetInput ? el.settingMinimaxUnetInput.value : '');
+    updateSettingsTurboLoraCard(el.settingTurboLoraInput ? el.settingTurboLoraInput.value : '');
+    updateSettingsMusicCheckpointCard(el.settingMusicCheckpointInput ? el.settingMusicCheckpointInput.value : '');
 
-    const turboList = modelsData.minimax_turbo_loras || modelsData.turbo_loras || [];
-    if (el.settingTurboLoraSelect && Array.isArray(turboList)) {
-      const cur = el.settingTurboLoraInput ? el.settingTurboLoraInput.value : '';
-      el.settingTurboLoraSelect.innerHTML = `<option value="">-- Kein Turbo / Standard --</option>`;
-      turboList.forEach(tl => {
-        const opt = document.createElement('option');
-        const fn = typeof tl === 'string' ? tl : (tl.filename || tl.name);
-        const title = typeof tl === 'string' ? tl : (tl.title || tl.name);
-        const steps = typeof tl === 'object' && (tl.steps !== undefined ? tl.steps : tl.detected_steps);
-        const stepLabel = steps ? ` [${steps} Steps]` : '';
-        opt.value = fn;
-        opt.textContent = title + stepLabel;
-        opt.dataset.steps = steps || '';
-        el.settingTurboLoraSelect.appendChild(opt);
-      });
-      if (cur) el.settingTurboLoraSelect.value = cur;
-    }
-
-    if (el.settingMusicModel && Array.isArray(modelsData.music_checkpoints)) {
-      const cur = el.settingMusicModel.value;
-      el.settingMusicModel.innerHTML = `<option value="">-- ${escapeHtml(t('optSelectModel'))} --</option>`;
-      modelsData.music_checkpoints.forEach(mc => {
-        const opt = document.createElement('option');
-        const fn = typeof mc === 'string' ? mc : (mc.filename || mc.name);
-        const title = typeof mc === 'string' ? mc : (mc.title || mc.name);
-        opt.value = fn;
-        opt.textContent = title;
-        el.settingMusicModel.appendChild(opt);
-      });
-      if (cur) el.settingMusicModel.value = cur;
-    }
-
-    if (el.settingLmsModel && Array.isArray(modelsData.lm_studio_models)) {
-      const cur = el.settingLmsModel.value;
-      el.settingLmsModel.innerHTML = `<option value="">-- ${escapeHtml(t('optSelectModel'))} --</option>`;
+    if (el.settingLmsModelSelect && Array.isArray(modelsData.lm_studio_models)) {
+      const cur = el.settingLmsModelInput ? el.settingLmsModelInput.value : '';
+      el.settingLmsModelSelect.innerHTML = `<option value="">-- ${escapeHtml(t('optSelectModel'))} --</option>`;
       modelsData.lm_studio_models.forEach(m => {
         const opt = document.createElement('option');
         const mId = typeof m === 'string' ? m : (m.id || m.name);
         opt.value = mId;
         opt.textContent = mId;
-        el.settingLmsModel.appendChild(opt);
+        el.settingLmsModelSelect.appendChild(opt);
       });
-      if (cur) el.settingLmsModel.value = cur;
+      if (cur) el.settingLmsModelSelect.value = cur;
     }
   }
 
@@ -4501,17 +5207,17 @@
       if (el.btnRefreshLmsModels) el.btnRefreshLmsModels.disabled = true;
       const res = await API.getSettingsModels(url);
       if (res && res.success && Array.isArray(res.lm_studio_models)) {
-        if (el.settingLmsModel) {
-          const currentVal = el.settingLmsModel.value;
-          el.settingLmsModel.innerHTML = `<option value="">-- ${escapeHtml(t('optSelectModel'))} --</option>`;
+        if (el.settingLmsModelSelect) {
+          const currentVal = el.settingLmsModelInput ? el.settingLmsModelInput.value : el.settingLmsModelSelect.value;
+          el.settingLmsModelSelect.innerHTML = `<option value="">-- ${escapeHtml(t('optSelectModel'))} --</option>`;
           res.lm_studio_models.forEach(m => {
             const opt = document.createElement('option');
             const mId = typeof m === 'string' ? m : (m.id || m.name);
             opt.value = mId;
             opt.textContent = mId;
-            el.settingLmsModel.appendChild(opt);
+            el.settingLmsModelSelect.appendChild(opt);
           });
-          el.settingLmsModel.value = currentVal;
+          el.settingLmsModelSelect.value = currentVal;
         }
         showToast(t('lmModelsRefreshed') || `${res.lm_studio_models.length} LM Studio Modelle geladen`, 'success');
       } else {
@@ -4529,11 +5235,11 @@
       if (el.btnSaveSettings) el.btnSaveSettings.disabled = true;
 
       const payload = {
-        language: el.settingDefaultLang ? el.settingDefaultLang.value : 'auto',
-        export_webm: el.settingWebmExport ? el.settingWebmExport.checked : true,
+        language: el.settingLanguage ? el.settingLanguage.value : 'auto',
+        export_webm: el.settingExportWebm ? el.settingExportWebm.checked : true,
         comfyui: {
-          server_address: el.settingComfyUrl ? el.settingComfyUrl.value.trim() : '127.0.0.1:8188',
-          models_dir: el.settingModelsDir ? el.settingModelsDir.value.trim() : '',
+          server_address: el.settingComfyServer ? el.settingComfyServer.value.trim() : '127.0.0.1:8188',
+          models_dir: el.settingComfyModelsDir ? el.settingComfyModelsDir.value.trim() : '',
           models_search_paths: [
             "../ComfyUI/models",
             "../ComfyUI_windows_portable/ComfyUI/models"
@@ -4546,19 +5252,19 @@
           steps: el.settingMinimaxSteps ? parseInt(el.settingMinimaxSteps.value, 10) || 8 : 8,
           clip_name: el.settingMinimaxClip ? el.settingMinimaxClip.value.trim() : '',
           video_vae_name: el.settingMinimaxVae ? el.settingMinimaxVae.value.trim() : '',
-          audio_vae_name: 'minimax_h3_audio_vae_fp32.safetensors'
+          audio_vae_name: el.settingAudioVae ? el.settingAudioVae.value.trim() : 'minimax_h3_audio_vae_fp32.safetensors'
         },
         music_studio: {
           enabled: el.settingMusicEnabled ? el.settingMusicEnabled.checked : false,
-          checkpoint: el.settingMusicModel ? el.settingMusicModel.value.trim() : '',
-          steps: el.settingMusicSteps ? parseInt(el.settingMusicSteps.value, 10) || 25 : 25,
-          cfg: el.settingMusicCfg ? parseFloat(el.settingMusicCfg.value) || 4.0 : 4.0,
-          volume: el.settingMusicVolume ? (parseInt(el.settingMusicVolume.value, 10) || 35) / 100.0 : 0.35,
+          checkpoint: el.settingMusicCheckpointInput ? el.settingMusicCheckpointInput.value.trim() : '',
+          steps: el.settingMusicSteps ? parseInt(el.settingMusicSteps.value, 10) || 40 : 40,
+          cfg: el.settingMusicCfg ? parseFloat(el.settingMusicCfg.value) || 2.0 : 2.0,
+          volume: el.settingMusicVolume ? parseFloat(el.settingMusicVolume.value) || 0.20 : 0.20,
           ducking: el.settingMusicDucking ? el.settingMusicDucking.checked : true
         },
         lm_studio: {
           url: el.settingLmsUrl ? el.settingLmsUrl.value.trim() : 'http://127.0.0.1:1234/v1/chat/completions',
-          model_name: el.settingLmsModel ? el.settingLmsModel.value.trim() : '',
+          model_name: el.settingLmsModelInput ? el.settingLmsModelInput.value.trim() : '',
           temperature: el.settingLmsTemp ? parseFloat(el.settingLmsTemp.value) || 0.7 : 0.7
         }
       };
@@ -4754,7 +5460,26 @@
     if (el.musicModelSelect) {
       el.musicModelSelect.addEventListener('change', () => {
         if (!state.screenplay.music) state.screenplay.music = {};
-        state.screenplay.music.model = el.musicModelSelect.value;
+        const chosen = el.musicModelSelect.value;
+        state.screenplay.music.model = chosen;
+        updateMusicModelProfileUI(chosen);
+        markDirty();
+      });
+    }
+    if (el.btnApplyMusicProfile) {
+      el.btnApplyMusicProfile.addEventListener('click', applyCurrentMusicModelProfile);
+    }
+    if (el.musicStepsInput) {
+      el.musicStepsInput.addEventListener('input', () => {
+        if (!state.screenplay.music) state.screenplay.music = {};
+        state.screenplay.music.steps = parseInt(el.musicStepsInput.value, 10) || 40;
+        markDirty();
+      });
+    }
+    if (el.musicCfgInput) {
+      el.musicCfgInput.addEventListener('input', () => {
+        if (!state.screenplay.music) state.screenplay.music = {};
+        state.screenplay.music.cfg = parseFloat(el.musicCfgInput.value) || 2.0;
         markDirty();
       });
     }
@@ -4946,43 +5671,44 @@
     if (el.btnPickTurboLora) {
       el.btnPickTurboLora.addEventListener('click', openLoraPickerModalForTurbo);
     }
+    if (el.btnPickMinimaxUnet) {
+      el.btnPickMinimaxUnet.addEventListener('click', openModelPickerModalForMinimax);
+    }
     if (el.btnRefreshLmsModels) {
       el.btnRefreshLmsModels.addEventListener('click', refreshLmStudioModels);
     }
 
-    // Minimax UNET Select & Input sync
-    if (el.settingMinimaxUnetSelect) {
-      el.settingMinimaxUnetSelect.addEventListener('change', () => {
-        if (el.settingMinimaxUnetInput) el.settingMinimaxUnetInput.value = el.settingMinimaxUnetSelect.value;
+    if (el.btnClearTurboLora) {
+      el.btnClearTurboLora.addEventListener('click', () => {
+        if (el.settingTurboLoraInput) el.settingTurboLoraInput.value = '';
+        updateSettingsTurboLoraCard('');
+        showToast('Turbo-LoRA deaktiviert (Standard 20 Steps)', 'info');
       });
     }
-    if (el.settingMinimaxUnetInput) {
-      el.settingMinimaxUnetInput.addEventListener('input', () => {
-        if (el.settingMinimaxUnetSelect) el.settingMinimaxUnetSelect.value = el.settingMinimaxUnetInput.value;
-      });
+    if (el.settingMinimaxUnetCard) {
+      el.settingMinimaxUnetCard.addEventListener('click', openModelPickerModalForMinimax);
+    }
+    if (el.settingTurboLoraCard) {
+      el.settingTurboLoraCard.addEventListener('click', openLoraPickerModalForTurbo);
     }
 
-    // Turbo LoRA Select & Input sync with auto-detection of steps
-    if (el.settingTurboLoraSelect) {
-      el.settingTurboLoraSelect.addEventListener('change', () => {
-        const selectedVal = el.settingTurboLoraSelect.value;
-        if (el.settingTurboLoraInput) el.settingTurboLoraInput.value = selectedVal;
-        const selectedOpt = el.settingTurboLoraSelect.options[el.settingTurboLoraSelect.selectedIndex];
-        if (selectedOpt && selectedOpt.dataset.steps) {
-          if (el.settingMinimaxSteps) el.settingMinimaxSteps.value = selectedOpt.dataset.steps;
-        } else if (selectedVal) {
-          const vLow = selectedVal.toLowerCase();
-          if (vLow.includes('4step') || vLow.includes('4_step') || vLow.includes('4 step') || vLow.includes('4-step') || vLow.includes('4s')) {
-            if (el.settingMinimaxSteps) el.settingMinimaxSteps.value = 4;
-          } else if (vLow.includes('8step') || vLow.includes('8_step') || vLow.includes('8 step') || vLow.includes('8-step') || vLow.includes('8s')) {
-            if (el.settingMinimaxSteps) el.settingMinimaxSteps.value = 8;
-          }
-        }
+    // Music Checkpoint Picker & Card
+    if (el.btnPickMusicCheckpoint) {
+      el.btnPickMusicCheckpoint.addEventListener('click', openModelPickerModalForMusic);
+    }
+    if (el.settingMusicCheckpointCard) {
+      el.settingMusicCheckpointCard.addEventListener('click', openModelPickerModalForMusic);
+    }
+
+    // LM Studio Model Select & Input sync
+    if (el.settingLmsModelSelect) {
+      el.settingLmsModelSelect.addEventListener('change', () => {
+        if (el.settingLmsModelInput) el.settingLmsModelInput.value = el.settingLmsModelSelect.value;
       });
     }
-    if (el.settingTurboLoraInput) {
-      el.settingTurboLoraInput.addEventListener('input', () => {
-        if (el.settingTurboLoraSelect) el.settingTurboLoraSelect.value = el.settingTurboLoraInput.value;
+    if (el.settingLmsModelInput) {
+      el.settingLmsModelInput.addEventListener('input', () => {
+        if (el.settingLmsModelSelect) el.settingLmsModelSelect.value = el.settingLmsModelInput.value;
       });
     }
 
@@ -4994,7 +5720,8 @@
     }
     if (el.settingMusicVolume) {
       el.settingMusicVolume.addEventListener('input', () => {
-        if (el.valMusicVolume) el.valMusicVolume.textContent = `${el.settingMusicVolume.value}%`;
+        const pct = Math.round(parseFloat(el.settingMusicVolume.value) * 100);
+        if (el.valMusicVolume) el.valMusicVolume.textContent = `${pct}%`;
       });
     }
     if (el.settingLmsTemp) {

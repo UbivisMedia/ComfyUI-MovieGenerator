@@ -62,18 +62,26 @@ flowchart TD
 ## 🚀 Quickstart
 
 ### Method 1: Windows Drag & Drop (Recommended)
-Drag any screenplay JSON file (e.g. [`Projects/three_scenes_example.json`](/Projects/three_scenes_example.json)) directly onto `create_movie.bat`.
 
-### Method 2: Interactive Menu
-Double-click `create_movie.bat` without arguments. An interactive menu will appear listing all screenplays found in the `Projects/` directory.
+Drag any screenplay JSON file (e.g. [`Projects/three_scenes_example.json`](/Projects/three_scenes_example.json)) directly onto `start_movie_studio.bat` to immediately launch rendering.
+
+### Method 2: Unified Interactive Menu
+
+Double-click `start_movie_studio.bat` without arguments. A clear English selection menu will appear offering:
+
+- `[1]` Launch Movie Studio (Web GUI)
+- `[2]` Launch Master Director (Terminal CLI)
+- `[3]` Exit
 
 ### Method 3: Command Line (PowerShell / Terminal)
-```bash
-python master_regisseur.py Projects/three_scenes_example.json
-```
 
-### Method 4: Visual Web Editor (Script Agency)
-Double-click `start_script_agency.bat`, run `python script_agency.py`, or select `[E]` in the interactive start menu of `create_movie.bat`. This launches a browser-based visual studio with live model selection, dynamic LoRA suggestions, variable managers, and continuity badges!
+```bash
+# Terminal CLI direct execution:
+python master_regisseur.py Projects/three_scenes_example.json
+
+# Web GUI direct launch:
+python movie_studio.py
+```
 
 ---
 
@@ -81,9 +89,14 @@ Double-click `start_script_agency.bat`, run `python script_agency.py`, or select
 
 ```text
 MovieGenerator/
-├── create_movie.bat             # One-click launcher (interactive or drag & drop)
-├── start_script_agency.bat      # One-click launcher for the visual web screenplay editor
+├── start_movie_studio.bat       # Unified one-click launcher (Web GUI, CLI menu, or drag & drop)
+├── movie_studio.py              # Visual Production Studio launcher (Web GUI)
 ├── script_agency.py             # Web server & REST API for the visual screenplay studio
+├── lib/                         # Modular shared engine libraries
+│   ├── subject_manager.py       # Subject remapping (1..9 slots) & envelope prompts
+│   ├── settings_manager.py      # Unified settings.json loading, saving & migrations
+│   ├── comfy_manager.py         # ComfyUI client execution & model discovery
+│   └── llm_manager.py           # LM Studio API client & VRAM model management
 ├── web/                         # Visual Screenplay Studio web interface (HTML/CSS/JS)
 ├── master_regisseur.py          # Core film director and pipeline orchestrator
 ├── settings.json                # User settings (servers, ports, LLM model, language)
@@ -166,6 +179,7 @@ Here is an example screenplay structure ([`Projects/three_scenes_example.json`](
 
 > [!TIP]
 > **Continuity Controls**:
+>
 > - `sequence` / `sequenz`: Groups consecutive shots in the same dramatic scene, retaining character end-states and preventing action loops.
 > - `same_scene` / `gleiche_szene`: Flags camera angle cuts within the same room/scene.
 > - `match_cut` / `direkter_anschluss`: Seamless physical match cut (starts from previous frame).
@@ -178,6 +192,7 @@ Here is an example screenplay structure ([`Projects/three_scenes_example.json`](
 MovieGenerator includes a full production demonstration in [`Projects/three_scenes_example/`](Projects/three_scenes_example/):
 
 ### 📜 Screenplay: Raw vs. AI-Optimized
+
 - 📄 **Original Input Screenplay**: [`Projects/three_scenes_example.json`](Projects/three_scenes_example.json) (Concise human director outline with wardrobe variables and continuity tags)
 - 🧠 **AI-Optimized Full Screenplay**: [`Projects/three_scenes_example/three_scenes_example.json`](Projects/three_scenes_example/three_scenes_example.json) (Enriched by LM Studio with multi-shot camera choreography, lighting, diegetic audio instructions, and precise shot timing)
 
@@ -238,6 +253,7 @@ MovieGenerator uses a machine-specific `settings.json` that is **ignored by Git*
 ## 📚 Documentation Index
 
 For in-depth references, check the `docs/` folder:
+
 - **[Script Agency & AI Screenwriter Studio](docs/SCRIPT_AGENCY.md)**: Visual screenplay studio, LM Studio integration, prompt elaboration, and continuity guide.
 - **[Screenplay JSON Specification](docs/SCREENPLAY_SPEC.md)**: Field-by-field reference, data types, and continuity flags.
 - **[Presets & LoRA Reference](docs/PRESETS_AND_LORAS.md)**: Catalog of 100+ supported LoRAs and model presets.
@@ -264,13 +280,11 @@ The **Script Agency** is an interactive, browser-based studio that pairs visual 
 
 ```bash
 # Start directly from CLI:
-python script_agency.py
+python movie_studio.py
+# (or legacy alias: python script_agency.py)
 
 # Or via double-click on Windows:
-start_script_agency.bat
-
-# Or from create_movie.bat:
-# Press [E] in the interactive menu
+start_movie_studio.bat
 ```
 
 > [!TIP]
