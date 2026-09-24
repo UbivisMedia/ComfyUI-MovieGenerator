@@ -3362,6 +3362,7 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
                 import subprocess
                 cmd = [
                     sys.executable,
+                    "-u",
                     os.path.join(BASE_DIR, "master_regisseur.py"),
                     proj_json,
                     "--scene", str(scene_id)

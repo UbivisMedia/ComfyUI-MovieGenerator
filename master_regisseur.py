@@ -1967,14 +1967,25 @@ def main():
         run_script_agency(blocking=True)
         return
 
-    # 1. Check for targeted scene re-shooting flag (--scene <id> or --only-scene <id>)
+    # 1. Check for targeted scene re-shooting flag (--scene <id>, --scene=<id>, --only-scene <id>)
     target_scene_id = None
     cli_args = list(sys.argv[1:])
     for flag in ["--scene", "--only-scene"]:
+        # Handle --scene=2 format
+        matched_eq = False
+        for i, arg in enumerate(cli_args):
+            if arg.startswith(f"{flag}="):
+                target_scene_id = arg.split("=", 1)[1].strip()
+                del cli_args[i]
+                matched_eq = True
+                break
+        if matched_eq:
+            break
+        # Handle --scene 2 format
         if flag in cli_args:
             s_idx = cli_args.index(flag)
             if s_idx + 1 < len(cli_args):
-                target_scene_id = cli_args[s_idx + 1]
+                target_scene_id = cli_args[s_idx + 1].strip()
                 del cli_args[s_idx:s_idx + 2]
                 break
 
@@ -2348,7 +2359,10 @@ def main():
                 print(t("char_new_prompt", name=char_name, prompt=ki_char_prompt[:90]))
 
         # 2. Generate Minimax scene prompts with sequence grouping & previous shot context
-        if scenes_needing_llm:
+        if target_scene_id is not None:
+            if scenes_needing_llm:
+                print(f"\n🎬 [Gezielter Dreh] Schreibe Minimax-Prompt nur für Zielszene {target_scene_id}...")
+        elif scenes_needing_llm:
             print(t("phase1_writing_scenes"))
         previous_shot_info = None
         scenes_list = screenplay.get("szenen") or screenplay.get("scenes") or []
@@ -2905,32 +2919,69 @@ def main():
 
     for idx, scene_data in enumerate(prepared_scenes):
         szene_id = scene_data["id"]
-        target_path = os.path.join(scenes_dir, f"Szene_{szene_id:02d}.mp4")
+        try:
+            s_id_int = int(szene_id)
+        except (ValueError, TypeError):
+            s_id_int = idx + 1
+        target_path = os.path.join(scenes_dir, f"Szene_{s_id_int:02d}.mp4")
+
+        # Candidate names for videos and companion previews for this scene
+        candidate_patterns = [
+            f"Szene_{s_id_int:02d}.mp4", f"Szene_{s_id_int}.mp4",
+            f"szene_{s_id_int:02d}.mp4", f"szene_{s_id_int}.mp4",
+            f"Szene_{s_id_int:02d}.webm", f"Szene_{s_id_int}.webm",
+            f"Szene_{s_id_int:02d}_preview.png", f"Szene_{s_id_int}_preview.png",
+            f"Szene_{s_id_int:02d}.png", f"Szene_{s_id_int}.png",
+            f"Szene_{s_id_int:02d}_preview.jpg", f"Szene_{s_id_int}_preview.jpg",
+            f"Szene_{s_id_int:02d}.jpg", f"Szene_{s_id_int}.jpg",
+            f"Szene_{s_id_int:02d}_preview.webp", f"Szene_{s_id_int}_preview.webp"
+        ]
 
         # Targeted Scene Re-Shooting Filter (--scene <id>):
-        # Skip all non-target scenes while preserving last_video_data for match cuts
+        is_target_scene = False
         if target_scene_id is not None:
-            is_target = is_matching_scene_id(szene_id, target_scene_id)
-            if not is_target:
-                if os.path.exists(target_path):
+            is_target_scene = is_matching_scene_id(szene_id, target_scene_id)
+            if not is_target_scene:
+                # Non-target scene during reshoot: strictly skip rendering, but preserve last_video_data for match cuts
+                existing_vid = None
+                for c_name in candidate_patterns:
+                    if c_name.endswith((".mp4", ".webm")):
+                        c_p = os.path.join(scenes_dir, c_name)
+                        if os.path.exists(c_p):
+                            existing_vid = c_p
+                            break
+                if existing_vid:
                     try:
-                        with open(target_path, "rb") as vf:
+                        with open(existing_vid, "rb") as vf:
                             last_video_data = vf.read()
-                        last_video_path = target_path
+                        last_video_path = existing_vid
                     except Exception:
                         pass
                 continue
             else:
-                # Force reshoot for target scene by removing previous video
-                if os.path.exists(target_path):
-                    try:
-                        os.remove(target_path)
-                        print(f"   🔄 Entferne alte Fassung von Szene {szene_id} für Neuaufnahme...")
-                    except Exception as rm_err:
-                        print(f"   ⚠️ Konnte alte Szene nicht löschen: {rm_err}")
+                # Target scene: force clean reshoot by removing old video & preview files
+                print(f"🎬 [Neudreh] Starte Neuaufnahme für Zielszene {szene_id} (lösche alte Fassung)...")
+                for c_name in candidate_patterns:
+                    c_p = os.path.join(scenes_dir, c_name)
+                    if os.path.exists(c_p):
+                        try:
+                            os.remove(c_p)
+                            print(f"   🗑️ Alte Datei entfernt: {c_name}")
+                        except Exception:
+                            # Fallback if Windows file lock is active: rename then remove
+                            try:
+                                old_tmp = f"{c_p}.old_{int(time.time())}"
+                                os.rename(c_p, old_tmp)
+                                try:
+                                    os.remove(old_tmp)
+                                except Exception:
+                                    pass
+                                print(f"   🗑️ Alte Datei ersetzt: {c_name}")
+                            except Exception as rm_err:
+                                print(f"   ⚠️ Konnte alte Datei '{c_name}' nicht löschen: {rm_err}")
 
-        # Smart Scene Caching: Skip scene if it is already rendered on disk
-        if os.path.exists(target_path):
+        # Smart Scene Caching: ONLY check cache if this is NOT a targeted reshoot of this scene!
+        if not is_target_scene and os.path.exists(target_path):
             print(t("scene_already_exists_skip", id=szene_id, file=target_path))
             try:
                 with open(target_path, "rb") as vf:
@@ -3239,7 +3290,11 @@ def main():
                                 vid_data = get_image(vid_info['filename'], vid_info['subfolder'], vid_info['type'])
                                 
                                 # Save video in Projects/<film_name>/Scenes/
-                                target_path = os.path.join(scenes_dir, f"Szene_{szene_id:02d}.mp4")
+                                try:
+                                    s_id_num = int(szene_id)
+                                except (ValueError, TypeError):
+                                    s_id_num = idx + 1
+                                target_path = os.path.join(scenes_dir, f"Szene_{s_id_num:02d}.mp4")
                                 with open(target_path, "wb") as vf:
                                     vf.write(vid_data)
                                 last_video_data = vid_data
@@ -3252,13 +3307,13 @@ def main():
                                 )
                                 inject_video_metadata(
                                     target_path,
-                                    title=f"{film_name} - Scene {szene_id:02d}",
+                                    title=f"{film_name} - Scene {s_id_num:02d}",
                                     description=scene_meta_desc,
                                     prompt_workflow_dict=wf_i2v
                                 )
 
                                 # Generate companion preview PNG for the scene with embedded Civitai metadata
-                                scene_preview_path = os.path.join(scenes_dir, f"Szene_{szene_id:02d}_preview.png")
+                                scene_preview_path = os.path.join(scenes_dir, f"Szene_{s_id_num:02d}_preview.png")
                                 scene_unet = wf_i2v.get("620", {}).get("inputs", {}).get("unet_name", "") if wf_i2v else ""
                                 scene_model = os.path.basename(scene_unet).replace(".safetensors", "") if scene_unet else "minimax_h3"
                                 

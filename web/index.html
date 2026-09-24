@@ -20,8 +20,9 @@
       <div class="brand">
         <span class="brand-icon">🎬</span>
         <div class="brand-text">
-          <span class="brand-title"><span data-i18n="brandTitle">MOVIE STUDIO</span> <span class="version-tag">v{{VERSION}}</span></span>
-          <span class="brand-subtitle" data-i18n="brandSubtitle">MovieGenerator Visual Production Studio</span>
+          <span class="brand-title"><span data-i18n="brandTitle">MOVIE STUDIO</span> <span
+              class="version-tag">v{{VERSION}}</span></span>
+          <!-- <span class="brand-subtitle" data-i18n="brandSubtitle">MovieGenerator Visual Production Studio</span> -->
         </div>
       </div>
       <div class="project-selector-wrapper">
@@ -281,8 +282,10 @@
               <!-- Model Selection -->
               <div class="form-group">
                 <div class="music-prompt-header">
-                  <label for="musicModelSelect" class="form-label" data-i18n="musicModelLabel">Musik-Modell (ComfyUI Checkpoint)</label>
-                  <button type="button" id="btnApplyMusicProfile" class="btn btn-secondary btn-xs" style="display:none;" title="Empfohlene Optimalwerte für dieses Modell übernehmen">
+                  <label for="musicModelSelect" class="form-label" data-i18n="musicModelLabel">Musik-Modell (ComfyUI
+                    Checkpoint)</label>
+                  <button type="button" id="btnApplyMusicProfile" class="btn btn-secondary btn-xs" style="display:none;"
+                    title="Empfohlene Optimalwerte für dieses Modell übernehmen">
                     <span>⚡</span> <span data-i18n="btnApplyMusicProfile">Empfohlene Werte</span>
                   </button>
                 </div>
@@ -304,7 +307,7 @@
                     data-i18n-title="btnMusicSuggestTagsTitle"
                     title="Stimmung und Instrumentierung passend zur Story mit LM Studio generieren">
                     <span class="ai-sparkle">🪄</span> <span data-i18n="btnMusicSuggestTags">Tags mit KI
-                    vorschlagen</span>
+                      vorschlagen</span>
                   </button>
                 </div>
                 <textarea id="musicPromptInput" class="form-control" rows="3"
@@ -327,7 +330,8 @@
                     <span data-i18n="musicCfgLabel">CFG Scale</span>
                     <span class="field-hint" id="musicCfgHint" style="font-weight:normal;opacity:0.7;">(1.0–2.0)</span>
                   </label>
-                  <input type="number" id="musicCfgInput" min="1.0" max="15.0" step="0.1" value="2.0" class="text-input text-sm">
+                  <input type="number" id="musicCfgInput" min="1.0" max="15.0" step="0.1" value="2.0"
+                    class="text-input text-sm">
                 </div>
               </div>
 
@@ -450,7 +454,8 @@
         </div>
 
         <div class="model-context-badge">
-          <span id="modalTargetLabel" data-i18n="charLabel">Charakter:</span> <strong id="modalActiveCharName">-</strong>
+          <span id="modalTargetLabel" data-i18n="charLabel">Charakter:</span> <strong
+            id="modalActiveCharName">-</strong>
           <span style="margin: 0 8px; opacity: 0.4;">|</span>
           <span data-i18n="modalCurrentModel">Aktuell gewählt:</span> <strong id="modalCurrentModelKey">-</strong>
         </div>
@@ -477,7 +482,8 @@
           <button id="btnCopyCli" class="btn btn-secondary btn-xs" data-i18n="btnCopy">Kopieren</button>
         </div>
         <div class="render-instructions">
-          <p data-i18n="modalRenderAlt">Alternativ: Starte start_movie_studio.bat und wähle Menüpunkt [2] oder ziehe die JSON-Datei direkt auf die Datei.</p>
+          <p data-i18n="modalRenderAlt">Alternativ: Starte start_movie_studio.bat und wähle Menüpunkt [2] oder ziehe die
+            JSON-Datei direkt auf die Datei.</p>
         </div>
       </div>
       <div class="modal-footer">
@@ -1084,15 +1090,18 @@
               <label class="settings-label">
                 <span data-i18n="settingMinimaxUnetLabel">Minimax UNET / Diffusionsmodell</span>
               </label>
-              <button type="button" id="btnPickMinimaxUnet" class="btn btn-secondary btn-xs" title="Aus visuellem Modell-Katalog wählen">
+              <button type="button" id="btnPickMinimaxUnet" class="btn btn-secondary btn-xs"
+                title="Aus visuellem Modell-Katalog wählen">
                 <span>🎨</span> <span data-i18n="btnPickMinimaxUnet">Modell wählen</span>
               </button>
             </div>
-            <div id="settingMinimaxUnetCard" class="settings-selected-card" title="Klicken, um Diffusionsmodell zu wählen">
+            <div id="settingMinimaxUnetCard" class="settings-selected-card"
+              title="Klicken, um Diffusionsmodell zu wählen">
               <!-- Dynamically rendered -->
             </div>
             <input type="hidden" id="settingMinimaxUnetInput">
-            <span class="settings-help-text" data-i18n="settingMinimaxUnetHelp">Das Basis-Diffusionsmodell für Minimax Video-Generation (z.B. fl2vaINT8Pruned oder flREF2VAPruned).</span>
+            <span class="settings-help-text" data-i18n="settingMinimaxUnetHelp">Das Basis-Diffusionsmodell für Minimax
+              Video-Generation (z.B. fl2vaINT8Pruned oder flREF2VAPruned).</span>
           </div>
 
           <div class="settings-form-group">
@@ -1101,27 +1110,33 @@
                 <span data-i18n="settingTurboLoraLabel">Turbo-LoRA (Schnell-Render LoRA)</span>
               </label>
               <div style="display:flex;gap:6px;">
-                <button type="button" id="btnClearTurboLora" class="btn btn-secondary btn-xs" title="Turbo-LoRA deaktivieren" style="display:none;">
+                <button type="button" id="btnClearTurboLora" class="btn btn-secondary btn-xs"
+                  title="Turbo-LoRA deaktivieren" style="display:none;">
                   <span>✕</span> <span data-i18n="btnClearTurboLora">Kein Turbo</span>
                 </button>
-                <button type="button" id="btnPickTurboLora" class="btn btn-secondary btn-xs" title="Aus visuellem LoRA-Katalog wählen">
+                <button type="button" id="btnPickTurboLora" class="btn btn-secondary btn-xs"
+                  title="Aus visuellem LoRA-Katalog wählen">
                   <span>⚡</span> <span data-i18n="btnPickTurboLora">LoRA wählen</span>
                 </button>
               </div>
             </div>
-            <div id="settingTurboLoraCard" class="settings-selected-card is-turbo" title="Klicken, um Turbo-LoRA zu wählen">
+            <div id="settingTurboLoraCard" class="settings-selected-card is-turbo"
+              title="Klicken, um Turbo-LoRA zu wählen">
               <!-- Dynamically rendered -->
             </div>
             <input type="hidden" id="settingTurboLoraInput">
-            <span class="settings-help-text" data-i18n="settingTurboLoraHelp">Beschleunigt die Videoerstellung von 20 auf 4-8 Steps. Kann im Storyboard pro Szene übersteuert werden.</span>
+            <span class="settings-help-text" data-i18n="settingTurboLoraHelp">Beschleunigt die Videoerstellung von 20
+              auf 4-8 Steps. Kann im Storyboard pro Szene übersteuert werden.</span>
           </div>
 
           <div class="settings-grid-2">
             <div class="settings-form-group">
               <label class="settings-label" for="settingTurboStrength">
-                <span data-i18n="settingTurboStrengthLabel">Turbo-LoRA Stärke</span>: <span id="settingTurboStrengthVal" class="settings-val-badge">1.0</span>
+                <span data-i18n="settingTurboStrengthLabel">Turbo-LoRA Stärke</span>: <span id="settingTurboStrengthVal"
+                  class="settings-val-badge">1.0</span>
               </label>
-              <input type="range" id="settingTurboStrength" min="0.1" max="2.0" step="0.05" value="1.0" class="range-slider">
+              <input type="range" id="settingTurboStrength" min="0.1" max="2.0" step="0.05" value="1.0"
+                class="range-slider">
             </div>
 
             <div class="settings-form-group">
@@ -1136,7 +1151,8 @@
             <label class="settings-label" for="settingMinimaxClip">
               <span data-i18n="settingMinimaxClipLabel">Text-CLIP Modell</span>
             </label>
-            <input type="text" id="settingMinimaxClip" class="text-input text-xs" placeholder="z.B. minimaxH3INT8INT4_fl2vaINT8Pruned_txt.safetensors">
+            <input type="text" id="settingMinimaxClip" class="text-input text-xs"
+              placeholder="z.B. minimaxH3INT8INT4_fl2vaINT8Pruned_txt.safetensors">
           </div>
 
           <div class="settings-grid-2">
@@ -1144,14 +1160,16 @@
               <label class="settings-label" for="settingVideoVae">
                 <span data-i18n="settingVideoVaeLabel">Video VAE Modell</span>
               </label>
-              <input type="text" id="settingVideoVae" class="text-input text-xs" placeholder="z.B. minimax_h3_video_vae_int8_convrot.safetensors">
+              <input type="text" id="settingVideoVae" class="text-input text-xs"
+                placeholder="z.B. minimax_h3_video_vae_int8_convrot.safetensors">
             </div>
 
             <div class="settings-form-group">
               <label class="settings-label" for="settingAudioVae">
                 <span data-i18n="settingAudioVaeLabel">Audio VAE Modell</span>
               </label>
-              <input type="text" id="settingAudioVae" class="text-input text-xs" placeholder="z.B. minimax_h3_audio_vae_fp32.safetensors">
+              <input type="text" id="settingAudioVae" class="text-input text-xs"
+                placeholder="z.B. minimax_h3_audio_vae_fp32.safetensors">
             </div>
           </div>
         </div>
@@ -1174,15 +1192,18 @@
               <label class="settings-label">
                 <span data-i18n="settingMusicCheckpointLabel">Musik Checkpoint (ACE-Step / Audio-Modell)</span>
               </label>
-              <button type="button" id="btnPickMusicCheckpoint" class="btn btn-secondary btn-xs" title="Aus visuellem Modell-Katalog wählen">
+              <button type="button" id="btnPickMusicCheckpoint" class="btn btn-secondary btn-xs"
+                title="Aus visuellem Modell-Katalog wählen">
                 <span>🎵</span> <span data-i18n="btnPickMusicCheckpoint">Modell wählen</span>
               </button>
             </div>
-            <div id="settingMusicCheckpointCard" class="settings-selected-card" title="Klicken, um Musik-Modell zu wählen">
+            <div id="settingMusicCheckpointCard" class="settings-selected-card"
+              title="Klicken, um Musik-Modell zu wählen">
               <!-- Dynamically rendered -->
             </div>
             <input type="hidden" id="settingMusicCheckpointInput">
-            <span class="settings-help-text" data-i18n="settingMusicCheckpointHelp">Das Audio-Generierungsmodell für den Soundtrack (z.B. Other\base model\ace_step_v1_3.5b.safetensors).</span>
+            <span class="settings-help-text" data-i18n="settingMusicCheckpointHelp">Das Audio-Generierungsmodell für den
+              Soundtrack (z.B. Other\base model\ace_step_v1_3.5b.safetensors).</span>
           </div>
 
           <div class="settings-grid-2">
@@ -1197,21 +1218,25 @@
               <label class="settings-label" for="settingMusicCfg">
                 <span data-i18n="settingMusicCfgLabel">CFG Scale</span>
               </label>
-              <input type="number" id="settingMusicCfg" min="1.0" max="10.0" step="0.1" value="2.0" class="text-input text-sm">
+              <input type="number" id="settingMusicCfg" min="1.0" max="10.0" step="0.1" value="2.0"
+                class="text-input text-sm">
             </div>
           </div>
 
           <div class="settings-form-group">
             <label class="settings-label" for="settingMusicVolume">
-              <span data-i18n="settingMusicVolumeLabel">Soundtrack-Lautstärke</span>: <span id="settingMusicVolumeVal" class="settings-val-badge">20%</span>
+              <span data-i18n="settingMusicVolumeLabel">Soundtrack-Lautstärke</span>: <span id="settingMusicVolumeVal"
+                class="settings-val-badge">20%</span>
             </label>
-            <input type="range" id="settingMusicVolume" min="0.0" max="1.0" step="0.05" value="0.20" class="range-slider">
+            <input type="range" id="settingMusicVolume" min="0.0" max="1.0" step="0.05" value="0.20"
+              class="range-slider">
           </div>
 
           <div class="settings-form-group">
             <label class="checkbox-label">
               <input type="checkbox" id="settingMusicDucking" checked>
-              <span data-i18n="settingMusicDuckingLabel">Smart Auto-Ducking (Musik bei Sprache automatisch absenken)</span>
+              <span data-i18n="settingMusicDuckingLabel">Smart Auto-Ducking (Musik bei Sprache automatisch
+                absenken)</span>
             </label>
           </div>
         </div>
@@ -1226,7 +1251,8 @@
             <label class="settings-label" for="settingLmsUrl">
               <span data-i18n="settingLmsUrlLabel">LM Studio API-URL</span>
             </label>
-            <input type="text" id="settingLmsUrl" class="text-input text-sm" placeholder="http://127.0.0.1:1234/v1/chat/completions">
+            <input type="text" id="settingLmsUrl" class="text-input text-sm"
+              placeholder="http://127.0.0.1:1234/v1/chat/completions">
           </div>
 
           <div class="settings-form-group">
@@ -1237,19 +1263,23 @@
               <select id="settingLmsModelSelect" class="select-input select-sm" style="flex:1;">
                 <option value="">Lade Modelle...</option>
               </select>
-              <button type="button" id="btnRefreshLmsModels" class="btn btn-secondary btn-sm" title="Modelle aus LM Studio abrufen">
+              <button type="button" id="btnRefreshLmsModels" class="btn btn-secondary btn-sm"
+                title="Modelle aus LM Studio abrufen">
                 <span>🔄</span> <span data-i18n="btnFetchModels">Abrufen</span>
               </button>
             </div>
-            <input type="text" id="settingLmsModelInput" class="text-input text-xs" style="margin-top:6px;" placeholder="Exakter Modell-Identifier in LM Studio">
+            <input type="text" id="settingLmsModelInput" class="text-input text-xs" style="margin-top:6px;"
+              placeholder="Exakter Modell-Identifier in LM Studio">
           </div>
 
           <div class="settings-form-group">
             <label class="settings-label" for="settingLmsTemp">
-              <span data-i18n="settingLmsTempLabel">Kreativität / Temperature</span>: <span id="settingLmsTempVal" class="settings-val-badge">0.7</span>
+              <span data-i18n="settingLmsTempLabel">Kreativität / Temperature</span>: <span id="settingLmsTempVal"
+                class="settings-val-badge">0.7</span>
             </label>
             <input type="range" id="settingLmsTemp" min="0.1" max="1.5" step="0.05" value="0.7" class="range-slider">
-            <span class="settings-help-text" data-i18n="settingLmsTempHelp">0.3 - 0.5 für strikte Einhaltung, 0.7 für ausgewogene Kreativität, 1.0+ für freie Ideen.</span>
+            <span class="settings-help-text" data-i18n="settingLmsTempHelp">0.3 - 0.5 für strikte Einhaltung, 0.7 für
+              ausgewogene Kreativität, 1.0+ für freie Ideen.</span>
           </div>
         </div>
 
@@ -1270,8 +1300,10 @@
             <label class="settings-label" for="settingComfyModelsDir">
               <span data-i18n="settingComfyModelsDirLabel">ComfyUI Modelle-Verzeichnis (models_dir)</span>
             </label>
-            <input type="text" id="settingComfyModelsDir" class="text-input text-sm" placeholder="D:\ComfyUI_windows_portable\ComfyUI\models">
-            <span class="settings-help-text" data-i18n="settingComfyModelsDirHelp">Wird zum Auffinden von Checkpoints, LoRAs und Diffusionsmodellen genutzt.</span>
+            <input type="text" id="settingComfyModelsDir" class="text-input text-sm"
+              placeholder="D:\ComfyUI_windows_portable\ComfyUI\models">
+            <span class="settings-help-text" data-i18n="settingComfyModelsDirHelp">Wird zum Auffinden von Checkpoints,
+              LoRAs und Diffusionsmodellen genutzt.</span>
           </div>
 
           <div class="settings-grid-2">
@@ -1298,7 +1330,8 @@
       <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;">
         <span class="text-xs text-muted" id="settingsSavedStatusText">settings.json</span>
         <div style="display:flex;gap:8px;">
-          <button type="button" class="btn btn-secondary btn-sm" id="btnCloseSettingsModalBtn" data-i18n="close">Schließen</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnCloseSettingsModalBtn"
+            data-i18n="close">Schließen</button>
           <button type="button" class="btn btn-primary btn-sm" id="btnSaveSettings">
             <span>💾</span> <span data-i18n="btnSaveSettings">Einstellungen speichern</span>
           </button>
