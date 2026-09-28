@@ -156,6 +156,10 @@
             <span class="stat-label" data-i18n="statCharacters">Charaktere</span>
           </div>
           <div class="stat-card">
+            <span class="stat-number" id="statLocationsCount">0</span>
+            <span class="stat-label" data-i18n="statLocations">Drehorte</span>
+          </div>
+          <div class="stat-card">
             <span class="stat-number" id="statScenesCount">0</span>
             <span class="stat-label" data-i18n="statScenes">Szenen</span>
           </div>
@@ -174,6 +178,10 @@
         <button class="tab-btn active" data-tab="characters">
           <span class="tab-icon">🎭</span> <span data-i18n="tabCharacters">Charaktere</span> (<span
             id="tabBadgeChars">0</span>)
+        </button>
+        <button class="tab-btn" data-tab="locations">
+          <span class="tab-icon">🏛️</span> <span data-i18n="tabLocations">Drehorte</span> (<span
+            id="tabBadgeLocations">0</span>)
         </button>
         <button class="tab-btn" data-tab="scenes">
           <span class="tab-icon">🎬</span> <span data-i18n="tabScenes">Storyboard & Szenen</span> (<span
@@ -202,6 +210,23 @@
 
         <div id="charactersContainer" class="characters-grid">
           <!-- Character cards injected here -->
+        </div>
+      </div>
+
+      <!-- TAB: Locations / Sets (Drehorte) -->
+      <div id="tabContentLocations" class="tab-content">
+        <div class="tab-actions-bar">
+          <div class="tab-actions-left">
+            <h2 class="tab-heading" data-i18n="headingLocations">Drehorte & Set-Studio</h2>
+            <span class="tab-subheading" data-i18n="subheadingLocations">Erstelle visuelle Kulissen und Sets für perfekte Szenen- und Architekturkontinuität.</span>
+          </div>
+          <button id="btnAddLocation" class="btn btn-primary">
+            <span>➕</span> <span data-i18n="btnAddLocation">Drehort hinzufügen</span>
+          </button>
+        </div>
+
+        <div id="locationsContainer" class="locations-grid">
+          <!-- Location cards injected here -->
         </div>
       </div>
 
@@ -1516,6 +1541,31 @@
           <button type="button" class="btn btn-primary btn-sm" id="btnSaveSettings">
             <span>💾</span> <span data-i18n="btnSaveSettings">Einstellungen speichern</span>
           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Image Lightbox Modal -->
+  <div id="imageLightboxModal" class="modal-backdrop image-lightbox-backdrop">
+    <div class="modal-dialog image-lightbox-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" id="imageLightboxTitle">🎭 <span data-i18n="charImgModalTitle">Charakter-Porträt</span></h3>
+        <button class="modal-close" id="btnCloseImageLightboxModal" title="Schließen">✕</button>
+      </div>
+      <div class="modal-body image-lightbox-body">
+        <div class="image-lightbox-wrapper">
+          <img id="imageLightboxImg" src="" alt="Vorschau" class="image-lightbox-img">
+        </div>
+      </div>
+      <div class="modal-footer image-lightbox-footer">
+        <div class="image-lightbox-meta" id="imageLightboxMeta"></div>
+        <div style="display:flex;gap:8px;">
+          <a id="imageLightboxDownloadBtn" href="#" download class="btn btn-secondary btn-sm">
+            <span>⬇️</span> <span data-i18n="charImgModalDownload">Bild herunterladen</span>
+          </a>
+          <button type="button" class="btn btn-ghost btn-sm" id="btnCloseImageLightboxFooterBtn"
+            data-i18n="charImgModalClose">Schließen</button>
         </div>
       </div>
     </div>

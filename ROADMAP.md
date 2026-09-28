@@ -16,12 +16,14 @@ timeline
         Visual Timeline & Video Preview : Interactive filmstrip & in-browser video playback
         Scene Transitions : Dissolves, crossfades, fade-to-black via FFmpeg xfade
         Incremental Re-Rendering : Re-render individual scenes on demand
-    section v1.3 (Current Focus)
-        TTS & Voiceover Engine : Dedicated narration track (F5-TTS, ChatterBox, Coqui)
+    section v1.3 (Released)
+        TTS & Voiceover Engine : Dedicated narration track (Edge-TTS / Kokoro)
         Color Grading & Film LUTs : Unified cinematic looks & 35mm grain across all scenes
-        Multi-Track Audio Mixer : Graphical waveform, dialogue, ambience & BGM levels
+    section v1.4 (Current Focus)
+        Character Continuity 2.0 : IP-Adapter / FaceID & Multi-Angle Studio
+        Filming Locations & Set Studio : Individually generated sets & scene assignment
+        Frame Interpolation : RIFE / FILM slow-motion & 60 fps export
     section v2.0 (Next-Gen Studio)
-        Character Consistency 2.0 : IP-Adapter / FaceID / PuLID integration
         Live ComfyUI Queue in Web : Realtime step progress, latent preview & ETA in browser
         Social Cuts & Aspect Ratios : 9:16 Vertical Smart-Crop & 21:9 Cinemascope
 ```
@@ -97,19 +99,35 @@ timeline
 
 ---
 
-## ⚡ Phase 3: Character Continuity & Motion Dynamics (v1.4.0)
+## ⚡ Phase 3: Character & Location Continuity, Motion Dynamics (v1.4.0)
 
-*Focus: Multi-angle actor reference, advanced identity locking, and AI frame interpolation.*
+*Focus: Multi-angle actor reference, filming locations & set continuity, and AI frame interpolation.*
 
-### 1. Character Continuity 2.0 (IP-Adapter / Multi-Angle Studio)
+### 1. Character Continuity 2.0 (Multi-Angle Studio & Turnaround Engine) ✅ [Completed]
 
-* **Challenge:** Rapid camera movements or novel angles can introduce subtle facial drift away from the master portrait.
-* **Solution:**
-  * Optional **IP-Adapter FaceID / PuLID** pass inside the ComfyUI pipeline prior to I2V generation.
-  * Extracts biometric and structural facial landmarks from `Characters/<Name>.png` to enforce strict identity consistency across all angles.
-  * **Multi-Angle Portrait Studio:** Pre-render frontal, 3/4-view, and profile portraits per character to automatically inject the best starting perspective.
+* **Challenge:** Dynamic camera pans, rapid head movements, or profile perspectives can cause facial features to drift or distort when constrained to a single frontal reference portrait.
+* **Solution Implemented:**
+  * **Multi-Angle Perspective Studio:** Fully integrated in the Character card UI with dedicated slots for **Frontal (0°)**, **3/4-Ansicht (45°)**, **Profil (90°)**, and a unified **Turnaround-Sheet (Multi-View)**.
+  * **Perspective-Engineered ComfyUI Generation:** Generates individual angles via ComfyUI with positive framing tokens (`direct front view`, `three-quarter 45 degree angle portrait`, `pure 90 degree side profile`) and reciprocal negative prompts, automatically storing them as `Characters/<safe_name>_<angle>.png`.
+  * **1-Click Turnaround Sheet Composite Builder (`lib/turnaround_builder.py`):** Assembles available perspective angles into a horizontal multi-view reference board with Lanczos height normalization and clean frame dividers.
+  * **Turnaround Sheet Default Reference Mode:** Optional one-click toggle (`use_turnaround_sheet`) allowing characters to supply the combined multi-view turnaround sheet directly as `<Picture K>` into MiniMax H3.
+  * **Auto-Perspective Detection (`lib/subject_manager.py`):** Intelligent prompt analysis automatically matches directorial camera notes (e.g., "looking away", "profile", "90 degree", "three-quarter", "over-the-shoulder") to the most appropriate character perspective.
+  * **Directorial Scene Angle Overrides:** Every scene card features an inline camera angle selector per cast member (`🎯 Auto`, `👤 0°`, `👥 45°`, `🗣️ 90°`, `🔄 Turnaround`), enabling precise control over character framing.
+  * **Dynamic Per-Scene Reference Image Upload (`master_regisseur.py`):** Dynamically resolves, caches, and uploads the correct angle or turnaround sheet to ComfyUI for each individual scene shot.
 
-### 2. Frame Interpolation & Slow Motion (RIFE / FILM)
+### 2. Filming Locations & Set Studio (Individuelle Drehorte & Explizite Zuweisung) ✅ [Completed]
+
+* **Challenge:** Locations in screenplays were previously managed merely as textual metadata (`"location": "Ancient Temple Corridor"`). While consecutive scenes could borrow environment continuity from the immediately preceding shot, returning to a previous set later in the film (e.g., returning to the command center in Scene 6 after Scene 2) caused architectural drift, inconsistent lighting, and mismatched props.
+* **Solution Implemented:**
+  * **Dedicated Set & Location Library:** Master environment reference plates stored in `Projects/<Project>/Locations/<Location_Name>.png` alongside character portraits.
+  * **Individual 16:9 Set Master Plate Generator:** ComfyUI T2I workflow (`workflow_t2i.json`) configured with 16:9 widescreen output and direct VAE decode (bypassing background removal), generating cinematic architectural environment plates.
+  * **LM Studio Environment Prompt Optimizer:** Specialized AI prompt engineer (`/api/locations/optimize_prompt`) focusing strictly on architectural details, volumetric lighting, textures, and spatial composition without inserting human subjects.
+  * **Interactive Set Studio UI:** Dedicated `🏛️ Drehorte` tab with location cards, model and LoRA selection, upload/delete capabilities, quick stats counters, and full-resolution click-to-enlarge Lightbox modal.
+  * **Explicit Scene Assignment:** Every scene card in Movie Studio features a `Location / Drehort` selector linking the shot directly to a registered set asset, plus mini-thumbnail preview with zoom lightbox and auto-sync with textual location names.
+  * **Dual-Reference ComfyUI Integration:** Injects the location plate into the I2V video pipeline (`master_regisseur.py` & `lib/subject_manager.py`) as `<Subject K> is the location in <Picture K> (<Location_Name>)`, wiring it directly into reference image slots alongside characters for spatial and architectural continuity across the movie.
+  * **Timeline Set Badges:** `🏛️` visual badges in the Storyboard Filmstrip cells showing assigned sets with hover tooltips.
+
+### 3. Frame Interpolation & Slow Motion (RIFE / FILM)
 
 * **Challenge:** Minimax generates at 16 fps or 24 fps. Action beats and emotional pauses benefit from higher frame rates or deliberate slow motion.
 * **Solution:**
@@ -155,7 +173,8 @@ timeline
 | **In-Browser Video Player & Filmstrip Timeline** | 🟡 High (Ergonomics) | 🟡 Medium | ✅ **Done (v1.2)** |
 | **Dedicated Voiceover & Narration Engine** | 🔴 Critical (Non-diegetic audio) | 🟡 Medium | ✅ **Done (v1.3)** |
 | **Cinematic Color Grading & 3D LUTs / Grain** | 🟡 High (Visual coherence) | 🟢 Low | ✅ **Done (v1.3)** |
-| **Character Continuity 2.0 (IP-Adapter)** | 🔴 Critical (Facial fidelity) | 🔴 Complex | **Next (v1.4)** |
+| **Character Continuity 2.0 (Multi-Angle Studio)** | 🔴 Critical (Facial fidelity) | 🔴 Complex | ✅ **Done (v1.4)** |
+| **Filming Locations & Set Studio (Drehorte)** | 🔴 High (Set & environmental continuity) | 🟡 Medium | ✅ **Done (v1.4)** |
 | **Frame Interpolation & Slow Motion (RIFE)** | 🟡 High (Cinematic motion) | 🟡 Medium | **Next (v1.4)** |
 | **Live ComfyUI Queue & Latents in Browser** | 🟡 High (Studio UX Polish) | 🟡 Medium | **Planned (v2.0)** |
 

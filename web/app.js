@@ -15,6 +15,7 @@
       description: '',
       variables: {},
       characters: [],
+      locations: [],
       scenes: []
     },
     presetsData: {
@@ -77,15 +78,18 @@
 
     // Stats
     statCharsCount: document.getElementById('statCharsCount'),
+    statLocationsCount: document.getElementById('statLocationsCount'),
     statScenesCount: document.getElementById('statScenesCount'),
     statTotalDuration: document.getElementById('statTotalDuration'),
     tabBadgeChars: document.getElementById('tabBadgeChars'),
+    tabBadgeLocations: document.getElementById('tabBadgeLocations'),
     tabBadgeScenes: document.getElementById('tabBadgeScenes'),
 
     // Tabs
     tabButtons: document.querySelectorAll('.tab-btn'),
     tabContents: {
       characters: document.getElementById('tabContentCharacters'),
+      locations: document.getElementById('tabContentLocations'),
       scenes: document.getElementById('tabContentScenes'),
       music: document.getElementById('tabContentMusic'),
       json: document.getElementById('tabContentJson')
@@ -115,8 +119,10 @@
 
     // Containers
     charactersContainer: document.getElementById('charactersContainer'),
+    locationsContainer: document.getElementById('locationsContainer'),
     scenesContainer: document.getElementById('scenesContainer'),
     btnAddCharacter: document.getElementById('btnAddCharacter'),
+    btnAddLocation: document.getElementById('btnAddLocation'),
     btnAddScene: document.getElementById('btnAddScene'),
     storyboardTimelineContainer: document.getElementById('storyboardTimelineContainer'),
     timelineStatsBadge: document.getElementById('timelineStatsBadge'),
@@ -134,6 +140,15 @@
     jsonPreview: document.getElementById('jsonPreview'),
     btnCopyJson: document.getElementById('btnCopyJson'),
     btnFormatJson: document.getElementById('btnFormatJson'),
+
+    // Image Lightbox Modal
+    imageLightboxModal: document.getElementById('imageLightboxModal'),
+    btnCloseImageLightboxModal: document.getElementById('btnCloseImageLightboxModal'),
+    btnCloseImageLightboxFooterBtn: document.getElementById('btnCloseImageLightboxFooterBtn'),
+    imageLightboxTitle: document.getElementById('imageLightboxTitle'),
+    imageLightboxImg: document.getElementById('imageLightboxImg'),
+    imageLightboxMeta: document.getElementById('imageLightboxMeta'),
+    imageLightboxDownloadBtn: document.getElementById('imageLightboxDownloadBtn'),
 
     // LoRA Modal
     loraModal: document.getElementById('loraModal'),
@@ -482,6 +497,152 @@
       return data;
     },
 
+    async generateCharacterPortrait(project, character, variables, removeBackground = true) {
+      const res = await fetch('/api/characters/generate_image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project,
+          character,
+          variables,
+          remove_background: removeBackground
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Generieren des Charakterbildes');
+      }
+      return data;
+    },
+
+    async uploadCharacterAngle(project, name, angle, imageBase64, removeBackground = true) {
+      const res = await fetch('/api/characters/upload_angle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project,
+          name,
+          angle,
+          image_base64: imageBase64,
+          remove_background: removeBackground
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Hochladen der Charakter-Ansicht');
+      }
+      return data;
+    },
+
+    async deleteCharacterAngle(project, name, angle) {
+      const res = await fetch('/api/characters/delete_angle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project, name, angle })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Löschen der Charakter-Ansicht');
+      }
+      return data;
+    },
+
+    async generateCharacterAngle(project, character, angle, variables, removeBackground = true) {
+      const res = await fetch('/api/characters/generate_angle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project,
+          character,
+          angle,
+          variables,
+          remove_background: removeBackground
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Generieren der Charakter-Ansicht');
+      }
+      return data;
+    },
+
+    async generateTurnaroundSheet(project, name) {
+      const res = await fetch('/api/characters/generate_turnaround', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project, name })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Erstellen des Turnaround-Sheets');
+      }
+      return data;
+    },
+
+    async uploadLocationImage(project, name, imageBase64) {
+      const res = await fetch('/api/locations/upload_image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project,
+          name,
+          image_base64: imageBase64
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Hochladen des Kulissenbildes');
+      }
+      return data;
+    },
+
+    async deleteLocationImage(project, name) {
+      const res = await fetch('/api/locations/delete_image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project, name })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Löschen des Kulissenbildes');
+      }
+      return data;
+    },
+
+    async generateLocationPlate(project, location, variables) {
+      const res = await fetch('/api/locations/generate_image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project,
+          location,
+          variables
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Generieren des Kulissenbildes');
+      }
+      return data;
+    },
+
+    async optimizeLocationPrompt(location, preset, variables) {
+      const res = await fetch('/api/locations/optimize_prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location,
+          preset,
+          variables
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Fehler beim Optimieren des Kulissen-Prompts');
+      }
+      return data;
+    },
+
     async getMusicModels() {
       const res = await fetch('/api/music/models');
       if (!res.ok) throw new Error('Fehler beim Laden der Musik-Modelle');
@@ -650,8 +811,10 @@
   // --- Stats Calculation ---
   function updateStats() {
     const chars = state.screenplay.characters || [];
+    const locs = state.screenplay.locations || [];
     const scenes = state.screenplay.scenes || [];
     const charsCount = chars.length;
+    const locsCount = locs.length;
     const scenesCount = scenes.length;
 
     let totalSecs = 0;
@@ -660,12 +823,14 @@
       totalSecs += isNaN(d) ? 5 : d;
     }
 
-    el.statCharsCount.textContent = charsCount;
-    el.statScenesCount.textContent = scenesCount;
-    el.statTotalDuration.textContent = `${totalSecs}s`;
+    if (el.statCharsCount) el.statCharsCount.textContent = charsCount;
+    if (el.statLocationsCount) el.statLocationsCount.textContent = locsCount;
+    if (el.statScenesCount) el.statScenesCount.textContent = scenesCount;
+    if (el.statTotalDuration) el.statTotalDuration.textContent = `${totalSecs}s`;
 
-    el.tabBadgeChars.textContent = charsCount;
-    el.tabBadgeScenes.textContent = scenesCount;
+    if (el.tabBadgeChars) el.tabBadgeChars.textContent = charsCount;
+    if (el.tabBadgeLocations) el.tabBadgeLocations.textContent = locsCount;
+    if (el.tabBadgeScenes) el.tabBadgeScenes.textContent = scenesCount;
   }
 
   // --- Initial Data Load ---
@@ -829,7 +994,43 @@
       if (c.reference_id !== undefined) charObj.reference_id = c.reference_id;
       if (c.reference_character !== undefined) charObj.reference_character = c.reference_character;
       if (c.denoise !== undefined) charObj.denoise = c.denoise;
+      if (c.use_turnaround_sheet !== undefined) charObj.use_turnaround_sheet = Boolean(c.use_turnaround_sheet);
+      if (c.angles) charObj.angles = c.angles;
+      if (c.angles_urls) charObj.angles_urls = c.angles_urls;
       return charObj;
+    });
+
+    // Locations / Drehorte
+    let rawLocations = data.locations || data.drehorte || [];
+    if (!Array.isArray(rawLocations)) rawLocations = [];
+    norm.locations = rawLocations.map((l, idx) => {
+      if (!l || typeof l !== 'object') l = { name: String(l) };
+      const lName = l.name || l.title || l.bezeichnung || `Drehort ${idx + 1}`;
+      const lId = l.id || `loc_${idx + 1}`;
+      let lLoras = l.loras || l.lora || [];
+      if (typeof lLoras === 'string') {
+        lLoras = lLoras.split(',').map(s => s.trim()).filter(Boolean);
+      } else if (!Array.isArray(lLoras)) {
+        lLoras = [];
+      }
+      const locObj = {
+        id: lId,
+        name: lName,
+        model: l.model || '',
+        loras: lLoras,
+        description: l.description || l.beschreibung || '',
+        prompt: l.prompt || l.prompts || '',
+        auto_prompt: l.auto_prompt !== undefined ? Boolean(l.auto_prompt) : (l.ki_prompt_generieren !== undefined ? Boolean(l.ki_prompt_generieren) : true)
+      };
+      if (l.image) locObj.image = l.image;
+      if (l.image_url) locObj.image_url = l.image_url;
+      if (l.bild) locObj.image = l.bild;
+      if (locObj.image && !locObj.image_url) {
+        const projName = (el.movieFilename && el.movieFilename.value.trim()) || (filename ? filename.replace('.json', '') : 'film');
+        const cleanName = lName.replace(/[\\/*?:"<>| ]/g, '_');
+        locObj.image_url = `/api/locations/image?project=${encodeURIComponent(projName)}&name=${encodeURIComponent(cleanName)}&t=${Date.now()}`;
+      }
+      return locObj;
     });
 
     // Scenes
@@ -841,6 +1042,7 @@
       const sId = s.id || (idx + 1);
       const sSeq = s.sequence || s.sequenz || s.scene_group || s.group || '';
       const sLoc = s.location || s.ort || s.setting || '';
+      const sLocId = s.location_id || s.locationId || s.drehort_id || '';
       const sDur = parseInt(s.duration || s.dauer_sekunden || s.duration_seconds || s.dauer || 6, 10) || 6;
       let sIdea = s.idea || s.idee || s.prompt || '';
       let sPrompt = s.prompt || sIdea;
@@ -913,6 +1115,7 @@
         idea: sIdea,
         prompt: sPrompt
       };
+      if (sLocId) sceneObj.location_id = sLocId;
       if (sSummary) sceneObj.summary = sSummary;
       if (sSoundscape) sceneObj.soundscape = sSoundscape;
       if (sChars.length > 0) sceneObj.characters = sChars;
@@ -926,6 +1129,10 @@
       }
       if (Object.keys(sVarUpd).length > 0) sceneObj.variables_update = sVarUpd;
       if (sLoras.length > 0) sceneObj.loras = sLoras;
+      const sCharAngles = s.character_angles || s.charakter_winkel || {};
+      if (sCharAngles && typeof sCharAngles === 'object' && Object.keys(sCharAngles).length > 0) {
+        sceneObj.character_angles = sCharAngles;
+      }
 
       // Cinematic scene transition & duration
       const sTrans = s.transition || s.uebergang || s.blende || 'cut';
@@ -958,6 +1165,7 @@
       // Render sections
       renderVariables();
       renderCharacters();
+      renderLocations();
       renderScenes();
       renderMusicStudio();
       fetchAndRenderTimeline();
@@ -1002,11 +1210,23 @@
           description: state.lang === 'en' ? 'A brave protagonist with a determined expression.' : 'Ein mutiger Protagonist mit entschlossenem Blick.'
         }
       ],
+      locations: [
+        {
+          id: 'loc_1',
+          name: state.lang === 'en' ? 'Neon Alley' : 'Neon-Gasse',
+          model: defaultModel,
+          loras: [],
+          description: state.lang === 'en' ? 'A rain-slicked cinematic cyberpunk neon alley at night.' : 'Eine regennasse filmische Cyberpunk-Neon-Gasse bei Nacht.',
+          prompt: '',
+          auto_prompt: true
+        }
+      ],
       scenes: [
         {
           id: 1,
           sequence: state.lang === 'en' ? 'Prologue' : 'Auftakt',
           location: state.lang === 'en' ? 'Neon Alley' : 'Neon-Gasse',
+          location_id: 'loc_1',
           duration: 6,
           characters: ['Hero'],
           idea: state.lang === 'en'
@@ -1029,6 +1249,7 @@
 
     renderVariables();
     renderCharacters();
+    renderLocations();
     renderScenes();
     updateStats();
     renderJsonPreview();
@@ -1321,6 +1542,81 @@
       lorasHtml = `<span style="font-size:11px;color:var(--text-dim);font-style:italic;">${escapeHtml(t('noLorasAssigned'))}</span>`;
     }
 
+    // Multi-Angle Perspectives (Frontal, 3/4, Profile, Turnaround Sheet)
+    const cleanCharName = charName.replace(/[\\/*?:"<>| ]/g, '_');
+    const projName = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+    const charAngles = char.angles || {};
+    const charAnglesUrls = char.angles_urls || {};
+
+    const hasFrontal = Boolean(charAngles.frontal || char.image);
+    const frontalUrl = charAnglesUrls.frontal || char.image_url || (`/api/characters/image?project=${encodeURIComponent(projName)}&name=${encodeURIComponent(cleanCharName)}&angle=frontal&t=${Date.now()}`);
+
+    const hasThreeQuarter = Boolean(charAngles.three_quarter);
+    const threeQuarterUrl = charAnglesUrls.three_quarter || (`/api/characters/image?project=${encodeURIComponent(projName)}&name=${encodeURIComponent(cleanCharName)}&angle=three_quarter&t=${Date.now()}`);
+
+    const hasProfile = Boolean(charAngles.profile);
+    const profileUrl = charAnglesUrls.profile || (`/api/characters/image?project=${encodeURIComponent(projName)}&name=${encodeURIComponent(cleanCharName)}&angle=profile&t=${Date.now()}`);
+
+    const hasTurnaround = Boolean(charAngles.turnaround);
+    const turnaroundUrl = charAnglesUrls.turnaround || (`/api/characters/image?project=${encodeURIComponent(projName)}&name=${encodeURIComponent(cleanCharName)}&angle=turnaround&t=${Date.now()}`);
+
+    const anglesList = [
+      { key: 'frontal', name: t('angleFrontal') || 'Frontal (0°)', badge: '0°', icon: '👤', has: hasFrontal, url: frontalUrl, desc: t('angleFrontalDesc') },
+      { key: 'three_quarter', name: t('angleThreeQuarter') || '3/4 (45°)', badge: '45°', icon: '👥', has: hasThreeQuarter, url: threeQuarterUrl, desc: t('angleThreeQuarterDesc') },
+      { key: 'profile', name: t('angleProfile') || 'Profil (90°)', badge: '90°', icon: '🗣️', has: hasProfile, url: profileUrl, desc: t('angleProfileDesc') },
+      { key: 'turnaround', name: t('angleTurnaround') || 'Turnaround', badge: 'Multi-View', icon: '🔄', has: hasTurnaround, url: turnaroundUrl, desc: t('angleTurnaroundDesc'), isTurnaround: true }
+    ];
+
+    let anglesHtml = '';
+    for (const ang of anglesList) {
+      anglesHtml += `
+        <div class="angle-card ${ang.isTurnaround ? 'is-turnaround' : ''}" data-angle="${ang.key}">
+          <div class="angle-card-top">
+            <span class="angle-card-name">${escapeHtml(ang.name)}</span>
+            <span class="angle-card-badge">${escapeHtml(ang.badge)}</span>
+          </div>
+
+          <div class="angle-card-preview" role="button" tabindex="0" title="${ang.has ? escapeHtml(t('locThumbClickZoom') || 'Klicken zum Vergrößern') : ''}" data-has-img="${ang.has ? 'true' : 'false'}">
+            ${ang.has ? `
+              <img src="${escapeHtml(ang.url)}" alt="${escapeHtml(charName)} - ${escapeHtml(ang.name)}" class="angle-card-thumb">
+              <div class="char-portrait-zoom-badge"><span>🔍</span></div>
+            ` : `
+              <div class="angle-empty-placeholder">
+                <span>${ang.icon}</span>
+                <label style="font-size:9px;color:var(--text-dim);cursor:inherit;">${escapeHtml(ang.desc || 'Noch nicht generiert')}</label>
+              </div>
+            `}
+          </div>
+
+          <div class="angle-card-actions">
+            ${!ang.isTurnaround ? `
+              <button type="button" class="btn btn-primary-outline btn-xs btn-gen-angle" data-angle="${ang.key}" title="${escapeHtml(t('btnGenerateAngle') || 'In ComfyUI generieren')}">
+                🎨 ${ang.has ? 'Neu' : 'Gen'}
+              </button>
+              <input type="file" class="angle-file-input" data-angle="${ang.key}" accept="image/png, image/jpeg, image/webp" style="display:none;">
+              <button type="button" class="btn btn-secondary btn-xs btn-upload-angle" data-angle="${ang.key}" title="${escapeHtml(t('btnUploadAngle') || 'Bild hochladen')}">
+                📤
+              </button>
+              ${ang.has ? `
+                <button type="button" class="btn btn-danger-outline btn-xs btn-del-angle" data-angle="${ang.key}" title="${escapeHtml(t('btnDeleteAngle') || 'Löschen')}">
+                  🗑️
+                </button>
+              ` : ''}
+            ` : `
+              <button type="button" class="btn btn-accent btn-xs btn-build-turnaround" title="${escapeHtml(t('btnGenerateTurnaround') || 'Turnaround-Sheet aus vorhandenen Blickwinkeln erstellen')}">
+                🔄 ${ang.has ? 'Aktualisieren' : 'Erstellen'}
+              </button>
+              ${ang.has ? `
+                <button type="button" class="btn btn-danger-outline btn-xs btn-del-angle" data-angle="turnaround" title="${escapeHtml(t('btnDeleteAngle') || 'Turnaround löschen')}">
+                  🗑️
+                </button>
+              ` : ''}
+            `}
+          </div>
+        </div>
+      `;
+    }
+
     card.innerHTML = `
       <div class="char-header">
         <span class="char-id-badge">#${charId}</span>
@@ -1342,8 +1638,11 @@
 
         <div class="char-portrait-content ${char.image ? 'has-image' : 'empty'}">
           ${char.image ? `
-            <div class="char-portrait-preview-box" title="${escapeHtml(char.name)}">
+            <div class="char-portrait-preview-box" title="${escapeHtml(t('charImgEnlargeTooltip') || 'Klicken zum Vergrößern')}" role="button" tabindex="0" aria-label="${escapeHtml(char.name)}">
               <img src="${char.image_url || ('/api/characters/image?project=' + encodeURIComponent((el.movieFilename && el.movieFilename.value.trim()) ? el.movieFilename.value.trim() : 'film') + '&name=' + encodeURIComponent(char.name || '') + '&t=' + Date.now())}" alt="${escapeHtml(char.name)}" class="char-portrait-thumb">
+              <div class="char-portrait-zoom-badge" title="${escapeHtml(t('charImgEnlargeTooltip') || 'Klicken zum Vergrößern')}">
+                <span>🔍</span>
+              </div>
             </div>
             <div class="char-portrait-info">
               <span class="char-portrait-hint">${escapeHtml(t('charImgT2iSkipped'))}</span>
@@ -1383,6 +1682,34 @@
         <div class="char-portrait-upload-status" style="display:none;">
           <span class="ai-loading-spinner"></span>
           <span class="char-upload-status-text">${escapeHtml(t('charImgUploading'))}</span>
+        </div>
+      </div>
+
+      <!-- Multi-Angle Studio (Character Continuity 2.0) -->
+      <div class="multi-angle-studio-container">
+        <div class="multi-angle-header">
+          <div class="multi-angle-title-area">
+            <div class="multi-angle-title-row">
+              <label>📐 ${escapeHtml(t('multiAngleStudioHeading') || 'Multi-Angle Studio (Kontinuität 2.0)')}</label>
+            </div>
+            <span class="multi-angle-desc">${escapeHtml(t('multiAngleStudioDesc') || 'Frontal-, 3/4- und Profilperspektiven für perfekte Charakterkontinuität.')}</span>
+          </div>
+          <div class="multi-angle-actions-row">
+            <label class="multi-angle-default-chk-label" title="${escapeHtml(t('useTurnaroundDefaultTitle') || 'MiniMax H3 nutzt standardmäßig die kombinierte Multi-View Tafel')}">
+              <input type="checkbox" class="char-turnaround-default-chk" ${char.use_turnaround_sheet ? 'checked' : ''}>
+              <span>🔄 ${escapeHtml(t('useTurnaroundDefault') || 'Turnaround als Standard')}</span>
+            </label>
+            <button type="button" class="btn btn-secondary btn-xs btn-batch-generate-angles" title="${escapeHtml(t('btnGenerateAllAngles') || 'Alle 3 Winkel generieren')}">
+              ⚡ ${escapeHtml(t('btnGenerateAllAngles') || 'Alle Winkel')}
+            </button>
+            <button type="button" class="btn btn-accent btn-xs btn-build-turnaround-sheet" title="${escapeHtml(t('btnGenerateTurnaround') || 'Turnaround-Sheet erstellen')}">
+              🔄 ${escapeHtml(t('btnGenerateTurnaround') || 'Turnaround')}
+            </button>
+          </div>
+        </div>
+
+        <div class="multi-angle-grid">
+          ${anglesHtml}
         </div>
       </div>
 
@@ -1640,6 +1967,28 @@
       }
     });
 
+    // Character Portrait Enlarge / Lightbox Handler
+    const portraitPreviewBox = card.querySelector('.char-portrait-preview-box');
+    if (portraitPreviewBox) {
+      const openPortraitLightbox = () => {
+        const thumbImg = portraitPreviewBox.querySelector('.char-portrait-thumb');
+        const imgSrc = thumbImg ? thumbImg.src : (char.image_url || ('/api/characters/image?project=' + encodeURIComponent((el.movieFilename && el.movieFilename.value.trim()) ? el.movieFilename.value.trim() : 'film') + '&name=' + encodeURIComponent(char.name || '') + '&t=' + Date.now()));
+        const modalTitle = t('charImgModalTitle')
+          ? t('charImgModalTitle').replace('{name}', charName)
+          : `${charName} (${t('charPortraitLabel') || 'Porträt'})`;
+        const metaInfo = char.image || (t('charImgActiveBadge') || 'Referenzbild aktiv');
+        openImageLightboxModal(imgSrc, modalTitle, metaInfo);
+      };
+
+      portraitPreviewBox.addEventListener('click', openPortraitLightbox);
+      portraitPreviewBox.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openPortraitLightbox();
+        }
+      });
+    }
+
     // Image Upload & Background Removal Handlers
     const fileInput = card.querySelector('.char-img-file-input');
     const uploadBtn = card.querySelector('.btn-trigger-upload-img');
@@ -1748,6 +2097,255 @@
       });
     });
 
+    // --- Multi-Angle Studio Event Handlers ---
+    // 1. Lightbox Click on Angle Thumbnails
+    card.querySelectorAll('.angle-card-preview[data-has-img="true"]').forEach(box => {
+      const cardEl = box.closest('.angle-card');
+      const angleKey = cardEl ? cardEl.dataset.angle : '';
+      const img = box.querySelector('img');
+      if (img) {
+        box.addEventListener('click', () => {
+          openImageLightboxModal(img.src, `${charName} — ${angleKey}`, `Blickwinkel: ${angleKey}`);
+        });
+        box.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openImageLightboxModal(img.src, `${charName} — ${angleKey}`, `Blickwinkel: ${angleKey}`);
+          }
+        });
+      }
+    });
+
+    // 2. Turnaround Default Checkbox
+    const turnaroundDefaultChk = card.querySelector('.char-turnaround-default-chk');
+    if (turnaroundDefaultChk) {
+      turnaroundDefaultChk.addEventListener('change', (e) => {
+        char.use_turnaround_sheet = e.target.checked;
+        markDirty();
+        showToast(
+          char.use_turnaround_sheet
+            ? `🔄 Turnaround-Sheet als Standard für '${charName}' aktiviert.`
+            : `Turnaround-Sheet Standard für '${charName}' deaktiviert.`,
+          'info'
+        );
+      });
+    }
+
+    // 3. Generate Single Angle Button Handler
+    card.querySelectorAll('.btn-gen-angle').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const angle = btn.dataset.angle || 'frontal';
+        const projectName = (el.movieFilename && el.movieFilename.value.trim()) ? el.movieFilename.value.trim() : 'film';
+        const doRemoveBg = removeBgChk ? removeBgChk.checked : true;
+        const targetSceneId = (char.first_scene && parseInt(char.first_scene) > 0) ? parseInt(char.first_scene) : detectedFirstScene;
+        const vars = getVariablesForScene(state.screenplay, targetSceneId);
+
+        try {
+          if (uploadStatus) {
+            uploadStatus.style.display = 'flex';
+            const statusText = uploadStatus.querySelector('.char-upload-status-text');
+            if (statusText) statusText.textContent = `Generiere Blickwinkel '${angle}' in ComfyUI...`;
+          }
+          btn.disabled = true;
+
+          const res = await API.generateCharacterAngle(projectName, char, angle, vars, doRemoveBg);
+          if (res && res.success) {
+            if (!char.angles) char.angles = {};
+            if (!char.angles_urls) char.angles_urls = {};
+            char.angles[angle] = true;
+            char.angles_urls[angle] = res.image_url;
+            if (angle === 'frontal') {
+              char.image = res.image;
+              char.image_url = res.image_url;
+            }
+            if (res.turnaround_updated) {
+              char.angles['turnaround'] = true;
+              char.angles_urls['turnaround'] = `/api/characters/image?project=${encodeURIComponent(projectName)}&name=${encodeURIComponent(charName.replace(/[\\/*?:"<>| ]/g, '_'))}&angle=turnaround&t=${Date.now()}`;
+            }
+            renderCharacters();
+            markDirty();
+            showToast((t('angleGeneratedSuccess') || "Blickwinkel '{angle}' für '{name}' erfolgreich in ComfyUI generiert!").replace('{angle}', angle).replace('{name}', charName), 'success');
+          }
+        } catch (err) {
+          console.error(`Angle generation failed (${angle}):`, err);
+          showToast(err.message || `Fehler beim Generieren des Blickwinkels '${angle}'`, 'error');
+        } finally {
+          if (uploadStatus) uploadStatus.style.display = 'none';
+          btn.disabled = false;
+        }
+      });
+    });
+
+    // 4. Batch Generate All Angles (Frontal -> 3/4 -> Profile -> Turnaround Sheet)
+    const batchAnglesBtn = card.querySelector('.btn-batch-generate-angles');
+    if (batchAnglesBtn) {
+      batchAnglesBtn.addEventListener('click', async () => {
+        const projectName = (el.movieFilename && el.movieFilename.value.trim()) ? el.movieFilename.value.trim() : 'film';
+        const doRemoveBg = removeBgChk ? removeBgChk.checked : true;
+        const targetSceneId = (char.first_scene && parseInt(char.first_scene) > 0) ? parseInt(char.first_scene) : detectedFirstScene;
+        const vars = getVariablesForScene(state.screenplay, targetSceneId);
+
+        const anglesToRun = ['frontal', 'three_quarter', 'profile'];
+        batchAnglesBtn.disabled = true;
+
+        try {
+          for (let i = 0; i < anglesToRun.length; i++) {
+            const ang = anglesToRun[i];
+            if (uploadStatus) {
+              uploadStatus.style.display = 'flex';
+              const statusText = uploadStatus.querySelector('.char-upload-status-text');
+              if (statusText) statusText.textContent = `[${i + 1}/3] Generiere '${ang}' für '${charName}' in ComfyUI...`;
+            }
+            const res = await API.generateCharacterAngle(projectName, char, ang, vars, doRemoveBg);
+            if (res && res.success) {
+              if (!char.angles) char.angles = {};
+              if (!char.angles_urls) char.angles_urls = {};
+              char.angles[ang] = true;
+              char.angles_urls[ang] = res.image_url;
+              if (ang === 'frontal') {
+                char.image = res.image;
+                char.image_url = res.image_url;
+              }
+            }
+          }
+
+          if (uploadStatus) {
+            const statusText = uploadStatus.querySelector('.char-upload-status-text');
+            if (statusText) statusText.textContent = `Erstelle Turnaround-Sheet für '${charName}'...`;
+          }
+          const tRes = await API.generateTurnaroundSheet(projectName, charName);
+          if (tRes && tRes.success) {
+            if (!char.angles) char.angles = {};
+            if (!char.angles_urls) char.angles_urls = {};
+            char.angles['turnaround'] = true;
+            char.angles_urls['turnaround'] = tRes.image_url;
+          }
+
+          renderCharacters();
+          markDirty();
+          showToast(`⚡ Alle Blickwinkel & Turnaround-Sheet für '${charName}' erfolgreich erstellt!`, 'success');
+        } catch (err) {
+          console.error('Batch angle generation failed:', err);
+          showToast(err.message || 'Fehler bei der Batch-Winkel-Generierung', 'error');
+        } finally {
+          if (uploadStatus) uploadStatus.style.display = 'none';
+          batchAnglesBtn.disabled = false;
+        }
+      });
+    }
+
+    // 5. Upload Angle File Handler
+    card.querySelectorAll('.btn-upload-angle').forEach(upBtn => {
+      const angle = upBtn.dataset.angle || 'frontal';
+      const fInput = card.querySelector(`.angle-file-input[data-angle="${angle}"]`);
+      if (fInput) {
+        upBtn.addEventListener('click', () => fInput.click());
+        fInput.addEventListener('change', async () => {
+          const file = fInput.files && fInput.files[0];
+          if (!file) return;
+
+          const reader = new FileReader();
+          reader.onload = async (event) => {
+            const base64Data = event.target.result;
+            const projectName = (el.movieFilename && el.movieFilename.value.trim()) ? el.movieFilename.value.trim() : 'film';
+            const doRemoveBg = removeBgChk ? removeBgChk.checked : true;
+
+            try {
+              if (uploadStatus) {
+                uploadStatus.style.display = 'flex';
+                const statusText = uploadStatus.querySelector('.char-upload-status-text');
+                if (statusText) statusText.textContent = `Lade Blickwinkel '${angle}' hoch...`;
+              }
+              upBtn.disabled = true;
+
+              const res = await API.uploadCharacterAngle(projectName, charName, angle, base64Data, doRemoveBg);
+              if (res && res.success) {
+                if (!char.angles) char.angles = {};
+                if (!char.angles_urls) char.angles_urls = {};
+                char.angles[angle] = true;
+                char.angles_urls[angle] = res.image_url;
+                if (angle === 'frontal') {
+                  char.image = `Characters/${res.filename}`;
+                  char.image_url = res.image_url;
+                }
+                if (res.turnaround_updated) {
+                  char.angles['turnaround'] = true;
+                  char.angles_urls['turnaround'] = `/api/characters/image?project=${encodeURIComponent(projectName)}&name=${encodeURIComponent(charName.replace(/[\\/*?:"<>| ]/g, '_'))}&angle=turnaround&t=${Date.now()}`;
+                }
+                renderCharacters();
+                markDirty();
+                showToast((t('angleUploadedSuccess') || "Blickwinkel '{angle}' für '{name}' erfolgreich hochgeladen!").replace('{angle}', angle).replace('{name}', charName), 'success');
+              }
+            } catch (err) {
+              console.error('Angle upload failed:', err);
+              showToast(err.message || `Fehler beim Hochladen von '${angle}'`, 'error');
+            } finally {
+              if (uploadStatus) uploadStatus.style.display = 'none';
+              upBtn.disabled = false;
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+    });
+
+    // 6. Delete Angle Handler
+    card.querySelectorAll('.btn-del-angle').forEach(delBtn => {
+      delBtn.addEventListener('click', async () => {
+        const angle = delBtn.dataset.angle || 'frontal';
+        if (!confirm(t('confirmDeleteAngle') || 'Möchtest du diesen Blickwinkel wirklich löschen?')) return;
+        const projectName = (el.movieFilename && el.movieFilename.value.trim()) ? el.movieFilename.value.trim() : 'film';
+
+        try {
+          await API.deleteCharacterAngle(projectName, charName, angle);
+          if (char.angles) delete char.angles[angle];
+          if (char.angles_urls) delete char.angles_urls[angle];
+          if (angle === 'frontal') {
+            delete char.image;
+            delete char.image_url;
+          }
+          renderCharacters();
+          markDirty();
+          showToast((t('angleDeletedSuccess') || "Blickwinkel '{angle}' für '{name}' gelöscht!").replace('{angle}', angle).replace('{name}', charName), 'info');
+        } catch (e) {
+          console.warn('Could not delete angle file:', e);
+          showToast(e.message || 'Fehler beim Löschen des Blickwinkels', 'error');
+        }
+      });
+    });
+
+    // 7. Build Turnaround Sheet Handler
+    card.querySelectorAll('.btn-build-turnaround, .btn-build-turnaround-sheet').forEach(bBtn => {
+      bBtn.addEventListener('click', async () => {
+        const projectName = (el.movieFilename && el.movieFilename.value.trim()) ? el.movieFilename.value.trim() : 'film';
+        try {
+          if (uploadStatus) {
+            uploadStatus.style.display = 'flex';
+            const statusText = uploadStatus.querySelector('.char-upload-status-text');
+            if (statusText) statusText.textContent = `Erstelle Turnaround-Sheet für '${charName}'...`;
+          }
+          bBtn.disabled = true;
+
+          const res = await API.generateTurnaroundSheet(projectName, charName);
+          if (res && res.success) {
+            if (!char.angles) char.angles = {};
+            if (!char.angles_urls) char.angles_urls = {};
+            char.angles['turnaround'] = true;
+            char.angles_urls['turnaround'] = res.image_url;
+            renderCharacters();
+            markDirty();
+            showToast((t('turnaroundCreatedSuccess') || "Turnaround-Sheet für '{name}' erfolgreich erstellt!").replace('{name}', charName), 'success');
+          }
+        } catch (err) {
+          console.error('Turnaround build failed:', err);
+          showToast(err.message || 'Fehler beim Erstellen des Turnaround-Sheets', 'error');
+        } finally {
+          if (uploadStatus) uploadStatus.style.display = 'none';
+          bBtn.disabled = false;
+        }
+      });
+    });
+
     return card;
   }
 
@@ -1794,6 +2392,461 @@
     showToast(t('charDuplicated').replace('{id}', clone.id), 'info');
   }
 
+  // --- Locations UI (Drehorte & Set-Studio) ---
+  function renderLocations() {
+    if (!el.locationsContainer) return;
+    el.locationsContainer.innerHTML = '';
+    const locs = state.screenplay.locations || [];
+
+    if (locs.length === 0) {
+      el.locationsContainer.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align:center; padding: 48px 20px; color: var(--text-muted); background: var(--bg-card); border-radius: var(--radius-lg); border: 1px dashed var(--bg-border);">
+          <div style="font-size: 36px; margin-bottom: 12px; opacity: 0.8;">🏛️</div>
+          <p style="font-size: 16px; font-weight: 600; margin-bottom: 8px; color: var(--text-main);">${escapeHtml(t('noLocationsYet'))}</p>
+          <p style="font-size: 13px; max-width: 480px; margin: 0 auto 20px auto; color: var(--text-dim);">${escapeHtml(t('subheadingLocations'))}</p>
+          <button class="btn btn-primary" id="btnCreateFirstLoc">
+            <span>➕</span> <span>${escapeHtml(t('createFirstLocation'))}</span>
+          </button>
+        </div>
+      `;
+      const btnFirst = el.locationsContainer.querySelector('#btnCreateFirstLoc');
+      if (btnFirst) btnFirst.addEventListener('click', addLocation);
+      return;
+    }
+
+    locs.forEach((loc, idx) => {
+      const card = createLocationCard(loc, idx, locs);
+      el.locationsContainer.appendChild(card);
+    });
+  }
+
+  function createLocationCard(loc, idx, allLocs) {
+    const card = document.createElement('div');
+    card.className = 'location-card';
+    card.id = `locationCard_${loc.id || (idx + 1)}`;
+    card.dataset.locIndex = idx;
+
+    const locId = loc.id || `loc_${idx + 1}`;
+    const locName = loc.name || '';
+    const locDesc = loc.description || '';
+    const locPrompt = loc.prompt || '';
+    const isAutoPrompt = Boolean(loc.auto_prompt);
+    const selectedModel = loc.model || getDefaultModel();
+
+    // Model name and family
+    const presets = state.presetsData.presets || {};
+    const modelInfo = presets[selectedModel] || {};
+    const modelFamily = extractModelFamily(selectedModel, modelInfo);
+    const isModelUnavailable = modelInfo && modelInfo.available === false;
+
+    // LoRAs
+    const loras = Array.isArray(loc.loras) ? loc.loras : [];
+    let lorasHtml = '';
+    let hasUnavailableLoras = false;
+    for (const lKey of loras) {
+      const loraData = state.presetsData.lora_presets && state.presetsData.lora_presets[lKey];
+      const isUnavailable = !loraData || loraData.available === false;
+      if (isUnavailable) hasUnavailableLoras = true;
+      const desc = loraData ? loraData.beschreibung : '';
+      const strength = loraData && loraData.strength_model ? ` [${loraData.strength_model}]` : '';
+      lorasHtml += `
+        <div class="lora-pill ${isUnavailable ? 'lora-pill-unavailable' : ''}" title="${escapeHtml(isUnavailable ? (t('loraUnavailableTitle') || 'LoRA lokal nicht mehr vorhanden!') : desc)}">
+          <span>${isUnavailable ? '⚠️' : '✨'} ${escapeHtml(lKey)}${strength}${isUnavailable ? ` (${escapeHtml(t('unavailableBadge') || 'Nicht verfügbar')})` : ''}</span>
+          <span class="btn-remove-loc-lora" data-lora="${escapeHtml(lKey)}" title="${escapeHtml(t('removeVarTitle') || 'Entfernen')}">✕</span>
+        </div>
+      `;
+    }
+
+    if (loras.length === 0) {
+      lorasHtml = `<span style="font-size:11px;color:var(--text-dim);font-style:italic;">${escapeHtml(t('noLorasAssigned') || 'Keine LoRAs')}</span>`;
+    }
+
+    const projName = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+    const cleanLocName = (locName || `loc_${idx + 1}`).replace(/[\\/*?:"<>| ]/g, '_');
+    const plateImgUrl = loc.image_url || (`/api/locations/image?project=${encodeURIComponent(projName)}&name=${encodeURIComponent(cleanLocName)}&t=${Date.now()}`);
+
+    card.innerHTML = `
+      <div class="loc-header">
+        <span class="loc-id-badge" title="${escapeHtml(locId)}">#${idx + 1}</span>
+        <div class="loc-title-inputs">
+          <input type="text" class="loc-name-input" value="${escapeHtml(locName)}" placeholder="${escapeHtml(t('locNamePlaceholder'))}">
+        </div>
+        <div class="char-header-actions">
+          <button class="btn btn-ghost btn-xs btn-duplicate-loc" title="${escapeHtml(t('duplicateLocTitle'))}">📋</button>
+          <button class="btn btn-danger-ghost btn-xs btn-delete-loc" title="${escapeHtml(t('deleteLocTitle'))}">🗑️</button>
+        </div>
+      </div>
+
+      <!-- Model & LoRAs row -->
+      <div class="char-model-lora-row">
+        <div class="char-model-section">
+          <span class="char-field-label">${escapeHtml(t('modelLabel') || 'Modell')}:</span>
+          <button type="button" class="btn-model-card-picker btn-loc-model ${isModelUnavailable ? 'btn-model-unavailable' : ''}" title="${escapeHtml(t('clickToChangeModel') || 'Klicken, um Modell zu wechseln')}">
+            <span class="model-picker-icon">${isModelUnavailable ? '⚠️' : '🎨'}</span>
+            <div class="model-picker-info">
+              <span class="model-picker-title">${escapeHtml(selectedModel)}</span>
+              <span class="model-picker-family">${isModelUnavailable ? escapeHtml(t('unavailableBadge') || 'Nicht verfügbar') : escapeHtml(modelFamily)}</span>
+            </div>
+            <span class="model-picker-arrow">▾</span>
+          </button>
+        </div>
+        <div class="char-lora-section">
+          <div class="char-lora-header">
+            <span class="char-field-label">LoRAs:</span>
+            <button class="btn btn-secondary btn-xs btn-open-loc-lora-picker">
+              <span>✨</span> <span>${escapeHtml(t('btnPickLora') || 'LoRA hinzufügen')}</span>
+            </button>
+          </div>
+          <div class="char-lora-pills">
+            ${lorasHtml}
+          </div>
+        </div>
+      </div>
+
+      <!-- Set Plate Preview & Generation Box (16:9 Widescreen) -->
+      <div class="loc-plate-content ${loc.image ? 'has-image' : 'empty'}">
+        ${loc.image ? `
+          <div class="loc-plate-preview-box" title="${escapeHtml(t('locThumbClickZoom'))}" role="button" tabindex="0" aria-label="${escapeHtml(locName)}">
+            <img src="${plateImgUrl}" alt="${escapeHtml(locName)}" class="loc-plate-thumb">
+            <div class="loc-plate-zoom-badge">
+              <span>🔍 ${escapeHtml(t('locThumbClickZoom'))}</span>
+            </div>
+          </div>
+          <div class="loc-plate-info">
+            <span class="char-portrait-hint">${escapeHtml(t('locPlateActiveBadge'))}</span>
+            <div class="loc-plate-actions">
+              <button type="button" class="btn btn-secondary btn-xs btn-trigger-upload-loc-img" title="${escapeHtml(t('locUploadNewPlate'))}">
+                <span>📤</span> <span>${escapeHtml(t('locChangeImg'))}</span>
+              </button>
+              <button type="button" class="btn btn-ghost btn-xs btn-trigger-generate-loc-plate" title="${escapeHtml(t('btnGenerateLocPlate'))}">
+                <span>⚡</span> <span>${escapeHtml(t('btnGenerateLocPlate'))}</span>
+              </button>
+              <button type="button" class="btn btn-danger-ghost btn-xs btn-remove-loc-img" title="${escapeHtml(t('locPlateDelete'))}">
+                <span>🗑️</span>
+              </button>
+            </div>
+          </div>
+        ` : `
+          <div class="loc-plate-placeholder">
+            <span class="loc-plate-placeholder-icon">🏛️</span>
+            <span style="font-weight:600;font-size:13px;">${escapeHtml(t('locNoPlateYet'))}</span>
+            <span style="font-size:12px;color:var(--text-dim);">${escapeHtml(t('locPlateHint'))}</span>
+            <div class="loc-plate-actions" style="margin-top:6px;">
+              <button type="button" class="btn btn-primary btn-xs btn-trigger-generate-loc-plate">
+                <span>⚡</span> <span>${escapeHtml(t('btnGenerateLocPlate'))}</span>
+              </button>
+              <button type="button" class="btn btn-secondary btn-xs btn-trigger-upload-loc-img">
+                <span>📤</span> <span>${escapeHtml(t('locUploadPlate'))}</span>
+              </button>
+            </div>
+          </div>
+        `}
+
+        <input type="file" class="loc-img-file-input" accept="image/*" style="display:none;">
+        <div class="loc-plate-upload-status" style="display:none; align-items:center; gap:8px; font-size:12px; color:var(--accent-cyan); padding:4px 0;">
+          <span class="ai-loading-spinner"></span>
+          <span class="loc-upload-status-text">${escapeHtml(t('locUploadingPlate'))}</span>
+        </div>
+      </div>
+
+      <!-- Description & Prompt -->
+      <div class="char-fields-wrapper">
+        <label class="char-field-label">🏛️ ${escapeHtml(t('locDescLabel'))}:</label>
+        <textarea class="form-control loc-desc-input" rows="2" placeholder="${escapeHtml(t('locDescPlaceholder'))}">${escapeHtml(locDesc)}</textarea>
+
+        <div class="char-autoprompt-row" style="margin-top:8px;">
+          <label class="checkbox-label" style="font-size:12px;">
+            <input type="checkbox" class="loc-autoprompt-chk" ${isAutoPrompt ? 'checked' : ''}>
+            <span>${escapeHtml(t('charAutoPrompt') || 'Prompt automatisch optimieren')}</span>
+          </label>
+        </div>
+
+        <div class="loc-prompt-box" style="margin-top:8px; display: ${isAutoPrompt ? 'none' : 'block'};">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <label class="char-field-label" style="margin:0;">🎨 ${escapeHtml(t('locPromptLabel'))}:</label>
+            <button class="btn btn-ai-magic btn-xs btn-ai-optimize-loc-prompt" title="${escapeHtml(t('btnAiOptimizeLocPromptTitle'))}">
+              <span class="ai-sparkle">🪄</span> <span>${escapeHtml(t('btnAiOptimizeLocPrompt'))}</span>
+            </button>
+          </div>
+          <textarea class="form-control loc-prompt-input" rows="2" placeholder="${escapeHtml(t('locPromptPlaceholder'))}">${escapeHtml(locPrompt)}</textarea>
+        </div>
+      </div>
+    `;
+
+    // Hook listeners
+    const locNameInput = card.querySelector('.loc-name-input');
+    locNameInput.addEventListener('input', () => {
+      const oldName = loc.name;
+      loc.name = locNameInput.value;
+      // Sync scenes with matching old name
+      if (oldName && oldName !== loc.name) {
+        (state.screenplay.scenes || []).forEach(sc => {
+          if (sc.location_id === loc.id || (sc.location && sc.location.toLowerCase() === oldName.toLowerCase())) {
+            sc.location = loc.name;
+          }
+        });
+      }
+      markDirty();
+    });
+
+    card.querySelector('.btn-duplicate-loc').addEventListener('click', () => {
+      duplicateLocation(idx);
+    });
+
+    card.querySelector('.btn-delete-loc').addEventListener('click', () => {
+      if (confirm(`${t('confirmDeleteLocation')} (${loc.name || locId})`)) {
+        state.screenplay.locations.splice(idx, 1);
+        renderLocations();
+        renderScenes();
+        updateStats();
+        markDirty();
+        showToast(t('locationDeleted'), 'info');
+      }
+    });
+
+    // Model and LoRA pickers
+    const btnLocModel = card.querySelector('.btn-loc-model');
+    if (btnLocModel) {
+      btnLocModel.addEventListener('click', () => {
+        openModelPickerModalForLocation(idx, selectedModel);
+      });
+    }
+
+    const btnOpenLocLora = card.querySelector('.btn-open-loc-lora-picker');
+    if (btnOpenLocLora) {
+      btnOpenLocLora.addEventListener('click', () => {
+        openLoraPickerModalForLocation(idx, selectedModel);
+      });
+    }
+
+    card.querySelectorAll('.btn-remove-loc-lora').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const lKey = btn.dataset.lora;
+        if (Array.isArray(loc.loras)) {
+          loc.loras = loc.loras.filter(x => x !== lKey);
+          renderLocations();
+          markDirty();
+        }
+      });
+    });
+
+    // Lightbox click
+    const plateBox = card.querySelector('.loc-plate-preview-box');
+    if (plateBox) {
+      const openLocLightbox = () => {
+        openImageLightboxModal(
+          plateImgUrl,
+          loc.name || 'Drehort',
+          loc.image || t('locPlateActiveBadge')
+        );
+      };
+      plateBox.addEventListener('click', openLocLightbox);
+      plateBox.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openLocLightbox();
+        }
+      });
+    }
+
+    // Image Upload
+    const fileInput = card.querySelector('.loc-img-file-input');
+    const uploadBtns = card.querySelectorAll('.btn-trigger-upload-loc-img');
+    const removeBtn = card.querySelector('.btn-remove-loc-img');
+    const uploadStatus = card.querySelector('.loc-plate-upload-status');
+
+    uploadBtns.forEach(uBtn => {
+      uBtn.addEventListener('click', () => fileInput && fileInput.click());
+    });
+
+    if (fileInput) {
+      fileInput.addEventListener('change', async () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          const base64Data = event.target.result;
+          try {
+            if (uploadStatus) uploadStatus.style.display = 'flex';
+            uploadBtns.forEach(b => b.disabled = true);
+
+            const res = await API.uploadLocationImage(projName, loc.name || `loc_${idx + 1}`, base64Data);
+            if (res && res.success) {
+              loc.image = res.relative_path;
+              loc.image_url = res.image_url;
+              renderLocations();
+              renderScenes();
+              updateStats();
+              markDirty();
+              showToast(t('locPlateUploadSuccess').replace('{name}', loc.name || ''), 'success');
+            }
+          } catch (err) {
+            console.error('Location image upload failed:', err);
+            showToast(err.message || 'Fehler beim Hochladen der Kulisse', 'error');
+            if (uploadStatus) uploadStatus.style.display = 'none';
+            uploadBtns.forEach(b => b.disabled = false);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    if (removeBtn) {
+      removeBtn.addEventListener('click', async () => {
+        if (!confirm(t('confirmDeleteLocImg'))) return;
+        try {
+          await API.deleteLocationImage(projName, loc.name || `loc_${idx + 1}`);
+        } catch (e) {
+          console.warn('Could not delete location image on server:', e);
+        }
+        delete loc.image;
+        delete loc.image_url;
+        renderLocations();
+        renderScenes();
+        updateStats();
+        markDirty();
+        showToast(t('locPlateRemoved'), 'info');
+      });
+    }
+
+    // Generate Set Plate in ComfyUI
+    const generateBtns = card.querySelectorAll('.btn-trigger-generate-loc-plate');
+    generateBtns.forEach(gBtn => {
+      gBtn.addEventListener('click', async () => {
+        try {
+          if (uploadStatus) {
+            uploadStatus.style.display = 'flex';
+            const statusText = uploadStatus.querySelector('.loc-upload-status-text');
+            if (statusText) statusText.textContent = t('locGeneratingPlate');
+          }
+          gBtn.disabled = true;
+
+          const res = await API.generateLocationPlate(projName, loc, state.screenplay.variables || {});
+          if (res && res.success) {
+            loc.image = res.image;
+            loc.image_url = res.image_url;
+            renderLocations();
+            renderScenes();
+            updateStats();
+            markDirty();
+            showToast(t('locPlateGeneratedSuccess').replace('{name}', loc.name || ''), 'success');
+          }
+        } catch (err) {
+          console.error('Set plate generation failed:', err);
+          showToast(err.message || 'Fehler beim Generieren der Kulisse', 'error');
+          if (uploadStatus) uploadStatus.style.display = 'none';
+          gBtn.disabled = false;
+        }
+      });
+    });
+
+    // Description & Prompt Handlers
+    const descInput = card.querySelector('.loc-desc-input');
+    descInput.addEventListener('input', () => {
+      loc.description = descInput.value;
+      markDirty();
+    });
+
+    const autoPromptChk = card.querySelector('.loc-autoprompt-chk');
+    const promptBox = card.querySelector('.loc-prompt-box');
+    const promptInput = card.querySelector('.loc-prompt-input');
+
+    autoPromptChk.addEventListener('change', () => {
+      loc.auto_prompt = autoPromptChk.checked;
+      loc.ki_prompt_generieren = autoPromptChk.checked;
+      promptBox.style.display = autoPromptChk.checked ? 'none' : 'block';
+      markDirty();
+    });
+
+    promptInput.addEventListener('input', () => {
+      loc.prompt = promptInput.value;
+      markDirty();
+    });
+
+    // AI Optimize Location Prompt Button
+    const optimizePromptBtn = card.querySelector('.btn-ai-optimize-loc-prompt');
+    if (optimizePromptBtn) {
+      optimizePromptBtn.addEventListener('click', async () => {
+        try {
+          optimizePromptBtn.disabled = true;
+          optimizePromptBtn.innerHTML = `<span class="ai-loading-spinner"></span> <span>${escapeHtml(t('aiThinking'))}</span>`;
+          const res = await API.optimizeLocationPrompt(loc, loc.model || selectedModel, state.screenplay.variables || {});
+          if (res && res.prompt) {
+            loc.prompt = res.prompt;
+            loc.auto_prompt = false;
+            loc.ki_prompt_generieren = false;
+            renderLocations();
+            markDirty();
+            showToast(t('locPromptOptimized').replace('{name}', loc.name || ''), 'success');
+          }
+        } catch (err) {
+          showToast(err.message, 'error');
+        } finally {
+          optimizePromptBtn.disabled = false;
+        }
+      });
+    }
+
+    return card;
+  }
+
+  function addLocation() {
+    if (!Array.isArray(state.screenplay.locations)) {
+      state.screenplay.locations = [];
+    }
+    const locs = state.screenplay.locations;
+    let maxId = 0;
+    for (const l of locs) {
+      if (l.id && typeof l.id === 'string' && l.id.startsWith('loc_')) {
+        const num = parseInt(l.id.replace('loc_', ''), 10);
+        if (!isNaN(num) && num > maxId) maxId = num;
+      }
+    }
+    const newIdNum = Math.max(maxId + 1, locs.length + 1);
+    const defaultModel = getDefaultModel();
+    const newLoc = {
+      id: `loc_${newIdNum}`,
+      name: state.lang === 'en' ? `Location_${newIdNum}` : `Drehort_${newIdNum}`,
+      model: defaultModel,
+      loras: [],
+      description: state.lang === 'en' ? 'Describe set architecture and environment' : 'Architektur und Lichtstimmung der Kulisse hier eingeben',
+      prompt: '',
+      auto_prompt: true
+    };
+    locs.push(newLoc);
+    renderLocations();
+    renderScenes();
+    updateStats();
+    markDirty();
+    showToast(`${t('btnAddLocation')} #${newIdNum}`, 'info');
+  }
+
+  function duplicateLocation(idx) {
+    const locs = state.screenplay.locations || [];
+    const source = locs[idx];
+    if (!source) return;
+    let maxId = 0;
+    for (const l of locs) {
+      if (l.id && typeof l.id === 'string' && l.id.startsWith('loc_')) {
+        const num = parseInt(l.id.replace('loc_', ''), 10);
+        if (!isNaN(num) && num > maxId) maxId = num;
+      }
+    }
+    const clone = JSON.parse(JSON.stringify(source));
+    clone.id = `loc_${maxId + 1}`;
+    clone.name = `${source.name}_${t('copySuffix') || 'Kopie'}`;
+    delete clone.image;
+    delete clone.image_url;
+    locs.push(clone);
+    renderLocations();
+    renderScenes();
+    updateStats();
+    markDirty();
+    showToast(t('locDuplicated').replace('{id}', clone.id), 'info');
+  }
+
   // --- LoRA Picker Modal ---
   function openLoraPickerModal(charIndex, activeModelKey) {
     state.activeLoraTarget = {
@@ -1806,6 +2859,25 @@
     const modalTitleElem = el.loraModal.querySelector('.modal-title');
     if (modalTitleElem) {
       modalTitleElem.textContent = t('modalLoraTitle') + (charName ? ` (${charName})` : '');
+    }
+    el.modalActiveModelName.textContent = activeModelKey;
+    el.loraSearchInput.value = '';
+    el.chkShowAllLoras.checked = false;
+    renderLoraModalCards();
+    el.loraModal.classList.add('open');
+  }
+
+  function openLoraPickerModalForLocation(locIndex, activeModelKey) {
+    state.activeLoraTarget = {
+      type: 'location',
+      index: locIndex,
+      model: activeModelKey
+    };
+    const loc = (state.screenplay.locations || [])[locIndex];
+    const locName = loc ? (loc.name || `#${locIndex + 1}`) : '';
+    const modalTitleElem = el.loraModal.querySelector('.modal-title');
+    if (modalTitleElem) {
+      modalTitleElem.textContent = t('modalLoraTitle') + (locName ? ` (${locName})` : '');
     }
     el.modalActiveModelName.textContent = activeModelKey;
     el.loraSearchInput.value = '';
@@ -1866,6 +2938,9 @@
     if (target.type === 'character') {
       const char = state.screenplay.characters[target.index];
       currentAssignedLoras = char && Array.isArray(char.loras) ? char.loras : [];
+    } else if (target.type === 'location') {
+      const loc = (state.screenplay.locations || [])[target.index];
+      currentAssignedLoras = loc && Array.isArray(loc.loras) ? loc.loras : [];
     } else if (target.type === 'scene') {
       const scene = state.screenplay.scenes[target.index];
       const raw = scene ? (scene.loras || scene.lora || []) : [];
@@ -1908,7 +2983,7 @@
       const lKeyLower = lKey.toLowerCase();
 
       let isCompat = false;
-      if (target.type === 'character') {
+      if (target.type === 'character' || target.type === 'location') {
         const tModel = (target.model || '').toLowerCase();
         isCompat = compatList.length === 0 ||
           compatList.includes(target.model) ||
@@ -2056,6 +3131,16 @@
             char.loras.push(lKey);
           }
           renderCharacters();
+        } else if (target.type === 'location') {
+          const loc = (state.screenplay.locations || [])[target.index];
+          if (!loc) return;
+          if (!Array.isArray(loc.loras)) loc.loras = [];
+          if (loc.loras.includes(lKey)) {
+            loc.loras = loc.loras.filter(x => x !== lKey);
+          } else {
+            loc.loras.push(lKey);
+          }
+          renderLocations();
         } else if (target.type === 'scene') {
           const scene = state.screenplay.scenes[target.index];
           if (!scene) return;
@@ -2132,6 +3217,44 @@
     }
 
     // Reset filter tabs
+    if (el.modelFilterTabs) {
+      el.modelFilterTabs.style.display = 'flex';
+      el.modelFilterTabs.querySelectorAll('.btn-filter-pill').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.filter === 'all');
+      });
+    }
+
+    renderModelModalCards();
+    el.modelModal.classList.add('open');
+  }
+
+  function openModelPickerModalForLocation(locIndex, activeModelKey) {
+    state.activeModelTarget = {
+      type: 'location',
+      locIndex: locIndex
+    };
+    state.activeModelTargetCharIndex = null;
+    state.modelFilterCategory = 'all';
+
+    const loc = (state.screenplay.locations || [])[locIndex];
+    const locName = loc ? (loc.name || `#${locIndex + 1}`) : '';
+    const modalTitleElem = el.modelModal.querySelector('.modal-title');
+    if (modalTitleElem) {
+      modalTitleElem.textContent = (t('modalModelTitle') || 'Modell auswählen') + (locName ? ` (${locName})` : '');
+    }
+    if (el.modalTargetLabel) {
+      el.modalTargetLabel.textContent = t('locLabel') || 'Drehort:';
+    }
+    if (el.modalActiveCharName) {
+      el.modalActiveCharName.textContent = locName || '-';
+    }
+    if (el.modalCurrentModelKey) {
+      el.modalCurrentModelKey.textContent = activeModelKey || '-';
+    }
+    if (el.modelSearchInput) {
+      el.modelSearchInput.value = '';
+    }
+
     if (el.modelFilterTabs) {
       el.modelFilterTabs.style.display = 'flex';
       el.modelFilterTabs.querySelectorAll('.btn-filter-pill').forEach(btn => {
@@ -2453,12 +3576,23 @@
       return;
     }
 
-    if (state.activeModelTargetCharIndex === null) return;
-    const charIndex = state.activeModelTargetCharIndex;
-    const char = state.screenplay.characters[charIndex];
-    if (!char) return;
+    const isLocationTarget = state.activeModelTarget?.type === 'location';
+    let targetEntity = null;
+    let targetEntityName = '';
+    let charIndex = null;
+    if (isLocationTarget) {
+      const locIdx = state.activeModelTarget.locIndex;
+      targetEntity = (state.screenplay.locations || [])[locIdx];
+      targetEntityName = targetEntity ? (targetEntity.name || `#${locIdx + 1}`) : '';
+    } else {
+      if (state.activeModelTargetCharIndex === null) return;
+      charIndex = state.activeModelTargetCharIndex;
+      targetEntity = state.screenplay.characters[charIndex];
+      targetEntityName = targetEntity ? (targetEntity.name || `#${charIndex + 1}`) : '';
+    }
+    if (!targetEntity) return;
 
-    const currentModel = char.model || state.presetsData.default || 'anima_catpony';
+    const currentModel = targetEntity.model || state.presetsData.default || 'anima_catpony';
     el.modelCardsList.innerHTML = '';
     const presets = state.presetsData.presets || {};
     const query = el.modelSearchInput ? el.modelSearchInput.value.toLowerCase().trim() : '';
@@ -2560,13 +3694,17 @@
         });
       }
 
-      // Single Choice Click Handler: select this model, update character and close modal
+      // Single Choice Click Handler: select this model, update character/location and close modal
       card.addEventListener('click', () => {
-        char.model = mKey;
-        renderCharacters();
+        targetEntity.model = mKey;
+        if (isLocationTarget) {
+          renderLocations();
+        } else {
+          renderCharacters();
+        }
         markDirty();
         closeModelPickerModal();
-        showToast(t('modelSelected').replace('{name}', mKey).replace('{char}', char.name || `#${charIndex + 1}`), 'success');
+        showToast(t('modelSelected').replace('{name}', mKey).replace('{char}', targetEntityName), 'success');
       });
 
       el.modelCardsList.appendChild(card);
@@ -2623,14 +3761,38 @@
     const charsList = state.screenplay.characters || [];
     const activeCharsInScene = Array.isArray(scene.characters) ? scene.characters : (scene.character ? [scene.character] : []);
 
+    // Locations in Scene
+    const locsList = state.screenplay.locations || [];
+    let matchedLoc = null;
+    if (scene.location_id) {
+      matchedLoc = locsList.find(l => l.id === scene.location_id) || null;
+    }
+    if (!matchedLoc && scene.location) {
+      matchedLoc = locsList.find(l => l.name && l.name.toLowerCase() === scene.location.toLowerCase()) || null;
+    }
+    const projName = (el.movieFilename && el.movieFilename.value.trim()) || 'film';
+
     let castChipsHtml = '';
+    const charAngles = scene.character_angles || scene.charakter_winkel || {};
     for (const c of charsList) {
       const cName = c.name || `actor_${c.id}`;
       const isSelected = activeCharsInScene.includes(cName) || activeCharsInScene.includes(c.id);
+      const chosenAngle = charAngles[cName] || charAngles[c.id] || 'auto';
       castChipsHtml += `
-        <span class="cast-chip ${isSelected ? 'selected' : ''}" data-char-name="${escapeHtml(cName)}">
-          ${isSelected ? '✔' : '+'} ${escapeHtml(cName)}
-        </span>
+        <div class="cast-member-pill ${isSelected ? 'selected' : ''}">
+          <span class="cast-chip ${isSelected ? 'selected' : ''}" data-char-name="${escapeHtml(cName)}">
+            ${isSelected ? '✔' : '+'} ${escapeHtml(cName)}
+          </span>
+          ${isSelected ? `
+            <select class="cast-angle-select" data-char-name="${escapeHtml(cName)}" title="${escapeHtml(t('sceneCharAngleTitle') || 'Kamerawinkel für diesen Charakter in dieser Szene')}">
+              <option value="auto" ${chosenAngle === 'auto' ? 'selected' : ''}>${escapeHtml(t('angleAuto') || '🎯 Auto')}</option>
+              <option value="frontal" ${chosenAngle === 'frontal' ? 'selected' : ''}>👤 0°</option>
+              <option value="three_quarter" ${chosenAngle === 'three_quarter' ? 'selected' : ''}>👥 45°</option>
+              <option value="profile" ${chosenAngle === 'profile' ? 'selected' : ''}>🗣️ 90°</option>
+              <option value="turnaround" ${chosenAngle === 'turnaround' ? 'selected' : ''}>🔄 Turnaround</option>
+            </select>
+          ` : ''}
+        </div>
       `;
     }
 
@@ -2676,7 +3838,24 @@
           <span class="scene-id-badge">#${sceneId}</span>
           <div class="scene-header-inputs">
             <input type="text" class="scene-seq-input" value="${escapeHtml(sequence)}" placeholder="${escapeHtml(t('sceneSeqPlaceholder'))}">
-            <input type="text" class="scene-loc-input" value="${escapeHtml(location)}" placeholder="${escapeHtml(t('sceneLocPlaceholder'))}">
+            <div class="scene-loc-wrapper">
+              <select class="scene-location-select" title="${escapeHtml(t('sceneLocationSelectTitle'))}">
+                <option value="">${escapeHtml(t('sceneNoSetOption'))}</option>
+                ${locsList.map(l => `
+                  <option value="${escapeHtml(l.id)}" ${((matchedLoc && matchedLoc.id === l.id) || scene.location_id === l.id) ? 'selected' : ''}>
+                    🏛️ ${escapeHtml(l.name)}
+                  </option>
+                `).join('')}
+              </select>
+              ${matchedLoc && matchedLoc.image ? `
+                <img src="${matchedLoc.image_url || ('/api/locations/image?project=' + encodeURIComponent(projName) + '&name=' + encodeURIComponent((matchedLoc.name || '').replace(/[\\/*?:"<>| ]/g, '_')) + '&t=' + Date.now())}" 
+                     class="scene-loc-chip-thumb" 
+                     title="${escapeHtml(matchedLoc.name)} - ${escapeHtml(t('locThumbClickZoom'))}" 
+                     alt="${escapeHtml(matchedLoc.name)}"
+                     role="button">
+              ` : ''}
+              <input type="text" class="scene-loc-input" value="${escapeHtml(location)}" placeholder="${escapeHtml(t('sceneLocPlaceholder'))}">
+            </div>
           </div>
         </div>
         <div class="scene-header-right">
@@ -2897,9 +4076,51 @@
       markDirty();
     });
 
+    const locSelect = card.querySelector('.scene-location-select');
+    const locThumb = card.querySelector('.scene-loc-chip-thumb');
     const locInput = card.querySelector('.scene-loc-input');
+
+    if (locSelect) {
+      locSelect.addEventListener('change', () => {
+        const val = locSelect.value.trim();
+        if (val) {
+          scene.location_id = val;
+          const found = locsList.find(l => l.id === val);
+          if (found) {
+            scene.location = found.name;
+            locInput.value = found.name;
+          }
+        } else {
+          delete scene.location_id;
+        }
+        renderScenes();
+        renderStoryboardTimeline();
+        markDirty();
+      });
+    }
+
+    if (locThumb && matchedLoc) {
+      locThumb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openImageLightboxModal(
+          matchedLoc.image_url || ('/api/locations/image?project=' + encodeURIComponent(projName) + '&name=' + encodeURIComponent((matchedLoc.name || '').replace(/[\\/*?:"<>| ]/g, '_')) + '&t=' + Date.now()),
+          matchedLoc.name,
+          matchedLoc.image || t('locPlateActiveBadge')
+        );
+      });
+    }
+
     locInput.addEventListener('input', () => {
       scene.location = locInput.value;
+      const match = locsList.find(l => l.name && l.name.toLowerCase() === locInput.value.trim().toLowerCase());
+      if (match) {
+        scene.location_id = match.id;
+        if (locSelect) locSelect.value = match.id;
+      } else {
+        delete scene.location_id;
+        if (locSelect) locSelect.value = '';
+      }
+      renderStoryboardTimeline();
       markDirty();
     });
 
@@ -2942,19 +4163,33 @@
       });
     }
 
-    // Cast Chips Toggle
+    // Cast Chips Toggle & Angle Selection
     card.querySelectorAll('.cast-chip').forEach(chip => {
       chip.addEventListener('click', () => {
         const cName = chip.dataset.charName;
         if (!Array.isArray(scene.characters)) scene.characters = [];
         if (scene.characters.includes(cName)) {
           scene.characters = scene.characters.filter(x => x !== cName);
-          chip.classList.remove('selected');
-          chip.textContent = `+ ${cName}`;
+          if (scene.character_angles) {
+            delete scene.character_angles[cName];
+          }
         } else {
           scene.characters.push(cName);
-          chip.classList.add('selected');
-          chip.textContent = `✔ ${cName}`;
+        }
+        renderScenes();
+        markDirty();
+      });
+    });
+
+    card.querySelectorAll('.cast-angle-select').forEach(sel => {
+      sel.addEventListener('change', (e) => {
+        const cName = sel.dataset.charName;
+        if (!scene.character_angles) scene.character_angles = {};
+        const val = e.target.value;
+        if (val === 'auto') {
+          delete scene.character_angles[cName];
+        } else {
+          scene.character_angles[cName] = val;
         }
         markDirty();
       });
@@ -3674,6 +4909,7 @@
         ${thumbHtml}
         <div class="filmstrip-cell-topbar">
           <span class="filmstrip-scene-badge">#${sceneId}</span>
+          ${(scene.location_id || scene.location) ? `<span class="filmstrip-loc-badge" title="🏛️ ${escapeHtml(scene.location || scene.location_id)}">🏛️</span>` : ''}
           ${(scene.voiceover || scene.narration) ? `<span class="filmstrip-vo-badge" title="${escapeHtml(t('scene_has_voiceover') || 'Voiceover aktiv')}">🎙️</span>` : ''}
           ${(scene.color_grade && scene.color_grade !== 'none') ? `<span class="filmstrip-color-badge" title="${escapeHtml(t('scene_has_color') || 'Color Look aktiv')}">🎨</span>` : ''}
           <span class="filmstrip-status-pill ${statusPillClass}">${escapeHtml(statusPillText)}</span>
@@ -3779,6 +5015,47 @@
         el.filmstripTrack.appendChild(transBadge);
       }
     });
+  }
+
+  function openImageLightboxModal(imageUrl, title, extraMeta) {
+    if (!el.imageLightboxModal || !el.imageLightboxImg) return;
+
+    if (el.imageLightboxTitle) {
+      el.imageLightboxTitle.textContent = title ? `🎭 ${title}` : '🖼️ Porträt-Vorschau';
+    }
+
+    if (el.imageLightboxDownloadBtn) {
+      el.imageLightboxDownloadBtn.href = imageUrl;
+      const cleanName = (title || 'character_portrait').toLowerCase().replace(/[^a-z0-9_-]/gi, '_');
+      el.imageLightboxDownloadBtn.download = `${cleanName}.png`;
+    }
+
+    const baseMeta = extraMeta ? `<span>${escapeHtml(extraMeta)}</span>` : '';
+    if (el.imageLightboxMeta) {
+      el.imageLightboxMeta.innerHTML = baseMeta;
+    }
+
+    el.imageLightboxImg.onload = () => {
+      if (el.imageLightboxMeta && el.imageLightboxImg.naturalWidth && el.imageLightboxImg.naturalHeight) {
+        const dimStr = `📐 ${el.imageLightboxImg.naturalWidth} × ${el.imageLightboxImg.naturalHeight} px`;
+        el.imageLightboxMeta.innerHTML = baseMeta
+          ? `${baseMeta} <span class="badge badge-subtle" style="font-size:10px;">${dimStr}</span>`
+          : `<span class="badge badge-subtle" style="font-size:10px;">${dimStr}</span>`;
+      }
+    };
+
+    el.imageLightboxImg.src = imageUrl;
+    el.imageLightboxModal.classList.add('open');
+  }
+
+  function closeImageLightboxModal() {
+    if (!el.imageLightboxModal || !el.imageLightboxImg) return;
+    el.imageLightboxModal.classList.remove('open');
+    setTimeout(() => {
+      if (!el.imageLightboxModal.classList.contains('open')) {
+        el.imageLightboxImg.src = '';
+      }
+    }, 200);
   }
 
   function openVideoPlayerModal(videoUrl, title, duration) {
@@ -6061,6 +7338,9 @@
     // Add Character
     el.btnAddCharacter.addEventListener('click', addCharacter);
 
+    // Add Location
+    if (el.btnAddLocation) el.btnAddLocation.addEventListener('click', addLocation);
+
     // Add Scene
     el.btnAddScene.addEventListener('click', addScene);
 
@@ -6074,6 +7354,7 @@
         Object.values(el.tabContents).forEach(content => content && content.classList.remove('active'));
         if (el.tabContents[tab]) el.tabContents[tab].classList.add('active');
 
+        if (tab === 'locations') renderLocations();
         if (tab === 'scenes') fetchAndRenderTimeline();
         if (tab === 'json') renderJsonPreview();
         if (tab === 'music') renderMusicStudio();
@@ -6317,6 +7598,19 @@
       });
     }
 
+    // Image Lightbox Modal Events
+    if (el.btnCloseImageLightboxModal) {
+      el.btnCloseImageLightboxModal.addEventListener('click', closeImageLightboxModal);
+    }
+    if (el.btnCloseImageLightboxFooterBtn) {
+      el.btnCloseImageLightboxFooterBtn.addEventListener('click', closeImageLightboxModal);
+    }
+    if (el.imageLightboxModal) {
+      el.imageLightboxModal.addEventListener('click', (e) => {
+        if (e.target === el.imageLightboxModal) closeImageLightboxModal();
+      });
+    }
+
     // Settings Modal Events
     if (el.btnSettings) {
       el.btnSettings.addEventListener('click', openSettingsModal);
@@ -6430,6 +7724,7 @@
         closeGuideModal();
         closeVideoPlayerModal();
         closeSettingsModal();
+        closeImageLightboxModal();
       }
     });
   }

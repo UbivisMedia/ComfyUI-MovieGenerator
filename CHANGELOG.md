@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0-beta] - 2026-09-28
+
+### ✨ Added
+
+- **Character Continuity 2.0 & Multi-Angle Studio**:
+  - **Multi-Angle Perspective Studio**: Integrated directly into character cards in Movie Studio with interactive slots for **Frontal (0°)**, **3/4-View (45°)**, **Profile (90°)**, and a unified **Turnaround-Sheet (Multi-View)**.
+  - **Perspective-Tailored ComfyUI Generation**: Generates individual perspective angles (`generate_character_angle_comfy`) with specialized camera framing keywords (`direct front view`, `three-quarter 45 degree angle portrait`, `pure 90 degree side profile view`) and reciprocal negative prompts, automatically saved to `Characters/<safe_name>_<angle>.png`.
+  - **One-Click Turnaround Composite Engine (`lib/turnaround_builder.py`)**: Assembles available perspectives into a clean horizontal multi-view turnaround sheet with LANCZOS height normalization and subtle frame dividers.
+  - **Turnaround Default Reference Mode (`use_turnaround_sheet`)**: One-click toggle allowing characters to supply the combined multi-view turnaround sheet directly as `<Picture K>` into MiniMax H3.
+  - **AI Prompt-Based Angle Detection (`lib/subject_manager.py`)**: Automatic directorial keyword analysis (`detect_scene_character_angle`) selecting frontal, three-quarter, or profile perspectives based on scene prompt text (e.g. "looking away", "profile", "45 degree", "from the side").
+  - **Per-Scene Directorial Angle Selector**: Interactive angle dropdown in each scene card per cast member (`🎯 Auto`, `👤 0°`, `👥 45°`, `🗣️ 90°`, `🔄 Turnaround`).
+  - **Dynamic Reference Upload & Injection (`master_regisseur.py`)**: Scene-specific reference resolution, caching, and upload for seamless camera perspective alignment during movie rendering.
+
+- **Filming Locations & Sets Studio (Drehorte)**:
+  - **Dedicated Set & Location Library**: Master environment reference plates stored in `Projects/<Project>/Locations/<Location_Name>.png` alongside character portraits.
+  - **Individual 16:9 Set Master Plate Generator**: ComfyUI T2I workflow configured with 16:9 widescreen output generating cinematic architectural environment plates.
+  - **LM Studio Environment Prompt Optimizer**: Specialized AI prompt engineer (`/api/locations/optimize_prompt`) focusing strictly on architectural details, volumetric lighting, textures, and spatial composition.
+  - **Interactive Set Studio UI**: Dedicated `🏛️ Drehorte` tab with location cards, model and LoRA selection, upload/delete capabilities, quick stats counters, and full-resolution click-to-enlarge Lightbox modal.
+  - **Explicit Scene Set Assignment**: Every scene card features a `Location / Drehort` selector linking the shot directly to a registered set asset, plus mini-thumbnail preview with zoom lightbox and auto-sync with textual location names.
+  - **Dual-Reference ComfyUI Integration**: Injects the location plate into the I2V video pipeline (`master_regisseur.py` & `lib/subject_manager.py`) as `<Subject K> is the location in <Picture K> (<Location_Name>)`, wiring it directly into reference image slots alongside characters for spatial and architectural continuity across the movie.
+  - **Timeline Set Badges**: `🏛️` visual badges in the Storyboard Filmstrip cells showing assigned sets with hover tooltips.
+
 ## [1.3.0] - 2026-09-24
 
 ### ✨ Added

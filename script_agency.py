@@ -18,6 +18,7 @@ import time
 import shutil
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from version import __version__
+from lib.turnaround_builder import build_turnaround_sheet
 from lib.subject_manager import (
     resolve_scene_characters,
     build_subject_definitions,
@@ -1062,11 +1063,16 @@ GUIDELINES:
         return {"success": False, "error": str(e)}
 
 
-def generate_character_portrait_comfy(project_name, char, variables=None, remove_bg=True):
-    """Generates a character casting image using ComfyUI and active model/LoRA presets.
-    Interpolates variables ({celina_top}, etc.) into the character prompt based on the character's first scene appearance.
+def generate_character_angle_comfy(project_name, char, angle="frontal", variables=None, remove_bg=True):
+    """Generates a character casting perspective (frontal, three_quarter, or profile) using ComfyUI.
+    Injects perspective-tailored camera framing and negative tokens, saves to Characters/<char>_<angle>.png,
+    and automatically builds/refreshes the composite turnaround sheet if multi-angle assets exist.
     """
-    # If variables were not provided or only root variables, calculate variables up to character's first_scene
+    angle_clean = (angle or "frontal").lower().strip()
+    if angle_clean not in ("frontal", "three_quarter", "profile"):
+        angle_clean = "frontal"
+
+    # If variables were not provided, calculate variables up to character's first_scene
     if not variables:
         try:
             from master_regisseur import get_character_first_scene, get_variables_for_scene
@@ -1117,6 +1123,12 @@ def generate_character_portrait_comfy(project_name, char, variables=None, remove
         preset_name = default_key
         preset = presets_dict.get(default_key, {})
 
+    angle_negatives = {
+        "frontal": "side view, profile, turned head, looking away",
+        "three_quarter": "direct frontal view, pure profile, looking directly at camera",
+        "profile": "frontal, looking at camera, three-quarter view, 3/4 view"
+    }
+
     if preset:
         if "unet_name" in preset and "44" in wf_t2i:
             wf_t2i["44"]["inputs"]["unet_name"] = preset["unet_name"]
@@ -1139,9 +1151,11 @@ def generate_character_portrait_comfy(project_name, char, variables=None, remove
         if "megapixels" in preset and "54" in wf_t2i:
             wf_t2i["54"]["inputs"]["megapixels"] = preset["megapixels"]
 
-        neg_prompt = char.get("negative_prompt") or preset.get("negative_prompt")
-        if neg_prompt is not None and "12" in wf_t2i:
-            wf_t2i["12"]["inputs"]["text"] = neg_prompt
+        neg_prompt = char.get("negative_prompt") or preset.get("negative_prompt") or ""
+        extra_neg = angle_negatives.get(angle_clean, "")
+        combined_neg = f"{neg_prompt}, {extra_neg}".strip(", ")
+        if combined_neg and "12" in wf_t2i:
+            wf_t2i["12"]["inputs"]["text"] = combined_neg
 
     # LoRAs
     char_loras = char.get("loras") or char.get("lora") or []
@@ -1204,8 +1218,6 @@ def generate_character_portrait_comfy(project_name, char, variables=None, remove
     wf_t2i["12"]["inputs"]["clip"] = current_clip
 
     # Determine prompt to use:
-    # If auto_prompt is enabled, use LM Studio to optimize description, or fallback to description.
-    # Never let default placeholder prompts ("A brave protagonist...") override the user's description.
     is_auto_prompt = char.get("auto_prompt") is not False and char.get("ki_prompt_generieren") is not False
     desc_text = (char.get("description") or char.get("beschreibung") or "").strip()
     fixed_prompt = (char.get("prompt") or "").strip()
@@ -1237,7 +1249,15 @@ def generate_character_portrait_comfy(project_name, char, variables=None, remove
     else:
         final_raw_prompt = fixed_prompt or "high quality portrait of a character"
 
+    angle_prompts = {
+        "frontal": "direct front view, looking straight at camera, centered symmetrical facial portrait, eye-level framing",
+        "three_quarter": "three-quarter view, 45 degree angle portrait, head turned slightly, looking slightly off-camera, cinematic rim lighting, angled perspective",
+        "profile": "pure 90 degree side profile view, looking sideways, sharp jawline, visible ear, head turned 90 degrees, profile portrait framing"
+    }
+
     full_prompt = interpolate_variables(final_raw_prompt, variables or {})
+    full_prompt = full_prompt.rstrip(", ") + f", {angle_prompts.get(angle_clean, '')}"
+
     if extra_trigger_words:
         new_triggers = [tw for tw in extra_trigger_words if tw.lower() not in full_prompt.lower()]
         if new_triggers:
@@ -1313,20 +1333,328 @@ def generate_character_portrait_comfy(project_name, char, variables=None, remove
 
     proj_chars_dir = os.path.join(PROJECTS_DIR, safe_project, "Characters")
     os.makedirs(proj_chars_dir, exist_ok=True)
-    target_png = os.path.join(proj_chars_dir, f"{safe_char}.png")
 
+    target_png = os.path.join(proj_chars_dir, f"{safe_char}_{angle_clean}.png")
     with open(target_png, "wb") as f:
         f.write(final_img_bytes)
 
+    if angle_clean == "frontal":
+        master_png = os.path.join(proj_chars_dir, f"{safe_char}.png")
+        with open(master_png, "wb") as f:
+            f.write(final_img_bytes)
+
+    # Check for turnaround rebuild if multiple angles exist
+    frontal_path = os.path.join(proj_chars_dir, f"{safe_char}_frontal.png")
+    if not os.path.exists(frontal_path):
+        frontal_path = os.path.join(proj_chars_dir, f"{safe_char}.png")
+    three_quarter_path = os.path.join(proj_chars_dir, f"{safe_char}_three_quarter.png")
+    profile_path = os.path.join(proj_chars_dir, f"{safe_char}_profile.png")
+    turnaround_path = os.path.join(proj_chars_dir, f"{safe_char}_turnaround.png")
+
+    existing_angles = [p for p in (frontal_path, three_quarter_path, profile_path) if os.path.exists(p)]
+    turnaround_created = False
+    if len(existing_angles) >= 2:
+        try:
+            build_turnaround_sheet(
+                frontal_path=frontal_path if os.path.exists(frontal_path) else None,
+                three_quarter_path=three_quarter_path if os.path.exists(three_quarter_path) else None,
+                profile_path=profile_path if os.path.exists(profile_path) else None,
+                output_path=turnaround_path
+            )
+            turnaround_created = True
+        except Exception as e_sheet:
+            print(f"⚠️ Konnte Turnaround Sheet nicht automatisch erstellen: {e_sheet}")
+
     timestamp = int(time.time())
-    img_url = f"/api/characters/image?project={urllib.parse.quote(safe_project)}&name={urllib.parse.quote(safe_char)}&t={timestamp}"
+    img_url = f"/api/characters/image?project={urllib.parse.quote(safe_project)}&name={urllib.parse.quote(safe_char)}&angle={angle_clean}&t={timestamp}"
 
     return {
         "success": True,
-        "image": f"Characters/{safe_char}.png",
+        "angle": angle_clean,
+        "filename": os.path.basename(target_png),
+        "image": f"Characters/{os.path.basename(target_png)}",
         "image_url": img_url,
+        "turnaround_updated": turnaround_created,
         "prompt_used": full_prompt,
         "generated_prompt": char.get("prompt") or full_prompt
+    }
+
+
+def generate_character_portrait_comfy(project_name, char, variables=None, remove_bg=True):
+    """Generates a character master casting portrait in ComfyUI (delegates to generate_character_angle_comfy)."""
+    return generate_character_angle_comfy(project_name, char, angle="frontal", variables=variables, remove_bg=remove_bg)
+
+
+def ai_optimize_location_prompt(data):
+    """Uses LM Studio to generate an optimized cinematic set environment prompt based on name, notes, architecture, lighting."""
+    loc = data.get("location", {})
+    loc_name = loc.get("name", "Filming Set")
+    loc_desc = (loc.get("description") or loc.get("beschreibung") or "").strip()
+    preset_name = loc.get("model") or data.get("preset") or "anima_cyberrealistic"
+    variables = data.get("variables", {})
+
+    presets_data = get_presets_data(enrich=False)
+    preset_info = presets_data.get("presets", {}).get(preset_name, {})
+    model_desc = preset_info.get("beschreibung", "")
+
+    prompt = f"""You are a master Hollywood cinematography set designer, environment concept artist, and AI prompt engineer.
+Create an evocative, highly detailed visual prompt in English for a film set / filming location master plate.
+
+TARGET IMAGE MODEL:
+'{preset_name}' ({model_desc})
+
+SET / LOCATION INFORMATION:
+Name: {loc_name}
+Original description / concept notes: {loc_desc}
+
+GUIDELINES:
+1. Write the prompt entirely in English as a comma-separated list of visual tags and atmospheric phrases.
+2. Focus strictly on architecture, interior or exterior scenery, props, spatial depth, materials, color palette, lighting (e.g. volumetric rays, practical fixtures, golden hour, neon rim light, soft cinematic bounce), atmospheric weather, and octane render / photography details.
+3. Crucial: NO characters, NO actors, NO people in the shot (empty set establishing shot / master environment plate).
+4. Frame as a cinematic wide shot / establishing landscape shot with rich environmental detail and texture.
+5. Adapt style to target model:
+   - If realistic/SDXL: photorealistic cinematography, 8k, raw photo, film still, architectural photography.
+   - If anime/stylized: high detail anime background scenery, Makoto Shinkai aesthetic, clean lines, vibrant palette.
+6. Return ONLY the final prompt text without markdown, quotes, or explanations."""
+
+    try:
+        raw_out = call_lm_studio([{"role": "user", "content": prompt}], temperature=0.7)
+        clean_prompt = raw_out.strip().strip('"\'`')
+        clean_prompt = re.sub(r'^```[a-zA-Z]*\n?', '', clean_prompt)
+        clean_prompt = re.sub(r'\n?```$', '', clean_prompt).strip()
+        return {"success": True, "prompt": clean_prompt}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def generate_location_plate_comfy(project_name, location_data, variables=None):
+    """Generates a landscape set/location master plate using ComfyUI (workflow_t2i.json)."""
+    settings = load_settings()
+    server_address = settings.get("comfyui", {}).get("server_address", "127.0.0.1:8188")
+
+    # Check ComfyUI server status
+    try:
+        urllib.request.urlopen(f"http://{server_address}/system_stats", timeout=3)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"ComfyUI ist nicht erreichbar ({server_address}). Bitte stelle sicher, dass ComfyUI gestartet ist."
+        }
+
+    # Load workflow_t2i.json
+    wf_path = os.path.join(BASE_DIR, "Workflows", "workflow_t2i.json")
+    if not os.path.exists(wf_path):
+        return {"success": False, "error": "Workflow-Datei 'workflow_t2i.json' nicht gefunden."}
+
+    try:
+        with open(wf_path, "r", encoding="utf-8") as f:
+            wf_t2i = json.load(f)
+    except Exception as e:
+        return {"success": False, "error": f"Fehler beim Laden von workflow_t2i.json: {e}"}
+
+    # Load presets
+    t2i_presets = get_presets_data(enrich=False)
+    preset_name = location_data.get("model") or location_data.get("modell") or location_data.get("preset") or t2i_presets.get("default", "anima_catpony")
+    presets_dict = t2i_presets.get("presets", {})
+    preset = presets_dict.get(preset_name, {})
+
+    if not preset and presets_dict:
+        fallback_key = list(presets_dict.keys())[0]
+        preset = presets_dict[fallback_key]
+        preset_name = fallback_key
+
+    unet_name = preset.get("unet_name", "Anima\\sexy\\CatPony_Ani_v1.0.fp16.safetensors")
+    clip_name = preset.get("clip_name", "qwen_3_06b_base.safetensors")
+    vae_name = preset.get("vae_name", "qwen_image_vae.safetensors")
+    sampler_name = preset.get("sampler_name", "er_sde")
+    scheduler = preset.get("scheduler", "beta57")
+    steps = preset.get("steps", 30)
+    cfg = preset.get("cfg", 4.0)
+
+    # Configure UNET, CLIP, VAE
+    wf_t2i["44"]["inputs"]["unet_name"] = unet_name
+    wf_t2i["45"]["inputs"]["clip_name"] = clip_name
+    if "clip_type" in preset:
+        wf_t2i["45"]["inputs"]["type"] = preset["clip_type"]
+    wf_t2i["15"]["inputs"]["vae_name"] = vae_name
+
+    # Configure KSampler
+    wf_t2i["19"]["inputs"]["sampler_name"] = sampler_name
+    wf_t2i["19"]["inputs"]["scheduler"] = scheduler
+    wf_t2i["19"]["inputs"]["steps"] = steps
+    wf_t2i["19"]["inputs"]["cfg"] = cfg
+
+    # Configure LoRAs
+    loc_loras = location_data.get("loras") or location_data.get("lora") or []
+    if isinstance(loc_loras, str):
+        loc_loras = [l.strip() for l in loc_loras.split(",") if l.strip()]
+
+    lora_presets_dict = t2i_presets.get("lora_presets", {})
+    current_model = ["44", 0]
+    current_clip = ["45", 0]
+    extra_trigger_words = []
+
+    for l_idx, lora_item in enumerate(loc_loras):
+        if isinstance(lora_item, str):
+            l_name = lora_item.strip()
+            custom_strength = None
+        elif isinstance(lora_item, dict):
+            l_name = lora_item.get("name") or lora_item.get("lora")
+            custom_strength = lora_item.get("strength")
+        else:
+            continue
+
+        if not l_name:
+            continue
+
+        if l_name in lora_presets_dict:
+            l_cfg = lora_presets_dict[l_name]
+            real_file = l_cfg.get("lora_name", l_name)
+            s_model = custom_strength if custom_strength is not None else l_cfg.get("strength_model", 1.0)
+            s_clip = custom_strength if custom_strength is not None else l_cfg.get("strength_clip", s_model)
+            triggers = l_cfg.get("trigger_words", "")
+        else:
+            real_file = l_name
+            s_model = custom_strength if custom_strength is not None else 1.0
+            s_clip = s_model
+            triggers = ""
+
+        if triggers:
+            extra_trigger_words.append(triggers)
+
+        node_id = f"800{l_idx}"
+        wf_t2i[node_id] = {
+            "inputs": {
+                "model": current_model,
+                "clip": current_clip,
+                "lora_name": real_file,
+                "strength_model": s_model,
+                "strength_clip": s_clip
+            },
+            "class_type": "LoraLoader"
+        }
+        current_model = [node_id, 0]
+        current_clip = [node_id, 1]
+
+    wf_t2i["19"]["inputs"]["model"] = current_model
+    wf_t2i["11"]["inputs"]["clip"] = current_clip
+    wf_t2i["12"]["inputs"]["clip"] = current_clip
+
+    # Configure 16:9 Landscape for Location Plate
+    if "54" in wf_t2i and "inputs" in wf_t2i["54"]:
+        wf_t2i["54"]["inputs"]["aspect_ratio"] = "16:9 (Widescreen)"
+        wf_t2i["54"]["inputs"]["megapixels"] = 1.0
+
+    # Direct VAEDecode to PreviewImage, bypassing background removal
+    if "1" in wf_t2i and "inputs" in wf_t2i["1"]:
+        wf_t2i["1"]["inputs"]["images"] = ["8", 0]
+    for r_node in ["57:13", "57:14", "57:15", "57:16"]:
+        if r_node in wf_t2i:
+            del wf_t2i[r_node]
+
+    # Determine prompt
+    is_auto_prompt = location_data.get("auto_prompt") is not False and location_data.get("ki_prompt_generieren") is not False
+    desc_text = (location_data.get("description") or location_data.get("beschreibung") or "").strip()
+    fixed_prompt = (location_data.get("prompt") or "").strip()
+
+    final_raw_prompt = ""
+    if is_auto_prompt and desc_text:
+        try:
+            opt_res = ai_optimize_location_prompt({
+                "location": location_data,
+                "preset": preset_name,
+                "variables": variables or {}
+            })
+            if opt_res and opt_res.get("success") and opt_res.get("prompt"):
+                final_raw_prompt = opt_res["prompt"]
+                location_data["prompt"] = final_raw_prompt
+        except Exception:
+            pass
+        if not final_raw_prompt:
+            final_raw_prompt = desc_text
+    elif fixed_prompt:
+        final_raw_prompt = fixed_prompt
+    elif desc_text:
+        final_raw_prompt = desc_text
+    else:
+        final_raw_prompt = "cinematic widescreen establishing shot of an empty film set, highly detailed environment, dramatic lighting, 8k"
+
+    full_prompt = interpolate_variables(final_raw_prompt, variables or {})
+    if extra_trigger_words:
+        new_triggers = [tw for tw in extra_trigger_words if tw.lower() not in full_prompt.lower()]
+        if new_triggers:
+            full_prompt = full_prompt.rstrip(", ") + ", " + ", ".join(new_triggers)
+
+    wf_t2i["11"]["inputs"]["text"] = full_prompt
+    # Negative prompt tailored for clean environment plate
+    wf_t2i["12"]["inputs"]["text"] = "worst quality, low quality, blurry, human, person, character, face, 1girl, 1boy, crowd, distorted, ugly, text, watermark"
+
+    import random
+    wf_t2i["19"]["inputs"]["seed"] = random.randint(1, 999999999999999)
+
+    # Queue to ComfyUI
+    p_data = json.dumps({"prompt": wf_t2i, "client_id": "script_agency"}).encode("utf-8")
+    req = urllib.request.Request(f"http://{server_address}/prompt", data=p_data)
+    try:
+        resp = json.loads(urllib.request.urlopen(req, timeout=10).read())
+        prompt_id = resp["prompt_id"]
+    except Exception as e:
+        return {"success": False, "error": f"Fehler beim Übermitteln an ComfyUI: {e}"}
+
+    # Poll history until finished
+    start_time = time.time()
+    img_data = None
+    while time.time() - start_time < 180:
+        time.sleep(1.0)
+        try:
+            h_req = urllib.request.Request(f"http://{server_address}/history/{prompt_id}")
+            h_data = json.loads(urllib.request.urlopen(h_req, timeout=5).read())
+            if prompt_id in h_data:
+                p_info = h_data[prompt_id]
+                status_info = p_info.get("status", {})
+                if status_info.get("status_str") == "error":
+                    err_msg = "ComfyUI Ausführungsfehler"
+                    for msg in status_info.get("messages", []):
+                        if msg[0] == "execution_error":
+                            err_msg = msg[1].get("exception_message", str(msg[1]))
+                    return {"success": False, "error": err_msg}
+
+                outputs = p_info.get("outputs", {})
+                for nid in outputs:
+                    if "images" in outputs[nid] and outputs[nid]["images"]:
+                        img_info = outputs[nid]["images"][0]
+                        v_url = f"http://{server_address}/view?filename={urllib.parse.quote(img_info['filename'])}&subfolder={urllib.parse.quote(img_info.get('subfolder', ''))}&type={urllib.parse.quote(img_info.get('type', 'output'))}"
+                        img_data = urllib.request.urlopen(urllib.request.Request(v_url), timeout=15).read()
+                        break
+                if img_data:
+                    break
+        except Exception:
+            pass
+
+    if not img_data:
+        return {"success": False, "error": "Zeitüberschreitung beim Warten auf die Bildgenerierung in ComfyUI."}
+
+    # Save to project locations dir
+    safe_project = os.path.splitext(os.path.basename(project_name))[0]
+    loc_name = location_data.get("name", "location").strip() or "location"
+    safe_loc = re.sub(r'[\\/*?:"<>| ]', '_', loc_name)
+
+    proj_locs_dir = os.path.join(PROJECTS_DIR, safe_project, "Locations")
+    os.makedirs(proj_locs_dir, exist_ok=True)
+    target_png = os.path.join(proj_locs_dir, f"{safe_loc}.png")
+
+    with open(target_png, "wb") as f:
+        f.write(img_data)
+
+    timestamp = int(time.time())
+    img_url = f"/api/locations/image?project={urllib.parse.quote(safe_project)}&name={urllib.parse.quote(safe_loc)}&t={timestamp}"
+
+    return {
+        "success": True,
+        "image": f"Locations/{safe_loc}.png",
+        "image_url": img_url,
+        "prompt_used": full_prompt,
+        "generated_prompt": location_data.get("prompt") or full_prompt
     }
 
 
@@ -2126,9 +2454,59 @@ def normalize_screenplay_data(data, filename=""):
             char_entry["image"] = c["reference_image"]
         if "image_url" in c:
             char_entry["image_url"] = c["image_url"]
+        if "use_turnaround_sheet" in c:
+            char_entry["use_turnaround_sheet"] = bool(c["use_turnaround_sheet"])
 
         norm_chars.append(char_entry)
     norm["characters"] = norm_chars
+
+    # Locations & Sets (Drehorte)
+    raw_locs = data.get("locations") or data.get("drehorte") or data.get("sets") or []
+    if not isinstance(raw_locs, list):
+        raw_locs = []
+
+    norm_locs = []
+    for idx, l in enumerate(raw_locs):
+        if not isinstance(l, dict):
+            l = {"name": str(l)}
+        l_id = l.get("id", idx + 1)
+        l_name = l.get("name") or l.get("drehort") or l.get("ort") or f"Location_{idx+1}"
+        l_model = l.get("model") or l.get("modell") or default_model
+        raw_loras = l.get("loras") or l.get("lora") or []
+        if isinstance(raw_loras, str):
+            l_loras = [x.strip() for x in raw_loras.split(",") if x.strip()]
+        elif isinstance(raw_loras, list):
+            l_loras = list(raw_loras)
+        else:
+            l_loras = []
+
+        l_desc = l.get("description") or l.get("beschreibung") or l.get("prompt") or ""
+        l_prompt = l.get("prompt") or l.get("description") or ""
+
+        auto_prompt = l.get("auto_prompt")
+        if auto_prompt is None:
+            auto_prompt = l.get("ki_prompt_generieren")
+        if auto_prompt is None:
+            auto_prompt = not bool(l.get("prompt"))
+
+        loc_entry = {
+            "id": l_id,
+            "name": l_name,
+            "model": l_model,
+            "loras": l_loras,
+            "description": l_desc,
+            "prompt": l_prompt,
+            "auto_prompt": bool(auto_prompt)
+        }
+        if "image" in l:
+            loc_entry["image"] = l["image"]
+        elif "bild" in l:
+            loc_entry["image"] = l["bild"]
+        if "image_url" in l:
+            loc_entry["image_url"] = l["image_url"]
+
+        norm_locs.append(loc_entry)
+    norm["locations"] = norm_locs
 
     # Scenes
     raw_scenes = data.get("scenes") or data.get("szenen") or []
@@ -2224,6 +2602,12 @@ def normalize_screenplay_data(data, filename=""):
             scene_dict["same_scene"] = True
         if s_ref_prev:
             scene_dict["use_previous_scene"] = True
+        s_loc_id = s.get("location_id")
+        if s_loc_id is not None and str(s_loc_id).strip():
+            try:
+                scene_dict["location_id"] = int(s_loc_id)
+            except (ValueError, TypeError):
+                scene_dict["location_id"] = str(s_loc_id).strip()
         s_connect_to = s.get("connect_to_scene") or s.get("connect_to") or s.get("anschluss_an_szene") or s.get("match_cut_scene") or s.get("continuation_scene")
         if s_connect_to is not None and str(s_connect_to).strip():
             try:
@@ -2232,6 +2616,9 @@ def normalize_screenplay_data(data, filename=""):
                 scene_dict["connect_to_scene"] = str(s_connect_to).strip()
         if s_var_upd:
             scene_dict["variables_update"] = s_var_upd
+        s_char_angles = s.get("character_angles") or s.get("charakter_winkel") or {}
+        if isinstance(s_char_angles, dict) and s_char_angles:
+            scene_dict["character_angles"] = s_char_angles
         if s_loras:
             scene_dict["loras"] = s_loras
         if s_summary:
@@ -2629,6 +3016,41 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
                             c["image"] = f"Characters/{c_safe}.png"
                             c["image_url"] = f"/api/characters/image?project={urllib.parse.quote(proj_base)}&name={urllib.parse.quote(c_safe)}&t={int(os.path.getmtime(c_png))}"
 
+                        # Scan multi-angle studio perspectives
+                        c_angles = {}
+                        c_angles_urls = {}
+                        for ang_key in ("frontal", "three_quarter", "profile", "turnaround"):
+                            if ang_key == "frontal":
+                                ang_file = os.path.join(chars_dir, f"{c_safe}_frontal.png")
+                                if not os.path.exists(ang_file) and os.path.exists(c_png):
+                                    ang_file = c_png
+                            elif ang_key == "three_quarter":
+                                ang_file = os.path.join(chars_dir, f"{c_safe}_three_quarter.png")
+                            elif ang_key == "profile":
+                                ang_file = os.path.join(chars_dir, f"{c_safe}_profile.png")
+                            elif ang_key == "turnaround":
+                                ang_file = os.path.join(chars_dir, f"{c_safe}_turnaround.png")
+
+                            if os.path.exists(ang_file):
+                                c_angles[ang_key] = True
+                                c_angles_urls[ang_key] = f"/api/characters/image?project={urllib.parse.quote(proj_base)}&name={urllib.parse.quote(c_safe)}&angle={ang_key}&t={int(os.path.getmtime(ang_file))}"
+                            else:
+                                c_angles[ang_key] = False
+
+                        c["angles"] = c_angles
+                        c["angles_urls"] = c_angles_urls
+
+                # Check if location plate images exist on disk in Projects/<safe_project>/Locations/<loc_safe>.png
+                locs_dir = os.path.join(PROJECTS_DIR, proj_base, "Locations")
+                for loc in normalized.get("locations", []):
+                    l_name = loc.get("name", "")
+                    if l_name:
+                        l_safe = re.sub(r'[\\/*?:"<>| ]', '_', l_name)
+                        l_png = os.path.join(locs_dir, f"{l_safe}.png")
+                        if os.path.exists(l_png):
+                            loc["image"] = f"Locations/{l_safe}.png"
+                            loc["image_url"] = f"/api/locations/image?project={urllib.parse.quote(proj_base)}&name={urllib.parse.quote(l_safe)}&t={int(os.path.getmtime(l_png))}"
+
                 self.send_json({
                     "file": safe_name,
                     "data": normalized,
@@ -2644,20 +3066,49 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
         if path == "/api/characters/image":
             project_param = query.get("project", [""])[0].strip()
             name_param = query.get("name", [""])[0].strip()
+            angle_param = query.get("angle", [""])[0].strip().lower()
             if not project_param or not name_param:
                 self.send_error(400, "Parameter 'project' und 'name' erforderlich")
                 return
 
             safe_project = os.path.splitext(os.path.basename(project_param))[0]
-            safe_name = re.sub(r'[\\/*?:"<>| ]', '_', os.path.basename(name_param))
-            if not safe_name.lower().endswith(".png"):
-                safe_name += ".png"
+            raw_char_name = os.path.basename(name_param)
+            safe_name = re.sub(r'[\\/*?:"<>| ]', '_', os.path.splitext(raw_char_name)[0])
 
-            img_path = os.path.join(PROJECTS_DIR, safe_project, "Characters", safe_name)
-            if not os.path.exists(img_path):
-                img_path = os.path.join(PROJECTS_DIR, "Characters", safe_name)
+            chars_dir = os.path.join(PROJECTS_DIR, safe_project, "Characters")
+            img_path = None
 
-            if not os.path.exists(img_path):
+            if angle_param == "turnaround":
+                cand = os.path.join(chars_dir, f"{safe_name}_turnaround.png")
+                if os.path.exists(cand):
+                    img_path = cand
+            elif angle_param == "three_quarter":
+                for cand_name in (f"{safe_name}_three_quarter.png", f"{safe_name}_3_4.png", f"{safe_name}_angled.png"):
+                    cand = os.path.join(chars_dir, cand_name)
+                    if os.path.exists(cand):
+                        img_path = cand
+                        break
+            elif angle_param == "profile":
+                for cand_name in (f"{safe_name}_profile.png", f"{safe_name}_side.png"):
+                    cand = os.path.join(chars_dir, cand_name)
+                    if os.path.exists(cand):
+                        img_path = cand
+                        break
+            elif angle_param == "frontal":
+                cand = os.path.join(chars_dir, f"{safe_name}_frontal.png")
+                if os.path.exists(cand):
+                    img_path = cand
+
+            if not img_path:
+                master_cand = os.path.join(chars_dir, f"{safe_name}.png")
+                if os.path.exists(master_cand):
+                    img_path = master_cand
+                else:
+                    legacy_cand = os.path.join(PROJECTS_DIR, "Characters", f"{safe_name}.png")
+                    if os.path.exists(legacy_cand):
+                        img_path = legacy_cand
+
+            if not img_path or not os.path.exists(img_path):
                 self.send_error(404, "Charakterbild nicht gefunden")
                 return
 
@@ -2672,6 +3123,42 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
                 self.wfile.write(content)
             except Exception as e:
                 self.send_error(500, f"Fehler beim Laden des Bildes: {e}")
+            return
+
+        # -------------------------------------------------------------
+        # GET /api/locations/image (Serve location set reference plate)
+        # -------------------------------------------------------------
+        if path == "/api/locations/image":
+            project_param = query.get("project", [""])[0].strip()
+            name_param = query.get("name", [""])[0].strip()
+            if not project_param or not name_param:
+                self.send_error(400, "Parameter 'project' und 'name' erforderlich")
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            safe_name = re.sub(r'[\\/*?:"<>| ]', '_', os.path.basename(name_param))
+            if not safe_name.lower().endswith(".png"):
+                safe_name += ".png"
+
+            img_path = os.path.join(PROJECTS_DIR, safe_project, "Locations", safe_name)
+            if not os.path.exists(img_path):
+                img_path = os.path.join(PROJECTS_DIR, "Locations", safe_name)
+
+            if not os.path.exists(img_path):
+                self.send_error(404, "Drehort-Bild nicht gefunden")
+                return
+
+            try:
+                with open(img_path, "rb") as f:
+                    content = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png")
+                self.send_header("Content-Length", str(len(content)))
+                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                self.end_headers()
+                self.wfile.write(content)
+            except Exception as e:
+                self.send_error(500, f"Fehler beim Laden des Drehort-Bildes: {e}")
             return
 
         # -------------------------------------------------------------
@@ -3526,6 +4013,303 @@ class ScriptAgencyHandler(BaseHTTPRequestHandler):
                 self.send_json(res, status=200)
             else:
                 self.send_error_json(res.get("error", "Fehler bei der Bildgenerierung"), status=500)
+            return
+
+        # -------------------------------------------------------------
+        # POST /api/characters/generate_angle
+        # -------------------------------------------------------------
+        if path == "/api/characters/generate_angle":
+            project_param = payload.get("project", "").strip()
+            char_data = payload.get("character", {})
+            angle = payload.get("angle", "frontal").strip()
+            variables = payload.get("variables", {})
+            remove_bg = bool(payload.get("remove_background", True))
+
+            if not project_param or not char_data:
+                self.send_error_json("Parameter 'project' und 'character' erforderlich", status=400)
+                return
+
+            res = generate_character_angle_comfy(project_param, char_data, angle=angle, variables=variables, remove_bg=remove_bg)
+            if res.get("success"):
+                self.send_json(res, status=200)
+            else:
+                self.send_error_json(res.get("error", "Fehler bei der Blickwinkel-Generierung"), status=500)
+            return
+
+        # -------------------------------------------------------------
+        # POST /api/characters/generate_turnaround
+        # -------------------------------------------------------------
+        if path == "/api/characters/generate_turnaround":
+            project_param = payload.get("project", "").strip()
+            char_name = payload.get("name", "").strip()
+            if not project_param or not char_name:
+                self.send_error_json("Parameter 'project' und 'name' erforderlich", status=400)
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            safe_char = re.sub(r'[\\/*?:"<>| ]', '_', char_name)
+            chars_dir = os.path.join(PROJECTS_DIR, safe_project, "Characters")
+
+            frontal_path = os.path.join(chars_dir, f"{safe_char}_frontal.png")
+            if not os.path.exists(frontal_path):
+                frontal_path = os.path.join(chars_dir, f"{safe_char}.png")
+            three_quarter_path = os.path.join(chars_dir, f"{safe_char}_three_quarter.png")
+            profile_path = os.path.join(chars_dir, f"{safe_char}_profile.png")
+            turnaround_path = os.path.join(chars_dir, f"{safe_char}_turnaround.png")
+
+            try:
+                sheet_res = build_turnaround_sheet(
+                    frontal_path=frontal_path if os.path.exists(frontal_path) else None,
+                    three_quarter_path=three_quarter_path if os.path.exists(three_quarter_path) else None,
+                    profile_path=profile_path if os.path.exists(profile_path) else None,
+                    output_path=turnaround_path
+                )
+                timestamp = int(time.time())
+                turnaround_url = f"/api/characters/image?project={urllib.parse.quote(safe_project)}&name={urllib.parse.quote(safe_char)}&angle=turnaround&t={timestamp}"
+                self.send_json({
+                    "success": True,
+                    "filename": f"{safe_char}_turnaround.png",
+                    "image_url": turnaround_url,
+                    "panel_count": sheet_res.get("panel_count", 0),
+                    "message": f"Turnaround-Sheet für '{char_name}' erfolgreich erstellt."
+                })
+            except Exception as e:
+                self.send_error_json(f"Fehler beim Erstellen des Turnaround-Sheets: {e}", status=500)
+            return
+
+        # -------------------------------------------------------------
+        # POST /api/characters/upload_angle
+        # -------------------------------------------------------------
+        if path == "/api/characters/upload_angle":
+            project_param = payload.get("project", "").strip()
+            char_name = payload.get("name", "").strip()
+            angle = payload.get("angle", "frontal").strip().lower()
+            image_b64 = payload.get("image_base64", "").strip()
+            remove_bg = bool(payload.get("remove_background", True))
+
+            if not project_param or not char_name or not image_b64:
+                self.send_error_json("Parameter 'project', 'name' und 'image_base64' erforderlich", status=400)
+                return
+
+            if angle not in ("frontal", "three_quarter", "profile"):
+                angle = "frontal"
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            safe_char = re.sub(r'[\\/*?:"<>| ]', '_', char_name)
+
+            if "," in image_b64:
+                image_b64 = image_b64.split(",", 1)[1]
+
+            try:
+                img_bytes = base64.b64decode(image_b64)
+            except Exception as e:
+                self.send_error_json(f"Ungültige Base64-Bilddaten: {e}", status=400)
+                return
+
+            if remove_bg:
+                try:
+                    import importlib
+                    rembg_mod = importlib.import_module("rembg")
+                    remove_fn = getattr(rembg_mod, "remove")
+                    img_bytes = remove_fn(img_bytes)
+                except Exception as re_err:
+                    print(f"⚠️ [RemBG] Warnung: Hintergrundentfernung fehlgeschlagen ({re_err}), verwende Originalbild.")
+
+            chars_dir = os.path.join(PROJECTS_DIR, safe_project, "Characters")
+            os.makedirs(chars_dir, exist_ok=True)
+
+            target_filename = f"{safe_char}_{angle}.png"
+            target_file = os.path.join(chars_dir, target_filename)
+
+            with open(target_file, "wb") as f:
+                f.write(img_bytes)
+
+            if angle == "frontal":
+                with open(os.path.join(chars_dir, f"{safe_char}.png"), "wb") as mf:
+                    mf.write(img_bytes)
+
+            # Auto-refresh turnaround sheet if at least 2 angles exist
+            frontal_path = os.path.join(chars_dir, f"{safe_char}_frontal.png")
+            if not os.path.exists(frontal_path):
+                frontal_path = os.path.join(chars_dir, f"{safe_char}.png")
+            three_quarter_path = os.path.join(chars_dir, f"{safe_char}_three_quarter.png")
+            profile_path = os.path.join(chars_dir, f"{safe_char}_profile.png")
+            turnaround_path = os.path.join(chars_dir, f"{safe_char}_turnaround.png")
+            turnaround_updated = False
+            if len([p for p in (frontal_path, three_quarter_path, profile_path) if os.path.exists(p)]) >= 2:
+                try:
+                    build_turnaround_sheet(
+                        frontal_path=frontal_path if os.path.exists(frontal_path) else None,
+                        three_quarter_path=three_quarter_path if os.path.exists(three_quarter_path) else None,
+                        profile_path=profile_path if os.path.exists(profile_path) else None,
+                        output_path=turnaround_path
+                    )
+                    turnaround_updated = True
+                except Exception:
+                    pass
+
+            timestamp = int(time.time())
+            image_url = f"/api/characters/image?project={urllib.parse.quote(safe_project)}&name={urllib.parse.quote(safe_char)}&angle={angle}&t={timestamp}"
+
+            self.send_json({
+                "success": True,
+                "angle": angle,
+                "filename": target_filename,
+                "image_url": image_url,
+                "turnaround_updated": turnaround_updated,
+                "message": f"Blickwinkel '{angle}' für '{char_name}' erfolgreich gespeichert."
+            })
+            return
+
+        # -------------------------------------------------------------
+        # POST /api/characters/delete_angle
+        # -------------------------------------------------------------
+        if path == "/api/characters/delete_angle":
+            project_param = payload.get("project", "").strip()
+            char_name = payload.get("name", "").strip()
+            angle = payload.get("angle", "frontal").strip().lower()
+
+            if not project_param or not char_name:
+                self.send_error_json("Parameter 'project' und 'name' erforderlich", status=400)
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            safe_char = re.sub(r'[\\/*?:"<>| ]', '_', char_name)
+            chars_dir = os.path.join(PROJECTS_DIR, safe_project, "Characters")
+
+            if angle == "turnaround":
+                t_file = os.path.join(chars_dir, f"{safe_char}_turnaround.png")
+                if os.path.exists(t_file):
+                    try:
+                        os.remove(t_file)
+                    except Exception as e:
+                        print(f"⚠️ Konnte {t_file} nicht löschen: {e}")
+            elif angle in ("frontal", "three_quarter", "profile"):
+                a_file = os.path.join(chars_dir, f"{safe_char}_{angle}.png")
+                if os.path.exists(a_file):
+                    try:
+                        os.remove(a_file)
+                    except Exception as e:
+                        print(f"⚠️ Konnte {a_file} nicht löschen: {e}")
+                if angle == "frontal":
+                    m_file = os.path.join(chars_dir, f"{safe_char}.png")
+                    if os.path.exists(m_file):
+                        try:
+                            os.remove(m_file)
+                        except Exception as e:
+                            print(f"⚠️ Konnte {m_file} nicht löschen: {e}")
+
+            self.send_json({
+                "success": True,
+                "angle": angle,
+                "message": f"Blickwinkel '{angle}' für '{char_name}' gelöscht."
+            })
+            return
+
+        # -------------------------------------------------------------
+        # POST /api/locations/upload_image
+        # -------------------------------------------------------------
+        if path == "/api/locations/upload_image":
+            project_param = payload.get("project", "").strip()
+            loc_name = payload.get("name", "").strip()
+            image_b64 = payload.get("image_base64", "").strip()
+
+            if not project_param or not loc_name or not image_b64:
+                self.send_error_json("Parameter 'project', 'name' und 'image_base64' erforderlich", status=400)
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            safe_loc = re.sub(r'[\\/*?:"<>| ]', '_', loc_name)
+
+            if "," in image_b64:
+                image_b64 = image_b64.split(",", 1)[1]
+
+            try:
+                img_bytes = base64.b64decode(image_b64)
+            except Exception as e:
+                self.send_error_json(f"Ungültige Base64-Bilddaten: {e}", status=400)
+                return
+
+            target_dir = os.path.join(PROJECTS_DIR, safe_project, "Locations")
+            os.makedirs(target_dir, exist_ok=True)
+
+            target_filename = f"{safe_loc}.png"
+            target_file = os.path.join(target_dir, target_filename)
+
+            try:
+                with open(target_file, "wb") as f:
+                    f.write(img_bytes)
+
+                timestamp = int(time.time())
+                image_url = f"/api/locations/image?project={urllib.parse.quote(safe_project)}&name={urllib.parse.quote(safe_loc)}&t={timestamp}"
+                rel_path = f"Locations/{target_filename}"
+
+                self.send_json({
+                    "success": True,
+                    "filename": target_filename,
+                    "relative_path": rel_path,
+                    "image_url": image_url,
+                    "message": f"Set-Referenzbild für '{loc_name}' erfolgreich gespeichert."
+                })
+            except Exception as e:
+                self.send_error_json(f"Fehler beim Speichern des Bildes: {e}", status=500)
+            return
+
+        # -------------------------------------------------------------
+        # POST /api/locations/delete_image
+        # -------------------------------------------------------------
+        if path == "/api/locations/delete_image":
+            project_param = payload.get("project", "").strip()
+            loc_name = payload.get("name", "").strip()
+            if not project_param or not loc_name:
+                self.send_error_json("Parameter 'project' und 'name' erforderlich", status=400)
+                return
+
+            safe_project = os.path.splitext(os.path.basename(project_param))[0]
+            safe_loc = re.sub(r'[\\/*?:"<>| ]', '_', loc_name)
+            target_file = os.path.join(PROJECTS_DIR, safe_project, "Locations", f"{safe_loc}.png")
+
+            if os.path.exists(target_file):
+                try:
+                    os.remove(target_file)
+                except Exception as e:
+                    self.send_error_json(f"Fehler beim Löschen des Bildes: {e}", status=500)
+                    return
+
+            self.send_json({
+                "success": True,
+                "message": f"Set-Referenzbild für '{loc_name}' gelöscht."
+            })
+            return
+
+        # -------------------------------------------------------------
+        # POST /api/locations/generate_image (Generate location plate in ComfyUI)
+        # -------------------------------------------------------------
+        if path == "/api/locations/generate_image":
+            project_param = payload.get("project", "").strip()
+            loc_data = payload.get("location", {})
+            variables = payload.get("variables", {})
+
+            if not project_param or not loc_data:
+                self.send_error_json("Parameter 'project' und 'location' erforderlich", status=400)
+                return
+
+            res = generate_location_plate_comfy(project_param, loc_data, variables=variables)
+            if res.get("success"):
+                self.send_json(res, status=200)
+            else:
+                self.send_error_json(res.get("error", "Fehler bei der Bildgenerierung"), status=500)
+            return
+
+        # -------------------------------------------------------------
+        # POST /api/locations/optimize_prompt (AI Prompt optimizer for sets)
+        # -------------------------------------------------------------
+        if path == "/api/locations/optimize_prompt":
+            res = ai_optimize_location_prompt(payload)
+            if res.get("success"):
+                self.send_json(res, status=200)
+            else:
+                self.send_error_json(res.get("error", "Fehler bei der Prompt-Optimierung"), status=500)
             return
 
         # -------------------------------------------------------------

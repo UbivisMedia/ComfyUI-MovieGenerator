@@ -2405,6 +2405,15 @@ textarea.form-control {
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.char-portrait-preview-box:hover,
+.char-portrait-preview-box:focus-visible {
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 14px rgba(245, 166, 35, 0.4);
+  outline: none;
 }
 
 .char-portrait-thumb {
@@ -2415,7 +2424,44 @@ textarea.form-control {
 }
 
 .char-portrait-preview-box:hover .char-portrait-thumb {
-  transform: scale(1.06);
+  transform: scale(1.08);
+}
+
+.char-portrait-zoom-badge {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 14, 23, 0.45);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: inherit;
+}
+
+.char-portrait-zoom-badge span {
+  font-size: 16px;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 5px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: scale(0.8);
+  transition: transform 0.2s ease;
+}
+
+.char-portrait-preview-box:hover .char-portrait-zoom-badge,
+.char-portrait-preview-box:focus-visible .char-portrait-zoom-badge {
+  opacity: 1;
+}
+
+.char-portrait-preview-box:hover .char-portrait-zoom-badge span,
+.char-portrait-preview-box:focus-visible .char-portrait-zoom-badge span {
+  transform: scale(1);
 }
 
 .char-portrait-info {
@@ -2470,6 +2516,261 @@ textarea.form-control {
   border: 1px solid rgba(56, 189, 248, 0.25);
   padding: 6px 10px;
   border-radius: 6px;
+}
+
+/* ============================================================= */
+/* Multi-Angle Studio (Character Continuity 2.0)                 */
+/* ============================================================= */
+
+.multi-angle-studio-container {
+  margin-top: 12px;
+  margin-bottom: 12px;
+  background: rgba(14, 20, 32, 0.65);
+  border: 1px solid rgba(245, 166, 35, 0.25);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.multi-angle-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.multi-angle-title-area {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.multi-angle-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.multi-angle-title-row label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-gold);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin: 0;
+}
+
+.multi-angle-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.35;
+}
+
+.multi-angle-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.multi-angle-default-chk-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-bright, #fff);
+  cursor: pointer;
+  user-select: none;
+  background: rgba(245, 166, 35, 0.1);
+  border: 1px solid rgba(245, 166, 35, 0.3);
+  padding: 3px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.multi-angle-default-chk-label:hover {
+  background: rgba(245, 166, 35, 0.18);
+  border-color: var(--accent-gold);
+}
+
+.multi-angle-default-chk-label input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: var(--accent-gold);
+}
+
+.multi-angle-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.angle-card {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.angle-card:hover {
+  border-color: rgba(245, 166, 35, 0.4);
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.angle-card.is-turnaround {
+  border-color: rgba(56, 189, 248, 0.35);
+  background: rgba(14, 28, 48, 0.35);
+}
+
+.angle-card.is-turnaround:hover {
+  border-color: var(--accent-cyan);
+}
+
+.angle-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.angle-card-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-bright, #fff);
+}
+
+.angle-card-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-dim);
+}
+
+.angle-card.is-turnaround .angle-card-badge {
+  background: rgba(56, 189, 248, 0.2);
+  color: var(--accent-cyan);
+}
+
+.angle-card-preview {
+  position: relative;
+  width: 100%;
+  height: 90px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  /* Checkerboard transparency pattern */
+  background-color: #121620;
+  background-image:
+    linear-gradient(45deg, #1c2232 25%, transparent 25%),
+    linear-gradient(-45deg, #1c2232 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1c2232 75%),
+    linear-gradient(-45deg, transparent 75%, #1c2232 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-bottom: 6px;
+  transition: border-color 0.2s ease, transform 0.15s ease;
+}
+
+.angle-card-preview:hover {
+  border-color: var(--accent-gold);
+}
+
+.angle-card.is-turnaround .angle-card-preview:hover {
+  border-color: var(--accent-cyan);
+}
+
+.angle-card-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform 0.2s ease;
+}
+
+.angle-card-preview:hover .angle-card-thumb {
+  transform: scale(1.06);
+}
+
+.angle-empty-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: var(--text-dim);
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.angle-empty-placeholder span {
+  font-size: 20px;
+  opacity: 0.6;
+}
+
+.angle-card-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.angle-card-actions .btn {
+  padding: 3px 6px;
+  font-size: 10px;
+}
+
+/* Cast member pill and angle dropdown inside Scene Card */
+.cast-member-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 2px 4px 2px 2px;
+  transition: all 0.2s ease;
+}
+
+.cast-member-pill.selected {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.cast-angle-select {
+  background: rgba(10, 14, 23, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-bright, #fff);
+  border-radius: 12px;
+  font-size: 10px;
+  padding: 2px 6px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.cast-angle-select:hover,
+.cast-angle-select:focus {
+  border-color: var(--accent-gold);
+}
+
+.cast-angle-select option {
+  background: #0e1420;
+  color: #fff;
 }
 
 /* ============================================================= */
@@ -4130,4 +4431,295 @@ textarea.form-control {
   border-radius: 4px;
   padding: 1px 4px;
   line-height: 1;
+}
+
+/* ==========================================================================
+   Image Lightbox Modal
+   ========================================================================== */
+
+#imageLightboxModal {
+  z-index: 500;
+  backdrop-filter: blur(8px);
+  background: rgba(4, 7, 13, 0.88);
+}
+
+.image-lightbox-dialog {
+  max-width: 860px;
+  width: 92vw;
+  max-height: 90vh;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+}
+
+.image-lightbox-body {
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #0b0e14;
+  overflow: hidden;
+  min-height: 240px;
+}
+
+.image-lightbox-wrapper {
+  position: relative;
+  max-width: 100%;
+  max-height: 72vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  /* Checkerboard transparency pattern */
+  background-color: #121620;
+  background-image:
+    linear-gradient(45deg, #1c2232 25%, transparent 25%),
+    linear-gradient(-45deg, #1c2232 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1c2232 75%),
+    linear-gradient(-45deg, transparent 75%, #1c2232 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+}
+
+.image-lightbox-img {
+  max-width: 100%;
+  max-height: 72vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  user-select: none;
+  border-radius: var(--radius-sm);
+  transition: transform 0.2s ease;
+}
+
+.image-lightbox-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-sidebar);
+}
+
+.image-lightbox-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ==========================================================================
+   Filming Locations & Set Studio (Drehorte - v1.4)
+   ========================================================================== */
+
+.locations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+  gap: 20px;
+}
+
+.location-card {
+  background: var(--bg-card);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.location-card:hover {
+  border-color: rgba(20, 184, 166, 0.4);
+  background: var(--bg-card-hover);
+  box-shadow: var(--shadow-md);
+}
+
+.loc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--bg-border);
+  padding-bottom: 10px;
+}
+
+.loc-id-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(20, 184, 166, 0.15);
+  border: 1px solid rgba(20, 184, 166, 0.4);
+  color: #2dd4bf;
+  font-size: 12px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+}
+
+.loc-title-inputs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  margin: 0 10px;
+}
+
+.loc-name-input {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  width: 100%;
+}
+
+.loc-name-input:focus {
+  background: var(--bg-input);
+  border-color: #14b8a6;
+}
+
+.loc-plate-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  border: 1px dashed var(--bg-border);
+}
+
+.loc-plate-preview-box {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.loc-plate-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease, filter 0.3s ease;
+}
+
+.loc-plate-preview-box:hover .loc-plate-thumb {
+  transform: scale(1.03);
+  filter: brightness(1.08);
+}
+
+.loc-plate-zoom-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(4px);
+  padding: 3px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  opacity: 0.85;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.loc-plate-preview-box:hover .loc-plate-zoom-badge {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+.loc-plate-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.loc-plate-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.loc-plate-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.loc-plate-placeholder-icon {
+  font-size: 32px;
+  opacity: 0.7;
+}
+
+/* Scene Card Location Integration */
+.scene-loc-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.scene-location-select {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  border: 1px solid var(--bg-border);
+  color: var(--text-main);
+  max-width: 220px;
+}
+
+.scene-loc-chip-thumb {
+  width: 28px;
+  height: 20px;
+  object-fit: cover;
+  border-radius: 3px;
+  border: 1px solid rgba(20, 184, 166, 0.5);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.scene-loc-chip-thumb:hover {
+  transform: scale(1.18);
+  border-color: #2dd4bf;
+  box-shadow: 0 0 6px rgba(45, 212, 191, 0.4);
+}
+
+/* Filmstrip Set Badge */
+.filmstrip-loc-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  background: rgba(20, 184, 166, 0.2);
+  border: 1px solid rgba(20, 184, 166, 0.4);
+  color: #2dd4bf;
+  padding: 1px 4px;
+  border-radius: 3px;
+  cursor: default;
 }

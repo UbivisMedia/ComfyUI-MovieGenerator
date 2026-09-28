@@ -23,6 +23,7 @@ from catalog_builder import build_or_update_catalog
 from version import __version__
 from lib.subject_manager import (
     resolve_scene_characters as resolve_scene_characters_managed,
+    resolve_character_reference_image,
     build_subject_definitions,
     remap_scene_subjects,
     build_minimax_api_prompt as build_minimax_api_prompt_managed,
@@ -2207,13 +2208,15 @@ def main():
 
     film_name = os.path.splitext(os.path.basename(screenplay_path))[0]
 
-    # Create structured project directories: Projects/<film_name>/{Characters, Scenes, Movie}
+    # Create structured project directories: Projects/<film_name>/{Characters, Locations, Scenes, Movie}
     project_dir = os.path.join(PROJECTS_DIR, film_name)
     characters_dir = os.path.join(project_dir, "Characters")
+    locations_dir = os.path.join(project_dir, "Locations")
     scenes_dir = os.path.join(project_dir, "Scenes")
     movie_dir = os.path.join(project_dir, "Movie")
 
     os.makedirs(characters_dir, exist_ok=True)
+    os.makedirs(locations_dir, exist_ok=True)
     os.makedirs(scenes_dir, exist_ok=True)
     os.makedirs(movie_dir, exist_ok=True)
 
@@ -2348,6 +2351,7 @@ def main():
         print(t("variables_initialized", count=len(active_variables), vars=var_summary))
 
     scenes_list = screenplay.get("szenen") or screenplay.get("scenes") or []
+    locations_list = screenplay.get("drehorte") or screenplay.get("locations") or []
 
     # Targeted scene re-shooting support (--scene <id>):
     target_scene = None
@@ -3289,12 +3293,17 @@ def main():
         if extra_scene_triggers:
             final_scene_prompt = f"{final_scene_prompt}\n\n[Scene enhancements: {', '.join(extra_scene_triggers)}]"
         
-        # Assemble full Minimax template with dynamic subject remapping
+        # Resolve scene filming location if any
+        from lib.subject_manager import resolve_scene_location
+        resolved_scene_loc = resolve_scene_location(scene_data, locations_list=locations_list)
+
+        # Assemble full Minimax template with dynamic subject remapping and filming location
         final_scene_prompt = build_minimax_api_prompt(
             final_scene_prompt, 
             characters=resolved_scene_chars, 
             scene_data=scene_data, 
-            all_characters=characters_list
+            all_characters=characters_list,
+            location=resolved_scene_loc
         )
         wf_i2v["138"]["inputs"]["value"] = final_scene_prompt
         
@@ -3312,39 +3321,81 @@ def main():
         for k in [k for k in list(wf_i2v.keys()) if re.match(r"^900\d+$", k)]:
             del wf_i2v[k]
 
+        valid_ref_idx = 0
         if resolved_scene_chars:
             char_names_log = ", ".join(c.get("name", f"Actor_{c_idx+1}") for c_idx, c in enumerate(resolved_scene_chars) if isinstance(c, dict))
             if char_names_log:
                 print(f"   🎭 Scene {szene_id} active cast: {char_names_log}")
-            valid_ref_idx = 0
             for i, char in enumerate(resolved_scene_chars):
                 if valid_ref_idx >= 9:
                     print(f"   ⚠️ Warning: MiniMax H3 supports maximum 9 reference images. Skipping remaining cast members for scene {szene_id}.")
                     break
                 fallback_name = (char.get("name") if isinstance(char, dict) else str(char)) or f"actor_{i+1}"
-                safe_char_name = re.sub(r'[\\/*?:"<>| ]', '_', fallback_name)
                 
-                # Retrieve uploaded filename, or upload from disk if exists
-                char_file_name = char.get("echter_dateiname") if isinstance(char, dict) else None
-                if not char_file_name:
-                    local_char_file = os.path.join(characters_dir, f"{safe_char_name}.png")
-                    if os.path.exists(local_char_file):
-                        try:
-                            with open(local_char_file, "rb") as cf:
-                                uploaded_name = upload_file(cf.read(), f"{safe_char_name}.png", "image/png")
-                            char_file_name = uploaded_name
-                            if isinstance(char, dict):
-                                char["echter_dateiname"] = uploaded_name
-                        except Exception as up_err:
-                            print(f"   ⚠️ Could not upload local image for '{fallback_name}': {up_err}")
+                # Resolve optimal angle or turnaround sheet for this scene
+                ref_info = resolve_character_reference_image(char, scene=scene_data, characters_dir=characters_dir)
+                local_char_file = ref_info["file_path"]
+                chosen_angle = ref_info["angle"]
+                is_turnaround = ref_info["is_turnaround"]
+                target_upload_name = ref_info["filename"]
+                
+                cache_key = f"echter_dateiname_{target_upload_name}"
+                char_file_name = char.get(cache_key) if isinstance(char, dict) else None
+                if not char_file_name and os.path.exists(local_char_file):
+                    try:
+                        with open(local_char_file, "rb") as cf:
+                            uploaded_name = upload_file(cf.read(), target_upload_name, "image/png")
+                        char_file_name = uploaded_name
+                        if isinstance(char, dict):
+                            char[cache_key] = uploaded_name
+                    except Exception as up_err:
+                        print(f"   ⚠️ Could not upload image '{target_upload_name}' for '{fallback_name}': {up_err}")
                 
                 if not char_file_name:
-                    print(f"   ⚠️ Warning: Character portrait '{safe_char_name}.png' not found! Skipping reference.")
+                    print(f"   ⚠️ Warning: Character reference image '{target_upload_name}' not found! Skipping reference.")
                     continue
+
+                if is_turnaround:
+                    print(f"   🎭 Scene {szene_id} character '{fallback_name}': Using Multi-View Turnaround Sheet ({target_upload_name})")
+                elif chosen_angle != "frontal":
+                    print(f"   🎭 Scene {szene_id} character '{fallback_name}': Using {chosen_angle.replace('_', ' ').capitalize()} angle ({target_upload_name})")
 
                 node_id = f"900{valid_ref_idx}"
                 wf_i2v[node_id] = {
                     "inputs": {"image": char_file_name},
+                    "class_type": "LoadImage"
+                }
+                wf_i2v["136"]["inputs"][f"ref_images.ref_image_{valid_ref_idx}"] = [node_id, 0]
+                valid_ref_idx += 1
+
+        # Inject filming location master plate as environment reference if available
+        if resolved_scene_loc and valid_ref_idx < 9:
+            loc_name = (resolved_scene_loc.get("name") if isinstance(resolved_scene_loc, dict) else str(resolved_scene_loc)) or "location"
+            safe_loc_name = re.sub(r'[\\/*?:"<>| ]', '_', loc_name)
+            loc_file_name = resolved_scene_loc.get("echter_dateiname") if isinstance(resolved_scene_loc, dict) else None
+            if not loc_file_name:
+                local_loc_file = os.path.join(locations_dir, f"{safe_loc_name}.png")
+                if not os.path.exists(local_loc_file):
+                    img_rel = resolved_scene_loc.get("image") if isinstance(resolved_scene_loc, dict) else None
+                    if img_rel:
+                        cand_p = os.path.join(project_dir, img_rel)
+                        if os.path.exists(cand_p):
+                            local_loc_file = cand_p
+                if os.path.exists(local_loc_file):
+                    try:
+                        with open(local_loc_file, "rb") as lf:
+                            uploaded_loc_name = upload_file(lf.read(), f"{safe_loc_name}.png", "image/png")
+                        loc_file_name = uploaded_loc_name
+                        if isinstance(resolved_scene_loc, dict):
+                            resolved_scene_loc["echter_dateiname"] = uploaded_loc_name
+                    except Exception as up_err:
+                        print(f"   ⚠️ Could not upload local location image for '{loc_name}': {up_err}")
+
+            if loc_file_name:
+                print(f"   🏛️ Scene {szene_id} active filming location plate: {safe_loc_name}.png -> <Subject {valid_ref_idx+1}> (<Picture {valid_ref_idx+1}>)")
+                node_id = f"900{valid_ref_idx}"
+                wf_i2v[node_id] = {
+                    "inputs": {"image": loc_file_name},
                     "class_type": "LoadImage"
                 }
                 wf_i2v["136"]["inputs"][f"ref_images.ref_image_{valid_ref_idx}"] = [node_id, 0]
